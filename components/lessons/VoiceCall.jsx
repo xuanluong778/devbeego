@@ -44,7 +44,7 @@ export default function VoiceCall({
   userFriendly = false,
 }) {
   const sanitizeUi = userFriendly || headless;
-  const { openPaywall } = usePaywall();
+  const { openPaywall, hideBillingUi } = usePaywall();
   const wsUrl = wsUrlProp || defaultWsUrl();
   const { readyState, lastError, closeInfo, connect, disconnect, sendJson, sendBinary, setOnJsonMessage, setOnBinaryMessage, isOpen } =
     useVoiceWebSocket(wsUrl);
@@ -820,14 +820,16 @@ export default function VoiceCall({
           {quotaLoading ? "Đang cập nhật..." : "Refresh plan/quota"}
         </button>
 
-        <button
-          type="button"
-          className={`${styles.btn} ${styles.btnGhost}`}
-          onClick={() => openPaywall({ message: "Nâng cấp để dùng voice nhiều hơn.", source: "voice_upgrade_btn" })}
-          title="Nâng cấp gói"
-        >
-          Upgrade
-        </button>
+        {!hideBillingUi ? (
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnGhost}`}
+            onClick={() => openPaywall({ message: "Nâng cấp để dùng voice nhiều hơn.", source: "voice_upgrade_btn" })}
+            title="Nâng cấp gói"
+          >
+            Upgrade
+          </button>
+        ) : null}
 
         <button
           type="button"

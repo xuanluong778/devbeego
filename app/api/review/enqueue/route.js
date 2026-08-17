@@ -28,9 +28,10 @@ export async function POST(request) {
 
     await pool.query(
       `INSERT INTO user_word_progress
-        (user_id, word_id, mastery_level, next_review_at, correct_streak, wrong_count)
-       VALUES (?, ?, 0, NOW(), 0, 0)
+        (user_id, word_id, mastery_level, next_review_at, correct_streak, wrong_count, status)
+       VALUES (?, ?, 0, NOW(), 0, 0, 'learning')
        ON DUPLICATE KEY UPDATE
+        status = IF(status = 'new' OR status IS NULL, 'learning', status),
         next_review_at = IF(next_review_at IS NULL, NOW(), next_review_at),
         updated_at = CURRENT_TIMESTAMP`,
       [userId, wordId]

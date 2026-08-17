@@ -1,5 +1,7 @@
 import "./globals.css";
 import "./beego-design.css";
+import "./beego-learn.css";
+import "./beego-lesson-player.css";
 import "./beego.css";
 import { Oswald, Roboto } from "next/font/google";
 import AppProviders from "@/components/AppProviders";
@@ -8,17 +10,17 @@ import AppShell from "@/components/beego/AppShell";
 
 const roboto = Roboto({
   subsets: ["latin", "latin-ext"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "700"],
   display: "swap",
   preload: true,
 });
 
 const oswald = Oswald({
   subsets: ["latin", "latin-ext"],
-  weight: ["500", "600", "700"],
+  weight: ["600", "700"],
   display: "swap",
   variable: "--font-heading",
-  preload: true,
+  preload: false,
 });
 
 export const metadata = {

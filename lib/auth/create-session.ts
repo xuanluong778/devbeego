@@ -3,6 +3,8 @@ import pool from "@/lib/db";
 import { generateSessionToken } from "@/lib/auth";
 import { resolveCookieSecure } from "@/lib/auth/resolve-cookie-secure";
 import { ensureUserSessionsTable } from "@/lib/auth/ensure-session-schema";
+import { ensureRoleSchema } from "@/lib/auth/ensure-role-schema";
+import { syncLoginMeta } from "@/lib/auth/user-role";
 
 export const SESSION_COOKIE_NAME = "session_token";
 export const SESSION_DAYS = 7;
@@ -38,6 +40,10 @@ export async function setSessionOnResponse(
     token,
     expiresAt,
   ]);
+  await ensureRoleSchema();
+  const [emailRows] = await pool.query("SELECT email FROM users WHERE id = ? LIMIT 1", [userId]);
+  const email = (emailRows as { email: string | null }[])[0]?.email ?? null;
+  await syncLoginMeta(userId, email);
   const secure = resolveCookieSecure(request);
   response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions(expiresAt, secure));
   return token;

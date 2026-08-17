@@ -323,6 +323,42 @@
   font-weight: 600;
 }
 
+.auth-method-tabs {
+  display: flex;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+}
+
+.auth-method-tab {
+  flex: 1;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.auth-method-tab.is-active {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(125, 211, 252, 0.55);
+  color: #fff;
+}
+
+.auth-method-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auth-forgot-row {
+  margin: 0.75rem 0 0;
+  text-align: center;
+}
+
 @media (max-width: 480px) {
   .auth-glass {
     padding: 1.5rem 1.15rem 1.35rem;

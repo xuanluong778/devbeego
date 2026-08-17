@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BEEGO_BRAND } from "@/lib/beego/brand";
@@ -59,16 +60,22 @@ export default function BeegoOnboarding() {
     <div className="beego-onboarding" style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div className="beego-page" style={{ maxWidth: 640, width: "100%" }}>
         <div style={{ background: "var(--beego-surface)", borderRadius: 24, padding: "clamp(20px,4vw,32px)", border: "1px solid var(--beego-border)", boxShadow: "var(--beego-shadow)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-            <span className="beego-mascot" aria-hidden>
-              🐝
-            </span>
-            <div>
-              <strong style={{ fontFamily: "var(--font-heading), Oswald, sans-serif", fontSize: "1.1rem" }}>
-                {BEEGO_BRAND.name}
-              </strong>
-              <div style={{ fontSize: "0.75rem", color: "var(--beego-muted)", fontWeight: 700 }}>{BEEGO_BRAND.domain}</div>
+          <div className="beego-onboarding-header">
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="beego-mascot" aria-hidden>
+                🐝
+              </span>
+              <div>
+                <strong style={{ fontFamily: "var(--font-heading), Oswald, sans-serif", fontSize: "1.1rem" }}>
+                  {BEEGO_BRAND.name}
+                </strong>
+                <div style={{ fontSize: "0.75rem", color: "var(--beego-muted)", fontWeight: 700 }}>{BEEGO_BRAND.domain}</div>
+              </div>
             </div>
+            <Link href="/" className="beego-onboarding-home-link" aria-label="Về trang chủ">
+              <span aria-hidden>🏠</span>
+              Trang chủ
+            </Link>
           </div>
 
           <Stepper total={3} current={step} />

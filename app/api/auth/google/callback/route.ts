@@ -3,23 +3,34 @@ import crypto from "node:crypto";
 import type { ResultSetHeader } from "mysql2";
 import pool from "@/lib/db";
 import { ensureUsersAuthColumns } from "@/lib/auth/ensure-verification-schema";
+import { ensureGoogleAuthColumns } from "@/lib/auth/ensure-google-auth-columns";
 import { hashPassword } from "@/lib/auth";
 import { setSessionOnResponse } from "@/lib/auth/create-session";
 import { createInitialSubscriptionForNewUser } from "@/lib/subscriptions/subscription-service";
+import { getGoogleCallbackUrl, getGoogleClientConfig, publicOrigin } from "@/lib/auth/google-oauth-config";
+import { findDuplicateRegistrationEmail, validateRegistrationEmail } from "@/lib/auth/gmail-registration";
 
-function publicOrigin(request: NextRequest) {
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
-  const proto = request.headers.get("x-forwarded-proto") || "http";
-  if (!host) return new URL(request.url).origin;
-  return `${proto}://${host}`;
-}
+type GoogleProfile = {
+  id?: string;
+  email?: string;
+  name?: string;
+  verified_email?: boolean;
+  picture?: string;
+};
 
-function safeNextPath(raw: string | undefined) {
-  if (!raw || typeof raw !== "string") return "/";
+type UserRow = {
+  id: number;
+  name: string;
+  email: string | null;
+  google_id: string | null;
+};
+
+function safeNextPath(raw: string | undefined, fallback = "/dashboard") {
+  if (!raw || typeof raw !== "string") return fallback;
   const p = raw.trim();
-  if (!p.startsWith("/") || p.startsWith("//")) return "/";
-  if (p.includes("..") || p.includes("\\")) return "/";
-  if (p === "/auth" || p.startsWith("/auth?") || p.startsWith("/auth/")) return "/";
+  if (!p.startsWith("/") || p.startsWith("//")) return fallback;
+  if (p.includes("..") || p.includes("\\")) return fallback;
+  if (p === "/auth" || p.startsWith("/auth?") || p.startsWith("/auth/")) return fallback;
   return p;
 }
 
@@ -41,21 +52,20 @@ export async function GET(request: NextRequest) {
     return fail("google_state");
   }
 
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) {
+  const config = getGoogleClientConfig();
+  if (!config) {
     return fail("google_off");
   }
 
-  const redirectUri = `${origin}/api/auth/google/callback`;
+  const redirectUri = getGoogleCallbackUrl(request);
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       code,
-      client_id: clientId,
-      client_secret: clientSecret,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
       redirect_uri: redirectUri,
       grant_type: "authorization_code",
     }),
@@ -69,38 +79,83 @@ export async function GET(request: NextRequest) {
   const profileRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
     headers: { Authorization: `Bearer ${tokenJson.access_token}` },
   });
-  const profile = (await profileRes.json()) as { email?: string; name?: string; verified_email?: boolean };
-  const email = typeof profile.email === "string" ? profile.email.trim().toLowerCase() : "";
+  const profile = (await profileRes.json()) as GoogleProfile;
+
+  if (profile.verified_email !== true) {
+    return fail("google_email_unverified");
+  }
+
+  const emailRaw = typeof profile.email === "string" ? profile.email.trim().toLowerCase() : "";
+  const googleId = typeof profile.id === "string" ? profile.id.trim() : "";
   const gName = typeof profile.name === "string" ? profile.name.trim() : "";
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  const picture = typeof profile.picture === "string" ? profile.picture.trim() : null;
+
+  if (!googleId) {
+    return fail("google_profile");
+  }
+  if (!emailRaw || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
     return fail("google_email");
   }
 
-  await ensureUsersAuthColumns(pool);
+  const emailValidation = validateRegistrationEmail(emailRaw);
 
-  const [rows] = await pool.query(
-    "SELECT id, name, email, phone FROM users WHERE email = ? LIMIT 1",
-    [email]
-  );
-  const existing = (rows as { id: number; name: string; email: string | null; phone: string | null }[])[0];
+  await ensureUsersAuthColumns(pool);
+  await ensureGoogleAuthColumns();
 
   let userId: number;
 
-  if (existing) {
-    userId = Number(existing.id);
-  } else {
-    const placeholderPw = hashPassword(crypto.randomBytes(32).toString("hex"));
-    const displayName = gName || email.split("@")[0] || "User";
-    const [ins] = await pool.query(
-      "INSERT INTO users (name, email, phone, password_hash) VALUES (?, ?, NULL, ?)",
-      [displayName, email, placeholderPw]
+  const [byGoogleRows] = await pool.query(
+    "SELECT id, name, email, google_id FROM users WHERE google_id = ? LIMIT 1",
+    [googleId]
+  );
+  const byGoogle = (byGoogleRows as UserRow[])[0];
+
+  if (byGoogle) {
+    userId = Number(byGoogle.id);
+    await pool.query(
+      `UPDATE users SET
+         last_login_at = NOW(),
+         email_verified = 1,
+         avatar_url = COALESCE(?, avatar_url),
+         auth_provider = 'google'
+       WHERE id = ?`,
+      [picture, userId]
     );
-    userId = Number((ins as ResultSetHeader).insertId);
-    if (Number.isFinite(userId) && userId > 0) {
-      try {
-        await createInitialSubscriptionForNewUser(userId);
-      } catch {
-        /* non-fatal */
+  } else {
+    const dup = await findDuplicateRegistrationEmail(pool, emailRaw);
+    const byEmail = dup.existing as UserRow | undefined;
+
+    if (byEmail) {
+      userId = Number(byEmail.id);
+      await pool.query(
+        `UPDATE users SET
+           google_id = ?,
+           auth_provider = 'google',
+           email_verified = 1,
+           last_login_at = NOW(),
+           avatar_url = COALESCE(?, avatar_url),
+           name = CASE WHEN ? <> '' THEN ? ELSE name END
+         WHERE id = ?`,
+        [googleId, picture, gName, gName, userId]
+      );
+    } else if (!emailValidation.ok) {
+      return fail("google_gmail_invalid");
+    } else {
+      const email = emailValidation.email!;
+      const placeholderPw = hashPassword(crypto.randomBytes(32).toString("hex"));
+      const displayName = gName || email.split("@")[0] || "User";
+      const [ins] = await pool.query(
+        `INSERT INTO users (name, email, phone, password_hash, google_id, auth_provider, email_verified, avatar_url, last_login_at)
+         VALUES (?, ?, NULL, ?, ?, 'google', 1, ?, NOW())`,
+        [displayName, email, placeholderPw, googleId, picture]
+      );
+      userId = Number((ins as ResultSetHeader).insertId);
+      if (Number.isFinite(userId) && userId > 0) {
+        try {
+          await createInitialSubscriptionForNewUser(userId);
+        } catch {
+          /* non-fatal */
+        }
       }
     }
   }

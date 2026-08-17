@@ -368,6 +368,22 @@ body {
   background: var(--beego-sky);
 }
 
+body.page-kids-hub {
+  background: linear-gradient(160deg, #fff9e6 0%, #ffe8f0 35%, #e3f9ff 70%, #f0fff4 100%);
+}
+
+body.page-kids-hub .beego-nav-sticky,
+body.page-kids-hub [data-app-bottom-dock],
+body.page-kids-hub .beego-shell-topbar,
+body.page-kids-hub .beego-sidebar {
+  display: none !important;
+}
+
+body.page-kids-hub .page-content {
+  min-height: 100dvh;
+  padding-bottom: 0;
+}
+
 /* Onboarding */
 body.page-onboarding {
   background: linear-gradient(160deg, #fff8eb 0%, #e8f7ff 50%, #d4f1f4 100%);
@@ -389,6 +405,37 @@ body.page-onboarding .page-content {
   align-items: center;
   justify-content: center;
   padding: 20px 16px;
+}
+
+.beego-onboarding-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.beego-onboarding-home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--beego-border);
+  background: #fff;
+  color: var(--beego-ink-soft);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.beego-onboarding-home-link:hover {
+  background: #fff8eb;
+  border-color: rgba(255, 193, 7, 0.45);
+  color: var(--beego-ink);
 }
 
 .beego-onboarding-card {

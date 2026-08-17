@@ -15,6 +15,7 @@ const GUEST_ALLOWED = new Set([
   "/pronunciation",
   "/vocabulary",
   "/dictionary",
+  "/kids",
   "/kids-learn-vocabulary",
   "/kids-fun-stories",
   ...BEEGO_TRACKS.map((t) => `/tracks/${t.slug}`),
@@ -24,7 +25,7 @@ const CORE_LINKS = [
   { href: SPEAKING_PATH, label: "Học AI", icon: "🤖" },
   { href: "/vocabulary", label: "Từ vựng", icon: "📚" },
   { href: "/quiz", label: "Quiz", icon: "🧠" },
-  { href: "/pronunciation", label: "Phát âm", icon: "🎙️" },
+  { href: "/pronunciation", label: "Luyện phát âm", icon: "🎙️" },
 ];
 
 export default function BeegoMainNav() {

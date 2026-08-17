@@ -42,7 +42,7 @@ export default function TabletSidebar() {
       })}
 
       <div className="beego-sidebar-kids">
-        <Link href="/kids-learn-vocabulary" className="beego-sidebar-link">
+        <Link href="/kids" className="beego-sidebar-link">
           <span className="beego-sidebar-link-icon" aria-hidden>
             🎈
           </span>

@@ -1,17 +1,11 @@
 "use client";
 
-export const VOCAB_TABS = [
-  { id: "all", label: "Tất cả từ" },
-  { id: "learning", label: "Đang học" },
-  { id: "review_today", label: "Cần ôn hôm nay" },
-  { id: "saved", label: "Đã lưu" },
-  { id: "difficult", label: "Từ khó" },
-];
+import { VOCAB_FILTERS } from "@/lib/vocabulary/dashboard-config";
 
 export default function VocabularyTabFilters({ activeTab = "all", onChange, disabled = false }) {
   return (
-    <div className="beego-vocab-tabs" role="tablist" aria-label="Lọc từ vựng">
-      {VOCAB_TABS.map((tab) => {
+    <div className="vocab-dash-filters" role="tablist" aria-label="Lọc trạng thái học">
+      {VOCAB_FILTERS.map((tab) => {
         const active = activeTab === tab.id;
         return (
           <button
@@ -19,7 +13,7 @@ export default function VocabularyTabFilters({ activeTab = "all", onChange, disa
             type="button"
             role="tab"
             aria-selected={active}
-            className={`beego-vocab-tab${active ? " beego-vocab-tab--active" : ""}`}
+            className={`vocab-dash-filter${active ? " vocab-dash-filter--active" : ""}`}
             onClick={() => onChange?.(tab.id)}
             disabled={disabled}
           >

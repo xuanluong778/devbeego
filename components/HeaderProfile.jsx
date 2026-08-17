@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import styles from "./HeaderProfile.module.css";
 
 function planBadgeClass(plan) {
@@ -21,42 +22,25 @@ function planLabelVi(plan) {
 
 export default function HeaderProfile() {
   const router = useRouter();
+  const { user, hideBillingUi, recheck, loading } = useAuthMe();
   const fileRef = useRef(null);
-  const [user, setUser] = useState(null);
   const [dob, setDob] = useState("");
-  const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  const loadMe = useCallback(async () => {
-    setLoading(true);
-    setMsg("");
-    try {
-      const res = await fetch("/api/auth/me", { credentials: "same-origin" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) {
-        setUser(null);
-        return;
-      }
-      const u = json.data;
-      setUser(u);
-      if (u.date_of_birth) {
-        const raw = u.date_of_birth;
-        const s = typeof raw === "string" ? raw.slice(0, 10) : "";
-        setDob(s);
-      } else {
-        setDob("");
-      }
-    } catch {
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void loadMe();
-  }, [loadMe]);
+    if (!user) {
+      setDob("");
+      return;
+    }
+    if (user.date_of_birth) {
+      const raw = user.date_of_birth;
+      const s = typeof raw === "string" ? raw.slice(0, 10) : "";
+      setDob(s);
+    } else {
+      setDob("");
+    }
+  }, [user]);
 
   async function saveDob() {
     if (!user) return;
@@ -74,7 +58,7 @@ export default function HeaderProfile() {
         return;
       }
       setMsg("Đã lưu ngày sinh.");
-      await loadMe();
+      await recheck();
       router.refresh();
     } catch {
       setMsg("Lỗi mạng.");
@@ -99,9 +83,7 @@ export default function HeaderProfile() {
         setMsg(json.message || "Không tải được ảnh.");
         return;
       }
-      setUser((prev) =>
-        prev ? { ...prev, avatar_url: json.data?.avatar_url || prev.avatar_url } : prev
-      );
+      await recheck();
       setMsg("Đã cập nhật ảnh.");
       router.refresh();
     } catch {
@@ -118,7 +100,6 @@ export default function HeaderProfile() {
     } catch {
       /* ignore */
     }
-    setUser(null);
     router.refresh();
     window.location.href = "/auth";
   }
@@ -172,11 +153,17 @@ export default function HeaderProfile() {
         <div className={styles.meta}>
           <p className={styles.name}>{user.name || "Học viên"}</p>
           <p className={styles.email}>{user.email || user.phone || ""}</p>
-          <div className={styles.planRow}>
-            <span className={`${styles.planBadge} ${planBadgeClass(plan)}`}>
-              Gói: {planLabelVi(plan)}
-            </span>
-          </div>
+          {!hideBillingUi ? (
+            <div className={styles.planRow}>
+              <span className={`${styles.planBadge} ${planBadgeClass(plan)}`}>
+                Gói: {planLabelVi(plan)}
+              </span>
+            </div>
+          ) : (
+            <div className={styles.planRow}>
+              <span className={`${styles.planBadge} ${styles.planBadgeVip}`}>Admin</span>
+            </div>
+          )}
           <div className={styles.dobRow}>
             <span className={styles.dobLabel}>Sinh:</span>
             <input

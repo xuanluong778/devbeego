@@ -4,10 +4,9 @@ import fs from "fs/promises";
 import path from "path";
 import fallbackWords from "@/data/basic-1000-words.json";
 import { decodeVietnameseBuffer } from "@/lib/decode-vietnamese";
+import { requireAdminUser } from "@/lib/admin/require-admin";
 
 export const runtime = "nodejs";
-
-const ADMIN_EMAIL = "xuanluong778@gmail.com";
 
 function toTitleCase(word) {
   return word.charAt(0).toUpperCase() + word.slice(1);
@@ -81,16 +80,6 @@ async function requireAuthenticatedUser(request) {
     [token]
   );
   return rows[0] || null;
-}
-
-async function requireAdminUser(request) {
-  const user = await requireAuthenticatedUser(request);
-  if (!user) return null;
-  const email = String(user.email || "").trim().toLowerCase();
-  if (email !== ADMIN_EMAIL.toLowerCase()) {
-    return null;
-  }
-  return user;
 }
 
 async function parseVocabularyFromFile(limit = 1000) {

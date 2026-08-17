@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { ensureVocabularySchema } from "@/lib/vocabulary/ensure-schema";
+import { BASIC_VOCAB_SOURCE, BASIC_VOCAB_TOPIC } from "@/lib/vocabulary/basic-vocab";
 import {
   clearVocabularyTableColumnCache,
   getVocabularyTableColumnSet,
@@ -52,18 +53,39 @@ export async function GET(request) {
 
     const whereSql = whereParts.join(" AND ");
 
+    const sourceFilter = cols.has("vocab_source")
+      ? " AND (vocab_source IS NULL OR vocab_source = '' OR vocab_source = 'beego')"
+      : "";
+
     const [rows] = await pool.query(
       `SELECT topic, COUNT(*) AS total
        FROM vocabulary
-       WHERE ${whereSql}
+       WHERE ${whereSql}${sourceFilter}
        GROUP BY topic
        ORDER BY topic ASC`,
       params
     );
 
+    let data = rows.map((r) => ({ topic: r.topic, total: Number(r.total || 0) }));
+
+    if (cols.has("vocab_source")) {
+      const basicParams = cols.has("level") ? [level, BASIC_VOCAB_SOURCE] : [BASIC_VOCAB_SOURCE];
+      const basicLevelSql = cols.has("level") ? "level = ? AND " : "";
+      const [basicRows] = await pool.query(
+        `SELECT COUNT(*) AS total FROM vocabulary WHERE ${basicLevelSql}vocab_source = ?`,
+        basicParams
+      );
+      const basicTotal = Number(basicRows[0]?.total || 0);
+      if (basicTotal > 0) {
+        data = data.filter((r) => r.topic !== BASIC_VOCAB_TOPIC && r.topic !== "Từ vựng tổng hợp");
+        data.unshift({ topic: BASIC_VOCAB_TOPIC, total: basicTotal });
+        data.sort((a, b) => String(a.topic).localeCompare(String(b.topic), "vi"));
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      data: rows.map((r) => ({ topic: r.topic, total: Number(r.total || 0) })),
+      data,
     });
   } catch (error) {
     console.error("[api/vocabulary/topics]", error);

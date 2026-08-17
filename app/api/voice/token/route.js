@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { signVoiceJwt } from "@/lib/voice/jwt";
 import { ensureSubscriptionRow, fetchSubscriptionRow, getUserPlan } from "@/lib/subscriptions/subscription-service";
+import { resolveEffectivePlanForEmail } from "@/lib/auth/admin-entitlement";
 
 export const runtime = "nodejs";
 
@@ -36,7 +37,7 @@ export async function GET(request) {
     try {
       await ensureSubscriptionRow(user.id);
       const sub = await fetchSubscriptionRow(user.id);
-      plan = getUserPlan(sub);
+      plan = resolveEffectivePlanForEmail(user.email, getUserPlan(sub));
     } catch {
       /* optional */
     }

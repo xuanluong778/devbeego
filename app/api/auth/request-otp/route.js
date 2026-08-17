@@ -4,15 +4,21 @@ import { ensureVerificationSchema } from "@/lib/auth/ensure-verification-schema"
 import { generateOtpCode, generateOtpToken, hashOtpCode } from "@/lib/auth";
 import { sendOtp } from "@/lib/otp-delivery";
 import { getSettingSync } from "@/lib/runtime-settings/cache";
-import { normalizePhoneForStorage } from "@/lib/phone-vn";
+import { normalizePhoneE164 } from "@/lib/phone-vn";
+import { isEmailOtpDeliveryConfigured, smtpMissingMessage } from "@/lib/auth/register-config";
+import { findDuplicateRegistrationEmail, validateRegistrationEmail } from "@/lib/auth/gmail-registration";
 
 function normalizeContact(type, value) {
   const t = String(type || "").toLowerCase();
   if (t === "email") {
-    return { contactType: "email", contactValue: String(value || "").trim().toLowerCase() };
+    const check = validateRegistrationEmail(value);
+    if (!check.ok) {
+      return { contactType: "email", contactValue: "", emailError: check.message };
+    }
+    return { contactType: "email", contactValue: check.email, emailError: null };
   }
   if (t === "phone") {
-    const phoneStored = normalizePhoneForStorage(value) || String(value || "").replace(/[^\d+]/g, "").trim();
+    const phoneStored = normalizePhoneE164(value) || String(value || "").replace(/[^\d+]/g, "").trim();
     return { contactType: "phone", contactValue: phoneStored };
   }
   return { contactType: "", contactValue: "" };
@@ -22,7 +28,11 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const normalized = normalizeContact(body.contact_type, body.contact_value);
-    const { contactType, contactValue } = normalized;
+    const { contactType, contactValue, emailError } = normalized;
+
+    if (emailError) {
+      return NextResponse.json({ success: false, message: emailError }, { status: 400 });
+    }
 
     if (!contactType || !contactValue) {
       return NextResponse.json(
@@ -31,8 +41,8 @@ export async function POST(request) {
       );
     }
 
-    if (contactType === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactValue)) {
-      return NextResponse.json({ success: false, message: "Invalid email format." }, { status: 400 });
+    if (contactType === "email" && !isEmailOtpDeliveryConfigured()) {
+      return NextResponse.json({ success: false, message: smtpMissingMessage() }, { status: 503 });
     }
     if (contactType === "phone" && contactValue.replace(/\D/g, "").length < 9) {
       return NextResponse.json({ success: false, message: "Invalid phone number." }, { status: 400 });
@@ -40,17 +50,19 @@ export async function POST(request) {
 
     await ensureVerificationSchema(pool);
 
-    const [existing] = await pool.query(
-      contactType === "email"
-        ? "SELECT id FROM users WHERE email = ? LIMIT 1"
-        : "SELECT id FROM users WHERE phone = ? LIMIT 1",
-      [contactValue]
-    );
-    if (existing.length > 0) {
-      return NextResponse.json(
-        { success: false, message: `${contactType === "email" ? "Email" : "Số điện thoại"} đã tồn tại.` },
-        { status: 409 }
-      );
+    if (contactType === "email") {
+      const dup = await findDuplicateRegistrationEmail(pool, contactValue);
+      if (dup.duplicate) {
+        return NextResponse.json({ success: false, message: "Email đã tồn tại." }, { status: 409 });
+      }
+    } else {
+      const [existing] = await pool.query("SELECT id FROM users WHERE phone = ? LIMIT 1", [contactValue]);
+      if (existing.length > 0) {
+        return NextResponse.json(
+          { success: false, message: "Số điện thoại đã tồn tại." },
+          { status: 409 }
+        );
+      }
     }
 
     const [recent] = await pool.query(

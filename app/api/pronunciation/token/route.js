@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { assertAiFeatureAccess, getSessionUserIdFromRequest } from "@/lib/http/ai-entitlement";
+import { getSessionUserFromRequest } from "@/lib/auth/get-session-user";
+import { shouldBypassEntitlementsForEmail } from "@/lib/auth/admin-entitlement";
+import { assertAiFeatureAccess } from "@/lib/http/ai-entitlement";
 import { getSettingSync } from "@/lib/runtime-settings/cache";
 
 export const runtime = "nodejs";
@@ -33,15 +35,15 @@ function allowRateLimit(userId) {
 
 export async function GET(request) {
   try {
-    const userId = await getSessionUserIdFromRequest(request);
-    if (!userId) {
+    const user = await getSessionUserFromRequest(request);
+    if (!user?.id) {
       return NextResponse.json(
         { success: false, code: "AUTH_REQUIRED", message: "Đăng nhập để dùng chấm phát âm Azure." },
         { status: 401, headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    const gate = await assertAiFeatureAccess(userId, "speaking");
+    const gate = await assertAiFeatureAccess(user.id, "speaking", { email: user.email });
     if (!gate.ok) {
       return NextResponse.json(
         {
@@ -53,7 +55,7 @@ export async function GET(request) {
       );
     }
 
-    if (!allowRateLimit(userId)) {
+    if (!shouldBypassEntitlementsForEmail(user.email) && !allowRateLimit(user.id)) {
       return NextResponse.json(
         { success: false, message: "Quá nhiều yêu cầu. Thử lại sau vài phút." },
         { status: 429, headers: { "Cache-Control": "no-store" } }

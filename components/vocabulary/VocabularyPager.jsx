@@ -1,4 +1,4 @@
-export default function VocabularyPager({ page, totalPages, onPageChange, onPrev, onNext }) {
+export default function VocabularyPager({ page, totalPages, total = 0, pageSize = 9, onPageChange, onPrev, onNext }) {
   const pages = [];
   const maxVisible = 5;
   let start = Math.max(1, page - 2);
@@ -36,7 +36,15 @@ export default function VocabularyPager({ page, totalPages, onPageChange, onPrev
         </button>
       </div>
       <div className="beego-vocab-pagerMeta">
-        Hiển thị <strong>9</strong> / trang
+        {total > 0 ? (
+          <>
+            <strong>{total.toLocaleString("vi-VN")}</strong> từ · {pageSize}/trang
+          </>
+        ) : (
+          <>
+            Hiển thị <strong>{pageSize}</strong> / trang
+          </>
+        )}
       </div>
     </div>
   );

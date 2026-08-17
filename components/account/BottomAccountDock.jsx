@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import ServicePackagesModal from "@/components/billing/ServicePackagesModal";
 import AccountModal from "@/components/account/AccountModal";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import styles from "./BottomAccountDock.module.css";
 
 function IconAccount() {
@@ -38,9 +39,9 @@ function IconMenuHint({ open }) {
 
 export default function BottomAccountDock() {
   const router = useRouter();
+  const { user, hideBillingUi, recheck } = useAuthMe();
   const avatarInputRef = useRef(null);
   const [open, setOpen] = useState(false);
-  const [user, setUser] = useState(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [packagesOpen, setPackagesOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -50,31 +51,13 @@ export default function BottomAccountDock() {
     setMounted(true);
   }, []);
 
-  const loadMe = useCallback(async () => {
-    try {
-      const res = await fetch("/api/auth/me", { credentials: "same-origin" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) {
-        setUser(null);
-        return;
-      }
-      setUser(json.data);
-    } catch {
-      setUser(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadMe();
-  }, [loadMe]);
-
   useEffect(() => {
     if (!open) return;
     const t = window.setInterval(() => {
-      void loadMe();
+      void recheck();
     }, 30_000);
     return () => window.clearInterval(t);
-  }, [open, loadMe]);
+  }, [open, recheck]);
 
   async function logout() {
     try {
@@ -82,7 +65,6 @@ export default function BottomAccountDock() {
     } catch {
       /* ignore */
     }
-    setUser(null);
     setOpen(false);
     setAccountOpen(false);
     setPackagesOpen(false);
@@ -116,9 +98,8 @@ export default function BottomAccountDock() {
         return;
       }
       if (json.data?.avatar_url) {
-        setUser((prev) => (prev ? { ...prev, avatar_url: json.data.avatar_url } : prev));
+        await recheck();
       }
-      await loadMe();
       router.refresh();
     } catch {
       window.alert("Không tải được ảnh. Kiểm tra mạng và thử lại.");
@@ -167,20 +148,22 @@ export default function BottomAccountDock() {
                 Lịch sử
                 <span className={styles.menuBtnChevron}>›</span>
               </button>
-              <button
-                type="button"
-                className={`${styles.menuBtn} ${styles.menuBtnHighlight}`}
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  setPackagesOpen(true);
-                  void loadMe();
-                }}
-              >
-                <IconPackage />
-                Gói dịch vụ
-                <span className={styles.menuBtnChevron}>›</span>
-              </button>
+              {!hideBillingUi ? (
+                <button
+                  type="button"
+                  className={`${styles.menuBtn} ${styles.menuBtnHighlight}`}
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    setPackagesOpen(true);
+                    void recheck();
+                  }}
+                >
+                  <IconPackage />
+                  Gói dịch vụ
+                  <span className={styles.menuBtnChevron}>›</span>
+                </button>
+              ) : null}
               <button type="button" className={`${styles.menuBtn} ${styles.logout}`} onClick={() => void logout()}>
                 <IconAccount />
                 Đăng xuất
@@ -200,19 +183,21 @@ export default function BottomAccountDock() {
                 <IconAccount />
                 Đăng nhập
               </button>
-              <button
-                type="button"
-                className={`${styles.menuBtn} ${styles.menuBtnHighlight}`}
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  setPackagesOpen(true);
-                }}
-              >
-                <IconPackage />
-                Gói dịch vụ
-                <span className={styles.menuBtnChevron}>›</span>
-              </button>
+              {!hideBillingUi ? (
+                <button
+                  type="button"
+                  className={`${styles.menuBtn} ${styles.menuBtnHighlight}`}
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    setPackagesOpen(true);
+                  }}
+                >
+                  <IconPackage />
+                  Gói dịch vụ
+                  <span className={styles.menuBtnChevron}>›</span>
+                </button>
+              ) : null}
             </>
           )}
         </div>
@@ -282,12 +267,14 @@ export default function BottomAccountDock() {
                 onClose={() => setAccountOpen(false)}
                 user={user}
               />
-              <ServicePackagesModal
-                open={packagesOpen}
-                onClose={() => setPackagesOpen(false)}
-                userPlan={userPlan}
-                source="bottom_dock_service_packages"
-              />
+              {!hideBillingUi ? (
+                <ServicePackagesModal
+                  open={packagesOpen}
+                  onClose={() => setPackagesOpen(false)}
+                  userPlan={userPlan}
+                  source="bottom_dock_service_packages"
+                />
+              ) : null}
             </>,
             document.body
           )

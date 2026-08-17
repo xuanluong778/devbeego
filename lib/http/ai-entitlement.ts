@@ -1,4 +1,5 @@
 import pool from "@/lib/db";
+import { createAdminAiGateBilling, shouldBypassEntitlementsForEmail } from "@/lib/auth/admin-entitlement";
 import {
   canAccessPaidAi,
   canUseSpeakingAi,
@@ -56,15 +57,32 @@ export async function getSessionUserIdFromRequest(request: {
   return Number.isFinite(id) ? id : null;
 }
 
+async function getUserEmailById(userId: number): Promise<string | null> {
+  const [rows] = await pool.query(`SELECT email FROM users WHERE id = ? LIMIT 1`, [userId]);
+  const email = (rows as { email?: string | null }[])[0]?.email;
+  return email != null ? String(email) : null;
+}
+
 /**
  * Enforce paywall, plan features, and pooled daily limits before calling AI-backed handlers.
  * Speaking: VIP + active subscription only (not trial).
+ * Admin users bypass all limits.
  */
 export async function assertAiFeatureAccess(
   userId: number,
-  feature: AiFeature
+  feature: AiFeature,
+  options?: { email?: string | null }
 ): Promise<AiGateResult> {
+  const email = options?.email ?? (await getUserEmailById(userId));
   const loaded = await loadSubscriptionAndUsageToday(userId);
+
+  if (shouldBypassEntitlementsForEmail(email)) {
+    return {
+      ok: true,
+      billing: createAdminAiGateBilling(userId, loaded?.subscription ?? null),
+    };
+  }
+
   if (!loaded) {
     return {
       ok: false,

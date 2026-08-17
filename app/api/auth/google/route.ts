@@ -1,25 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { resolveCookieSecure } from "@/lib/auth/resolve-cookie-secure";
-
-function publicOrigin(request: NextRequest) {
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
-  const proto = request.headers.get("x-forwarded-proto") || "http";
-  if (!host) return new URL(request.url).origin;
-  return `${proto}://${host}`;
-}
+import { getGoogleCallbackUrl, getGoogleClientConfig, publicOrigin } from "@/lib/auth/google-oauth-config";
 
 export async function GET(request: NextRequest) {
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-  if (!clientId) {
+  const config = getGoogleClientConfig();
+  if (!config) {
     return NextResponse.redirect(new URL("/auth?notice=google_off", publicOrigin(request)));
   }
 
-  const origin = publicOrigin(request);
-  const redirectUri = `${origin}/api/auth/google/callback`;
+  const redirectUri = getGoogleCallbackUrl(request);
   const state = crypto.randomBytes(16).toString("hex");
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("client_id", config.clientId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", "openid email profile");

@@ -1,25 +1,32 @@
 "use client";
 
+export const DEFAULT_ANSWER_CHIPS = [
+  "Hello! How are you?",
+  "I'm not sure",
+  "Can you repeat that?",
+  "Let me think",
+];
+
 export default function AnswerSuggestions({ suggestions = [], onPick, disabled = false }) {
-  if (!suggestions.length) return null;
+  const chips = suggestions.length ? suggestions : DEFAULT_ANSWER_CHIPS;
 
   return (
-    <aside className="speaking-side-panel speaking-side-panel--hints" aria-label="Gợi ý trả lời">
-      <h3 className="speaking-side-panel__title">Gợi ý trả lời</h3>
-      <ul className="speaking-side-panel__list">
-        {suggestions.map((text) => (
-          <li key={text}>
-            <button
-              type="button"
-              className="speaking-side-panel__item"
-              onClick={() => onPick?.(text)}
-              disabled={disabled}
-            >
-              {text}
-            </button>
-          </li>
+    <aside className="speaking-hint-chips" aria-label="Gợi ý trả lời">
+      <p className="speaking-hint-chips__label speaking-side-panel__title">Gợi ý trả lời</p>
+      <div className="speaking-hint-chips__scroll" role="list">
+        {chips.map((text) => (
+          <button
+            key={text}
+            type="button"
+            role="listitem"
+            className="speaking-hint-chips__chip speaking-side-panel__item"
+            onClick={() => onPick?.(text)}
+            disabled={disabled}
+          >
+            {text}
+          </button>
         ))}
-      </ul>
+      </div>
     </aside>
   );
 }

@@ -1286,13 +1286,62 @@
 
 /* —— Responsive: mobile —— */
 @media (max-width: 767px) {
-  .speaking-page {
-    padding: 8px 12px 4px;
-    max-width: 100%;
+  html.beego-shell-active:has(.speaking-page--mockup:not(.speaking-page--ai-call)),
+  html.beego-shell-active:has(.speaking-page--mockup:not(.speaking-page--ai-call)) body {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
   }
 
-  .speaking-page__header {
-    margin-bottom: 12px;
+  .beego-shell:has(.speaking-page--mockup:not(.speaking-page--ai-call)) {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .beego-shell-body:has(.speaking-page--mockup:not(.speaking-page--ai-call)) {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .beego-shell-main:has(.speaking-page--mockup:not(.speaking-page--ai-call)) {
+    min-height: 0;
+    overflow: hidden;
+    overflow-x: hidden;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0;
+  }
+
+  .beego-shell-main:has(.speaking-page--mockup:not(.speaking-page--ai-call)) .page-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .speaking-page {
+    padding: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .speaking-page--mockup:not(.speaking-page--ai-call) {
+    min-height: 100dvh;
+    height: 100%;
+  }
+
+  .speaking-page__status {
+    flex-shrink: 0;
+    margin: 0 12px 8px;
   }
 
   .speaking-page__brand {
@@ -1337,8 +1386,8 @@
   .speaking-room {
     order: 1;
     min-height: 0;
-    padding: 14px 14px 0;
-    border-radius: var(--beego-radius);
+    padding: 0;
+    border-radius: 0;
   }
 
   .speaking-room--conversation {
@@ -1395,6 +1444,8 @@
 
   .speaking-panel--progress {
     order: 2;
+    position: relative;
+    z-index: 1;
   }
 
   .speaking-panel--settings {
@@ -1435,7 +1486,7 @@
     overflow-x: auto;
     gap: 8px;
     padding: 2px 2px 8px;
-    margin: 0 -2px;
+    margin: 0;
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -1491,22 +1542,19 @@
   }
 
   .speaking-mic-zone {
-    position: sticky;
-    bottom: 0;
-    z-index: 5;
-    margin: 0 -14px;
-    padding: 16px 14px 12px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, #fff 24%);
-    border-top: 1px solid var(--beego-border);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    position: static;
+    margin: 0;
+    padding: 12px 0;
+    background: transparent;
+    border-top: none;
+    backdrop-filter: none;
   }
 
   .speaking-mic-btn {
-    width: 104px;
-    height: 104px;
-    font-size: 2.85rem;
-    box-shadow: 0 10px 32px rgba(37, 99, 235, 0.4);
+    width: 72px;
+    height: 72px;
+    font-size: 1.85rem;
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
   }
 
   .speaking-mic-label {

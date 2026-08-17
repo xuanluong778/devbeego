@@ -1,43 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import AccountModal from "@/components/account/AccountModal";
 import ServicePackagesModal from "@/components/billing/ServicePackagesModal";
 import BigCTAButton from "@/components/beego/ui/BigCTAButton";
 import LearningCard from "@/components/beego/ui/LearningCard";
 import { readOnboardingProfile, BEEGO_PURPOSES, BEEGO_LEVELS, BEEGO_DAILY_MINUTES } from "@/lib/beego/onboarding-storage";
+import { useAuthMe } from "@/hooks/useAuthMe";
 
 export default function AccountPage() {
   const router = useRouter();
+  const { user, hideBillingUi, loading } = useAuthMe();
   const avatarInputRef = useRef(null);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [accountOpen, setAccountOpen] = useState(false);
   const [packagesOpen, setPackagesOpen] = useState(false);
   const [profile, setProfile] = useState(null);
 
-  const loadMe = useCallback(async () => {
-    try {
-      const res = await fetch("/api/auth/me", { credentials: "same-origin" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) {
-        setUser(null);
-        return;
-      }
-      setUser(json.data);
-    } catch {
-      setUser(null);
-    }
-  }, []);
-
   useEffect(() => {
     setProfile(readOnboardingProfile());
-    void loadMe().finally(() => setLoading(false));
     const onOb = () => setProfile(readOnboardingProfile());
     window.addEventListener("beego:onboarding", onOb);
     return () => window.removeEventListener("beego:onboarding", onOb);
-  }, [loadMe]);
+  }, []);
 
   async function logout() {
     try {
@@ -104,7 +89,11 @@ export default function AccountPage() {
             {user?.name || user?.email || "Khách"}
           </strong>
           <span style={{ color: "var(--beego-ink-soft)", fontWeight: 600, fontSize: "0.9rem" }}>
-            {user ? `Gói: ${user.plan || "free"}` : "Chưa đăng nhập"}
+            {user
+              ? hideBillingUi
+                ? "Tài khoản quản trị"
+                : `Gói: ${user.plan || "free"}`
+              : "Chưa đăng nhập"}
           </span>
         </div>
       </div>
@@ -125,14 +114,22 @@ export default function AccountPage() {
         ) : (
           <BigCTAButton href="/auth">Đăng nhập</BigCTAButton>
         )}
-        <BigCTAButton variant="secondary" onClick={() => setPackagesOpen(true)}>
-          Nâng cấp gói
-        </BigCTAButton>
+        {!hideBillingUi ? (
+          <BigCTAButton variant="secondary" onClick={() => setPackagesOpen(true)}>
+            Nâng cấp gói
+          </BigCTAButton>
+        ) : null}
       </div>
 
       <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
+        {user ? (
+          <LearningCard href="/dashboard" icon="📊" title="Dashboard của tôi" description="Lộ trình hôm nay, streak, gói học" />
+        ) : null}
+        {user?.role === "admin" || user?.is_admin ? (
+          <LearningCard href="/admin" icon="⚙️" title="Admin Dashboard" description="Quản trị người dùng, gói học, thanh toán" />
+        ) : null}
         <LearningCard href="/onboarding" icon="🎯" title="Đổi mục tiêu học" description="Chọn lại mục tiêu, trình độ, thời gian" />
-        <LearningCard href="/kids-learn-vocabulary" icon="🐝" title="Beego Kids" description="Chuyển sang học cho trẻ em" />
+        <LearningCard href="/kids" icon="🐝" title="Beego Kids" description="Chuyển sang học cho trẻ em" />
       </div>
 
       {user ? (
@@ -144,12 +141,14 @@ export default function AccountPage() {
       ) : null}
 
       <AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} user={user} />
-      <ServicePackagesModal
-        open={packagesOpen}
-        onClose={() => setPackagesOpen(false)}
-        userPlan={user?.plan || "expired"}
-        source="account_page"
-      />
+      {!hideBillingUi ? (
+        <ServicePackagesModal
+          open={packagesOpen}
+          onClose={() => setPackagesOpen(false)}
+          userPlan={user?.plan || "expired"}
+          source="account_page"
+        />
+      ) : null}
       <input ref={avatarInputRef} type="file" hidden aria-hidden tabIndex={-1} />
     </div>
   );

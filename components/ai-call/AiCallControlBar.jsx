@@ -51,18 +51,23 @@ export default function AiCallControlBar({
           <span>Gợi ý</span>
         </button>
 
-        <button
-          type="button"
-          className={`ai-call-controls__mic${recording ? " ai-call-controls__mic--active" : ""}${busy ? " ai-call-controls__mic--busy" : ""}`}
-          onClick={onMic}
-          disabled={busy && !recording}
-          aria-pressed={recording}
-          aria-label={recording ? "Đang nghe — bấm để gửi" : "Bấm để nói"}
-        >
-          <span className="ai-call-controls__micIcon" aria-hidden>
-            🎤
-          </span>
-        </button>
+        <div className="ai-call-controls__micWrap">
+          <button
+            type="button"
+            className={`ai-call-controls__mic${recording ? " ai-call-controls__mic--active" : ""}${busy ? " ai-call-controls__mic--busy" : ""}`}
+            onClick={onMic}
+            disabled={busy && !recording}
+            aria-pressed={recording}
+            aria-label={recording ? "Đang nghe — bấm để gửi" : "Bấm để nói"}
+          >
+            <span className="ai-call-controls__micIcon" aria-hidden>
+              {busy && !recording ? "⋯" : "🎤"}
+            </span>
+          </button>
+          <p className="ai-call-controls__status" aria-live="polite">
+            {busy && !recording ? "Đang xử lý…" : recording ? "Đang nghe…" : "Bấm để nói"}
+          </p>
+        </div>
 
         <button type="button" className="ai-call-controls__side" onClick={onTranslate} disabled={busy}>
           <span aria-hidden>🇻🇳</span>

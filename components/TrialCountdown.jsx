@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import styles from "./TrialCountdown.module.css";
 
 const REFRESH_MS = 60 * 1000;
@@ -23,6 +24,7 @@ function computeDaysRemaining(endAtIso) {
  * `corner`: hiển thị dưới nút Nâng cấp (góc phải trên).
  */
 export default function TrialCountdown({ placement = "default" }) {
+  const { hideBillingUi } = useAuthMe();
   const [trialEndAt, setTrialEndAt] = useState(null);
   const [tick, setTick] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -31,7 +33,7 @@ export default function TrialCountdown({ placement = "default" }) {
     try {
       const res = await fetch("/api/auth/me", { cache: "no-store", credentials: "same-origin" });
       const json = await res.json();
-      if (!res.ok || !json.success || !json.data?.trial?.end_at) {
+      if (!res.ok || !json.success || json.data?.hide_billing_ui || !json.data?.trial?.end_at) {
         setTrialEndAt(null);
         return;
       }
@@ -66,7 +68,7 @@ export default function TrialCountdown({ placement = "default" }) {
     return computeDaysRemaining(trialEndAt);
   }, [trialEndAt, tick]);
 
-  if (!mounted || daysLeft == null || daysLeft <= 0) return null;
+  if (hideBillingUi || !mounted || daysLeft == null || daysLeft <= 0) return null;
 
   const urgent = daysLeft < 3;
   const dayPhrase = `${daysLeft} ngày`;

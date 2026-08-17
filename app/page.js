@@ -1,5 +1,5 @@
-import BeegoLearnHome from "@/components/beego/BeegoLearnHome";
+import LearnPage from "@/components/beego/learn/LearnPage";
 
 export default function HomePage() {
-  return <BeegoLearnHome />;
+  return <LearnPage />;
 }

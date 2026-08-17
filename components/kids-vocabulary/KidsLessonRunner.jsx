@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Flashcard from "./Flashcard";
 import ListenChooseGame from "./ListenChooseGame";
 import DragDropGame from "./DragDropGame";
@@ -8,6 +8,7 @@ import SpeakPractice from "./SpeakPractice";
 import ReviewQuiz from "./ReviewQuiz";
 import RewardScreen from "./RewardScreen";
 import { recordCorrect, recordWrong } from "@/lib/kids-vocabulary/progress";
+import { recordLessonComplete } from "@/lib/kids-hub/rewards";
 import styles from "./KidsVocabulary.module.css";
 
 const STEPS = [
@@ -32,6 +33,12 @@ export default function KidsLessonRunner({ lesson }) {
   const addPoints = useCallback((n) => setPoints((p) => p + n), []);
 
   const stepId = STEPS[step]?.id;
+
+  useEffect(() => {
+    if (stepId === "reward") {
+      recordLessonComplete(lesson.id, starCount());
+    }
+  }, [stepId, lesson.id, points]);
 
   function starCount() {
     const r = points / Math.max(1, maxScore);

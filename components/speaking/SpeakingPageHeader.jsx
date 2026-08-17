@@ -18,7 +18,10 @@ export default function SpeakingPageHeader({
             🎙️
           </span>
           <div>
-            <h1 className="speaking-hero__title">Beego Speaking AI</h1>
+            <h1 className="speaking-hero__title">
+              <span className="speaking-hero__title-full">Beego Speaking AI</span>
+              <span className="speaking-hero__title-short">Luyện nói AI</span>
+            </h1>
             <p className="speaking-hero__subtitle">Luyện đàm thoại 2 chiều với AI mỗi ngày</p>
           </div>
         </div>

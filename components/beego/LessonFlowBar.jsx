@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LESSON_FLOW_STEPS, getFlowStepIndex } from "@/lib/beego/learning-flow";
 
@@ -9,15 +10,15 @@ export default function LessonFlowBar() {
 
   return (
     <div className="beego-lesson-flow" aria-label="Các bước học bài">
-      {LESSON_FLOW_STEPS.map((step, i) => (
-        <span
-          key={step.id}
-          className={`beego-lesson-flow-step ${i < current ? "beego-lesson-flow-step--done" : ""} ${i === current ? "beego-lesson-flow-step--current" : ""}`}
-        >
-          {i < current ? "✓ " : ""}
-          {step.label}
-        </span>
-      ))}
+      {LESSON_FLOW_STEPS.map((step, i) => {
+        const className = `beego-lesson-flow-step ${i < current ? "beego-lesson-flow-step--done" : ""} ${i === current ? "beego-lesson-flow-step--current" : ""}`;
+        return (
+          <Link key={step.id} href={step.href} className={className}>
+            {i < current ? "✓ " : ""}
+            {step.label}
+          </Link>
+        );
+      })}
     </div>
   );
 }

@@ -12,21 +12,14 @@
   justify-content: flex-start;
   padding: 0.2rem 0.35rem;
   box-sizing: border-box;
-  background: linear-gradient(180deg, #9de8ff 0%, #86dbff 55%, #79d877 100%);
+  background: transparent;
   font-family: "Fredoka", system-ui, sans-serif;
   position: relative;
   overflow: hidden;
 }
 
 .quiz-route .quiz-bubbles {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.45) 0 20px, transparent 22px),
-    radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.35) 0 16px, transparent 18px),
-    radial-gradient(circle at 65% 75%, rgba(255, 255, 255, 0.3) 0 22px, transparent 24px),
-    radial-gradient(circle at 35% 85%, rgba(255, 255, 255, 0.35) 0 14px, transparent 16px);
-  animation: quiz-floatBg 6s ease-in-out infinite alternate;
-  pointer-events: none;
+  display: none;
 }
 
 .quiz-route .quizCard {
@@ -48,6 +41,14 @@
   animation: quiz-popIn 0.4s ease-out;
   overflow: hidden;
   box-sizing: border-box;
+}
+
+.quiz-route[data-mode="1"] .quizCard,
+.quiz-route[data-mode="2"] .quizCard {
+  margin-top: 10%;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: auto;
 }
 
 .quiz-route .quiz-layout {

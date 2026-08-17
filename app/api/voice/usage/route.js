@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { getVoiceRedis } from "@/lib/voice/redis";
 import { ensureSubscriptionRow, fetchSubscriptionRow, getUserPlan } from "@/lib/subscriptions/subscription-service";
+import { resolveEffectivePlanForEmail } from "@/lib/auth/admin-entitlement";
 import { getVoiceQuotaConfigFromDb } from "@/lib/voice/quota-config";
 
 export const runtime = "nodejs";
@@ -44,7 +45,7 @@ export async function GET(request) {
   try {
     await ensureSubscriptionRow(user.id);
     const sub = await fetchSubscriptionRow(user.id);
-    plan = getUserPlan(sub);
+    plan = resolveEffectivePlanForEmail(user.email, getUserPlan(sub));
   } catch {
     /* ignore */
   }

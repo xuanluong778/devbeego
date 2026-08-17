@@ -1,167 +1,165 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { posChipMeta } from "@/lib/vocabulary/mock-ui";
-import { resolveCardImage } from "@/lib/vocabulary/card-image";
 import { isBookmarked, toggleBookmark } from "@/lib/vocabulary/bookmarks";
+import { resolveStudyStatusMeta } from "@/lib/vocabulary/dashboard-config";
+import { resolveCardImage } from "@/lib/vocabulary/card-image";
+import { formatWordIpa } from "@/lib/vocabulary/sentence-word-ipa";
+import VocabularyCardExample from "./VocabularyCardExample";
+import VocabularyCardSpeakResult from "./VocabularyCardSpeakResult";
+import { useVocabularyCardSpeak } from "./useVocabularyCardSpeak";
 
-const ACCENT_TONES = ["blue", "pink", "green"];
-const LEVEL_LABELS = {
-  beginner: "Cơ bản",
-  intermediate: "Trung cấp",
-  advanced: "Nâng cao",
-};
-
-export default function VocabularyCard({
-  item,
-  index = 0,
-  recordingId,
-  speechResult,
-  onListenWord,
-  onListenSentence,
-  onRecordWord,
-  onRecordSentence,
-  onEnqueueReview,
-  reviewState = "idle",
-}) {
+export default function VocabularyCard({ item, onListenWord, onListenSentence, onDeepStudy }) {
   const [bookmarked, setBookmarked] = useState(() => isBookmarked(item.id));
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [imgError, setImgError] = useState(false);
+  const [imgSrc, setImgSrc] = useState("");
+  const [imgFailed, setImgFailed] = useState(false);
+  const fallbackQueue = useRef([]);
 
   const posMeta = posChipMeta(item.part_of_speech);
-  const { src: imageSrc } = resolveCardImage(item);
-  const accent = ACCENT_TONES[index % ACCENT_TONES.length];
-  const recordingWord = recordingId === item.id;
-  const recordingSentence = recordingId === `sentence-${item.id}`;
-  const wordScore = speechResult?.[item.id];
-  const sentenceScore = speechResult?.[`sentence-${item.id}`];
-  const levelLabel = LEVEL_LABELS[String(item.level || "beginner").toLowerCase()] || "Cơ bản";
-
-  const reviewLoading = reviewState === "loading";
-  const reviewDone = reviewState === "success";
-  const reviewAuth = reviewState === "auth";
+  const statusMeta = resolveStudyStatusMeta(item);
+  const cardImage = useMemo(() => resolveCardImage(item), [item]);
+  const speak = useVocabularyCardSpeak(item);
 
   useEffect(() => {
-    setImgLoaded(false);
-    setImgError(false);
-  }, [imageSrc]);
+    setBookmarked(isBookmarked(item.id));
+  }, [item.id]);
+
+  useEffect(() => {
+    fallbackQueue.current = Array.isArray(cardImage?.fallbacks) ? [...cardImage.fallbacks] : [];
+    setImgSrc(cardImage?.showImage ? cardImage.src || "" : "");
+    setImgFailed(false);
+  }, [cardImage, item.id]);
+
+  function handleImageError() {
+    const next = fallbackQueue.current.shift();
+    if (next && next !== imgSrc) {
+      setImgSrc(next);
+      return;
+    }
+    setImgFailed(true);
+  }
+
+  function handleDeepStudy(e) {
+    e.stopPropagation();
+    onDeepStudy?.(item);
+  }
 
   function handleBookmark(e) {
     e.stopPropagation();
     setBookmarked(toggleBookmark(item.id));
   }
 
+  function handleSpeakClick(e) {
+    e.stopPropagation();
+    if (speak.phase === "scoring") return;
+    speak.toggleSpeak();
+  }
+
+  const micActive = speak.phase === "listening";
+  const micBusy = speak.phase === "scoring";
+
   return (
-    <article className={`beego-vocab-card beego-vocab-card--accent-${accent}`}>
-      <div className="beego-vocab-cardMedia">
-        {!imgLoaded && !imgError ? (
-          <div className="beego-vocab-cardSkeleton" aria-hidden />
-        ) : null}
-        <img
-          className={`beego-vocab-cardImg${imgLoaded ? " beego-vocab-cardImg--loaded" : ""}`}
-          src={imgError ? resolveCardImage({ ...item, image_url: "", image_status: "" }).src : imageSrc}
-          alt={item.word || ""}
-          loading="lazy"
-          decoding="async"
-          onLoad={() => setImgLoaded(true)}
-          onError={() => {
-            setImgError(true);
-            setImgLoaded(true);
-          }}
-        />
-        <div className="beego-vocab-cardBadges">
-          <span className="beego-vocab-cardLevel">{levelLabel}</span>
-          {posMeta ? (
-            <span className={`beego-vocab-cardPos beego-vocab-cardPos--${posMeta.tone}`}>
-              {posMeta.short}
-            </span>
-          ) : null}
-        </div>
-        <button
-          type="button"
-          className={`beego-vocab-cardStar ${bookmarked ? "beego-vocab-cardStar--on" : ""}`}
-          onClick={handleBookmark}
-          aria-label={bookmarked ? "Bỏ lưu" : "Lưu từ"}
-          aria-pressed={bookmarked}
-        >
-          {bookmarked ? "★" : "☆"}
-        </button>
+    <article className={`vocab-dash-card vocab-dash-card--${statusMeta.tone}`}>
+      <span className={`vocab-dash-card__status vocab-dash-status vocab-dash-status--${statusMeta.tone}`}>
+        {statusMeta.label}
+      </span>
+
+      <div className="vocab-dash-card__media">
+        {imgSrc && !imgFailed && cardImage?.showImage !== false ? (
+          <img
+            className="vocab-dash-card__img"
+            src={imgSrc}
+            alt=""
+            loading="lazy"
+            onError={handleImageError}
+          />
+        ) : (
+          <span className="vocab-dash-card__imgFallback" aria-hidden>
+            📚
+          </span>
+        )}
       </div>
 
-      <div className="beego-vocab-cardBody">
-        <h3 className="beego-vocab-cardWord">{item.word}</h3>
-        <p className="beego-vocab-cardIpa">{item.ipa || `/${String(item.word || "").toLowerCase()}/`}</p>
+      <div className="vocab-dash-card__head">
+        <h3 className="vocab-dash-card__word">{item.word}</h3>
+        <p className="vocab-dash-card__ipa">{formatWordIpa(item.ipa, item.word)}</p>
         {posMeta ? (
-          <span className={`beego-vocab-cardPosTag beego-vocab-cardPos--${posMeta.tone}`}>
-            {posMeta.label}
-          </span>
+          <span className={`vocab-dash-pos vocab-dash-pos--${posMeta.tone}`}>{posMeta.label}</span>
         ) : null}
+        <p className="vocab-dash-card__meaning">{item.vietnamese_meaning || "—"}</p>
+      </div>
 
-        <p className="beego-vocab-cardMeaning">{item.vietnamese_meaning || "—"}</p>
+      {item.example_sentence ? (
+        <VocabularyCardExample
+          sentence={item.example_sentence}
+          sentenceIpa={item.example_sentence_ipa}
+          sentenceVi={item.example_sentence_vi}
+          headword={item.word}
+          headwordIpa={item.ipa}
+        />
+      ) : null}
 
-        {item.example_sentence ? (
-          <div className="beego-vocab-cardExampleBox">
-            <p className="beego-vocab-cardExampleEn">{item.example_sentence}</p>
-            {item.example_sentence_vi ? (
-              <p className="beego-vocab-cardExampleVi">{item.example_sentence_vi}</p>
-            ) : null}
-          </div>
-        ) : null}
+      {micActive ? (
+        <p className="vocab-dash-card__recHint">
+          <span className="vocab-dash-card__recDot" aria-hidden />
+          Đang nghe — bấm Nói để dừng
+        </p>
+      ) : null}
 
-        {wordScore ? (
-          <p className="beego-vocab-cardScore">Từ: {wordScore.score}% — {wordScore.message}</p>
-        ) : null}
-        {sentenceScore ? (
-          <p className="beego-vocab-cardScore">Câu: {sentenceScore.score}% — {sentenceScore.message}</p>
-        ) : null}
+      {speak.phase === "result" ? (
+        <VocabularyCardSpeakResult
+          result={speak.result}
+          onPlay={speak.playRecording}
+          onRetry={speak.retrySpeak}
+        />
+      ) : null}
 
-        <div className="beego-vocab-cardActions beego-vocab-cardActions--grid">
-          <button type="button" className="beego-vocab-btn beego-vocab-btn--solid" onClick={() => onListenWord(item)}>
-            <span aria-hidden>🔊</span> Nghe từ
-          </button>
-          <button
-            type="button"
-            className="beego-vocab-btn beego-vocab-btn--solid"
-            onClick={() => onListenSentence(item)}
-          >
-            <span aria-hidden>🔊</span> Nghe câu
-          </button>
-          <button
-            type="button"
-            className={`beego-vocab-btn beego-vocab-btn--mic ${recordingWord ? "beego-vocab-micBtn--active" : ""}`}
-            onClick={() => onRecordWord(item)}
-            disabled={recordingId && !recordingWord}
-          >
-            <span aria-hidden>🎤</span> {recordingWord ? "Đang ghi…" : "Luyện nói"}
-          </button>
-          <button
-            type="button"
-            className={`beego-vocab-btn beego-vocab-btn--outline ${bookmarked ? "beego-vocab-btn--saved" : ""}`}
-            onClick={handleBookmark}
-          >
-            {bookmarked ? "★ Đã lưu" : "☆ Lưu từ"}
-          </button>
-        </div>
+      {speak.errorMsg ? <p className="vocab-dash-card__recError">{speak.errorMsg}</p> : null}
 
-        {reviewAuth ? (
-          <Link href="/auth?next=%2Fvocabulary" className="beego-vocab-btn beego-vocab-btn--auth">
-            Đăng nhập để thêm vào ôn tập
-          </Link>
-        ) : (
-          <button
-            type="button"
-            className="beego-vocab-btn beego-vocab-btn--outline beego-vocab-btn--review"
-            onClick={() => onEnqueueReview?.(item)}
-            disabled={reviewLoading || reviewDone}
-          >
-            {reviewLoading
-              ? "Đang thêm…"
-              : reviewDone
-              ? "✓ Đã thêm vào ôn tập"
-              : "+ Thêm vào ôn tập"}
-          </button>
-        )}
+      {onDeepStudy ? (
+        <button
+          type="button"
+          className="vocab-dash-card__deepBtn"
+          onClick={handleDeepStudy}
+          title="Mở phiên học chuyên sâu: nghe, chọn nghĩa, điền từ, nói"
+        >
+          <span aria-hidden>✨</span>
+          Học chuyên sâu
+        </button>
+      ) : null}
+
+      <div className="vocab-dash-card__actions">
+        <button type="button" className="vocab-dash-iconBtn" onClick={() => onListenWord?.(item)} title="Nghe từ">
+          <span aria-hidden>🔊</span>
+          <span className="vocab-dash-iconBtn__label">Từ</span>
+        </button>
+        <button type="button" className="vocab-dash-iconBtn" onClick={() => onListenSentence?.(item)} title="Nghe câu">
+          <span aria-hidden>🎧</span>
+          <span className="vocab-dash-iconBtn__label">Câu</span>
+        </button>
+        <button
+          type="button"
+          className={`vocab-dash-iconBtn vocab-dash-iconBtn--mic${
+            micActive ? " vocab-dash-iconBtn--active" : ""
+          }${micBusy ? " vocab-dash-iconBtn--busy" : ""}`}
+          onClick={handleSpeakClick}
+          disabled={micBusy}
+          title="Nói để luyện phát âm"
+        >
+          <span aria-hidden>🎤</span>
+          <span className="vocab-dash-iconBtn__label">{speak.speakLabel}</span>
+        </button>
+        <button
+          type="button"
+          className={`vocab-dash-iconBtn${bookmarked ? " vocab-dash-iconBtn--saved" : ""}`}
+          onClick={handleBookmark}
+          title={bookmarked ? "Đã lưu" : "Lưu từ"}
+          aria-pressed={bookmarked}
+        >
+          <span aria-hidden>{bookmarked ? "★" : "☆"}</span>
+          <span className="vocab-dash-iconBtn__label">Lưu</span>
+        </button>
       </div>
     </article>
   );

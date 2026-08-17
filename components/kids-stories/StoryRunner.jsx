@@ -10,6 +10,7 @@ import DragDropGame from "@/components/kids-vocabulary/DragDropGame";
 import StoryFillBlank from "./StoryFillBlank";
 import HoverTranslateToggle from "./HoverTranslateToggle";
 import VocabWordImage from "./VocabWordImage";
+import { recordStoryComplete } from "@/lib/kids-hub/rewards";
 import styles from "@/components/kids-vocabulary/KidsVocabulary.module.css";
 import storyStyles from "./KidsStories.module.css";
 
@@ -211,6 +212,7 @@ export default function StoryRunner({ story }) {
                 className={`${styles.bigBtn} ${styles.bigBtnPrimary}`}
                 onClick={() => {
                   if (quizIdx + 1 >= story.questions.length) {
+                    recordStoryComplete(story.id);
                     setQuizPick(null);
                     return;
                   }

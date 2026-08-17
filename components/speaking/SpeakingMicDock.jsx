@@ -2,16 +2,28 @@
 
 const MAX_RECORD_SEC = 30;
 
+function getMicStatusLabel({ recording, chatLoading, canReplay }) {
+  if (recording) return "Đang nghe…";
+  if (chatLoading) return "Đang xử lý…";
+  if (canReplay) return "Nghe lại bản ghi";
+  return "Bấm để nói";
+}
+
 export default function SpeakingMicDock({
   recording = false,
   recordSecs = 0,
+  chatLoading = false,
   speechSupported,
   voiceNotice,
+  canReplay = false,
+  onReplay,
   onMic,
   inputDisabled,
 }) {
   const elapsed = String(recordSecs).padStart(2, "0");
   const max = String(MAX_RECORD_SEC).padStart(2, "0");
+  const statusLabel = getMicStatusLabel({ recording, chatLoading, canReplay });
+  const showTimer = recording;
 
   return (
     <div className="speaking-mic-dock">
@@ -31,18 +43,21 @@ export default function SpeakingMicDock({
         <span className="speaking-mic-dock__ring speaking-mic-dock__ring--2" aria-hidden />
         <button
           type="button"
-          className={`speaking-mic-btn${recording ? " speaking-mic-btn--recording" : ""}`}
-          onClick={onMic}
-          disabled={speechSupported === false || (inputDisabled && !recording)}
+          className={`speaking-mic-btn${recording ? " speaking-mic-btn--recording" : ""}${
+            chatLoading ? " speaking-mic-btn--busy" : ""
+          }`}
+          onClick={canReplay && !recording && !chatLoading ? onReplay || onMic : onMic}
+          disabled={speechSupported === false || (inputDisabled && !recording && !canReplay)}
           aria-pressed={recording}
-          aria-label={recording ? "Dừng ghi âm" : "Bấm để nói"}
+          aria-busy={chatLoading}
+          aria-label={statusLabel}
         >
-          {recording ? "⏹" : "🎤"}
+          {recording ? "⏹" : chatLoading ? "⋯" : canReplay ? "🔊" : "🎤"}
         </button>
       </div>
 
       <p className="speaking-mic-timer" aria-live="polite">
-        {recording ? `${elapsed} / ${max}` : "Bấm micro để nói"}
+        {showTimer ? `${elapsed} / ${max}` : statusLabel}
       </p>
     </div>
   );

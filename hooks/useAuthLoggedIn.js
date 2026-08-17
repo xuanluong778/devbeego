@@ -1,14 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AUTH_EVENT, notifyAuthChanged } from "@/hooks/useAuthMe";
 
-const AUTH_EVENT = "apptienganh-auth";
-
-export function notifyAuthChanged() {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent(AUTH_EVENT));
-  }
-}
+export { notifyAuthChanged };
 
 /**
  * null = đang kiểm tra; false = khách; true = đã đăng nhập.

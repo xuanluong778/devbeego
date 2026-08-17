@@ -18,11 +18,11 @@ export default function RewardScreen({ stars, points, lessonTitle }) {
         <span className={styles.badge}>🌈 Siêu nhân từ vựng</span>
       </div>
       <div className={styles.row}>
-        <Link href="/kids-learn-vocabulary" className={`${styles.bigBtn} ${styles.bigBtnPrimary}`}>
-          Chọn bài khác
+        <Link href="/kids" className={`${styles.bigBtn} ${styles.bigBtnPrimary}`}>
+          Về Beego Kids
         </Link>
-        <Link href="/" className={`${styles.bigBtn} ${styles.bigBtnGhost}`}>
-          Về trang chủ
+        <Link href="/kids-learn-vocabulary" className={`${styles.bigBtn} ${styles.bigBtnGhost}`}>
+          Chọn bài khác
         </Link>
       </div>
     </div>

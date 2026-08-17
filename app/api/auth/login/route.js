@@ -4,7 +4,9 @@ import { ensureUsersAuthColumns } from "@/lib/auth/ensure-verification-schema";
 import { resolveCookieSecure } from "@/lib/auth/resolve-cookie-secure";
 import { generateSessionToken, verifyPassword } from "@/lib/auth";
 import { normalizePhoneForStorage, phoneLoginCandidates } from "@/lib/phone-vn";
+import { findUserByEmail } from "@/lib/auth/find-user-by-identifier";
 import { ensureUserSessionsTable } from "@/lib/auth/ensure-session-schema";
+import { syncLoginMeta } from "@/lib/auth/user-role";
 
 const COOKIE_NAME = "session_token";
 const SESSION_DAYS = 7;
@@ -32,13 +34,9 @@ export async function POST(request) {
     const normalizedIdentifier = identifier.toLowerCase();
     const isEmail = normalizedIdentifier.includes("@");
 
-    let users;
+    let user;
     if (isEmail) {
-      const [rows] = await pool.query(
-        "SELECT id, name, email, phone, password_hash FROM users WHERE email = ? LIMIT 1",
-        [normalizedIdentifier]
-      );
-      users = rows;
+      user = await findUserByEmail(pool, normalizedIdentifier);
     } else {
       const cleaned = String(identifier).replace(/[\s\u200B-\u200D\uFEFF-]/g, "");
       const candidates = [
@@ -61,9 +59,8 @@ export async function POST(request) {
          LIMIT 1`,
         candidates
       );
-      users = rows;
+      user = rows[0];
     }
-    const user = users[0];
 
     if (!user || !verifyPassword(password, user.password_hash)) {
       return NextResponse.json(
@@ -79,6 +76,8 @@ export async function POST(request) {
       "INSERT INTO user_sessions (user_id, token, expires_at) VALUES (?, ?, ?)",
       [user.id, token, expiresAt]
     );
+
+    await syncLoginMeta(user.id, user.email);
 
     const response = NextResponse.json({
       success: true,

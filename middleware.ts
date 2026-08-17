@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { LISTENING_PATH } from "@/lib/beego/routes";
 
 const SESSION_COOKIE = "session_token";
 
@@ -18,7 +19,7 @@ function isPublicPath(pathname: string): boolean {
   if (/\.(?:ico|png|jpg|jpeg|gif|webp|svg|txt|xml|json|webmanifest|woff2?)$/i.test(pathname)) {
     return true;
   }
-  if (pathname === "/" || pathname === "/quiz" || pathname === "/pronunciation") {
+  if (pathname === "/" || pathname === "/quiz" || pathname === "/pronunciation" || pathname === LISTENING_PATH) {
     return true;
   }
   if (
@@ -26,6 +27,7 @@ function isPublicPath(pathname: string): boolean {
     pathname === "/dictionary" ||
     pathname.startsWith("/kids-learn-vocabulary") ||
     pathname.startsWith("/kids-fun-stories") ||
+    pathname.startsWith("/kids") ||
     pathname.startsWith("/stories")
   ) {
     return true;
@@ -49,6 +51,7 @@ function isPublicApiPath(pathname: string, method: string): boolean {
   }
   if (pathname.startsWith("/api/dictionary/")) return true;
   if (pathname === "/api/quiz" || pathname.startsWith("/api/quiz/")) return true;
+  if (pathname === "/api/listening/clips" || pathname.startsWith("/api/listening/")) return true;
   if (pathname === "/api/ai-call/teacher-speech") {
     return m === "POST" || m === "OPTIONS";
   }
@@ -70,15 +73,16 @@ export function middleware(request: NextRequest) {
     url.pathname = "/quiz";
     return NextResponse.redirect(url);
   }
-  if (pathname === "/dashboard") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
-  }
 
   if (pathname === "/lessons" || pathname.startsWith("/lessons/")) {
     const url = request.nextUrl.clone();
     url.pathname = pathname.replace(/^\/lessons(?=\/|$)/, "/luyen-noi");
+    return NextResponse.redirect(url);
+  }
+
+  if (pathname === "/listening" || pathname.startsWith("/listening/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = pathname.replace(/^\/listening(?=\/|$)/, LISTENING_PATH);
     return NextResponse.redirect(url);
   }
 

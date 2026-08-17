@@ -3,27 +3,7 @@ import pool from "@/lib/db";
 import { ensurePaymentsTable } from "@/lib/payments/ensure-payments-table";
 import { upgradeUserPlanFromBankTransfer } from "@/lib/subscriptions/subscription-service";
 import { normalizeBillingPeriod } from "@/lib/billing/plan-pricing";
-
-const ADMIN_EMAIL = "xuanluong778@gmail.com";
-
-async function requireAdminUser(request: NextRequest) {
-  const token = request.cookies.get("session_token")?.value;
-  if (!token) return null;
-
-  const [rows] = await pool.query(
-    `SELECT u.id, u.name, u.email
-     FROM user_sessions s
-     INNER JOIN users u ON u.id = s.user_id
-     WHERE s.token = ? AND s.expires_at > NOW()
-     LIMIT 1`,
-    [token]
-  );
-  const user = (rows as { id?: number; email?: string }[])[0] || null;
-  if (!user) return null;
-  const email = String(user.email || "").trim().toLowerCase();
-  if (email !== ADMIN_EMAIL.toLowerCase()) return null;
-  return user;
-}
+import { requireAdminUser } from "@/lib/admin/require-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

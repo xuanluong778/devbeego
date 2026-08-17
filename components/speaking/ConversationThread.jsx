@@ -2,10 +2,17 @@
 
 import { useEffect } from "react";
 
+function shortTeacherName(name) {
+  const raw = String(name || "AI Teacher").trim();
+  const stripped = raw.replace(/^AI Teacher\s*[—–-]\s*/i, "").trim();
+  return stripped || raw || "AI Teacher";
+}
+
 export default function ConversationThread({
   messages = [],
   teacherName = "AI Teacher",
   teacherEmoji = "🦊",
+  teacherScore = null,
   listRef,
   chatLoading = false,
   showViById = {},
@@ -13,17 +20,35 @@ export default function ConversationThread({
   showToolbar = false,
   toolbarSlot = null,
 }) {
-  useEffect(() => {
+  const scrollToEnd = () => {
     const el = listRef?.current;
     if (!el) return;
     requestAnimationFrame(() => {
       el.scrollTop = el.scrollHeight;
     });
+  };
+
+  useEffect(() => {
+    scrollToEnd();
   }, [messages.length, chatLoading, listRef]);
+
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return undefined;
+
+    const onViewportChange = () => scrollToEnd();
+    vv.addEventListener("resize", onViewportChange);
+    vv.addEventListener("scroll", onViewportChange);
+    return () => {
+      vv.removeEventListener("resize", onViewportChange);
+      vv.removeEventListener("scroll", onViewportChange);
+    };
+  }, [listRef, messages.length]);
 
   const visible = messages.filter((m) => String(m.text || "").trim());
   const lastAssistantId = [...visible].reverse().find((m) => m.role === "assistant")?.id;
   const lastUserId = [...visible].reverse().find((m) => m.role === "user")?.id;
+  const displayTeacherName = shortTeacherName(teacherName);
 
   return (
     <div className="conv-room" ref={listRef} aria-label="Cuộc hội thoại">
@@ -50,9 +75,14 @@ export default function ConversationThread({
                     <span className="mock-ai-bubble__online" aria-label="Online" />
                   </div>
                   <div className="mock-ai-bubble__meta">
-                    <strong>{teacherName}</strong>
+                    <strong title={teacherName}>{displayTeacherName}</strong>
                     <span>Online</span>
                   </div>
+                  {isLastAssistant && teacherScore != null ? (
+                    <span className="mock-ai-bubble__score" aria-label={`Điểm ${teacherScore}`}>
+                      {teacherScore}
+                    </span>
+                  ) : null}
                   <button
                     type="button"
                     className="mock-bubble__speaker"

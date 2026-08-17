@@ -1,6 +1,6 @@
-export default function VocabularyGrid({ items, renderItem }) {
+export default function VocabularyGrid({ items, renderItem, className = "beego-vocab-grid" }) {
   return (
-    <div className="beego-vocab-grid">
+    <div className={className}>
       {items.map((item, index) => renderItem(item, index))}
     </div>
   );

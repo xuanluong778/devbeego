@@ -1384,6 +1384,23 @@ html.beego-shell-active:has(.speaking-page--ai-call) body {
   color: #ef4444;
 }
 
+.ai-call-controls__micWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 72px;
+}
+
+.ai-call-controls__status {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .ai-call-controls__mic {
   width: 72px;
   height: 72px;
@@ -1551,6 +1568,31 @@ html.beego-shell-active:has(.speaking-page--ai-call) body {
 
 /* Mobile — vẫn khóa 100dvh, cột dọc */
 @media (max-width: 900px) {
+  .speaking-page--ai-call .ai-call-controls-wrap--dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--bottom-nav-height, 72px) + env(safe-area-inset-bottom, 0px));
+    z-index: 45;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -6px 24px rgba(15, 23, 42, 0.1);
+  }
+
+  .speaking-page--ai-call .ai-call-main {
+    padding-bottom: calc(var(--ai-call-controls-h, 96px) + var(--beego-bottom-nav-h, 72px) + 12px);
+  }
+
+  .speaking-page--ai-call .ai-call-transcript {
+    padding-bottom: 8px;
+  }
+
+  .speaking-page--ai-call .ai-call-controls__mic {
+    width: 68px;
+    height: 68px;
+    min-width: 68px;
+    min-height: 68px;
+  }
+
   .ai-call-grid {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, auto) minmax(0, 1fr);
@@ -1559,7 +1601,7 @@ html.beego-shell-active:has(.speaking-page--ai-call) body {
 
   .ai-call-teacher-slot {
     min-height: 0;
-    max-height: none;
+    max-height: min(28dvh, 220px);
     overflow: hidden;
     flex-shrink: 0;
   }
@@ -1629,7 +1671,7 @@ html.beego-shell-active:has(.speaking-page--ai-call) body {
   .ai-call-summary-toggle,
   .ai-call-summary {
     left: 12px;
-    bottom: calc(var(--ai-call-controls-h) + 12px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--ai-call-controls-h) + var(--beego-bottom-nav-h, 72px) + 12px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -1654,6 +1696,10 @@ html.beego-shell-active:has(.speaking-page--ai-call) body {
   .ai-call-correction-summary__btn {
     width: 100%;
     flex: none;
+  }
+
+  .ai-call-msg--ai .ai-call-msg__bubble {
+    background: #fff;
   }
 
   .ai-call-controls__side span:last-child {

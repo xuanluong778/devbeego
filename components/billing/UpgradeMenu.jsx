@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import ServicePackagesModal from "@/components/billing/ServicePackagesModal";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import styles from "./UpgradeMenu.module.css";
 
 export default function UpgradeMenu() {
+  const { hideBillingUi } = useAuthMe();
   const [open, setOpen] = useState(false);
   const [packagesOpen, setPackagesOpen] = useState(false);
   const btnRef = useRef(null);
@@ -32,16 +34,15 @@ export default function UpgradeMenu() {
   useEffect(() => {
     if (!open) return;
     const onClick = (e) => {
-      if (
-        !btnRef.current?.contains(e.target) &&
-        !menuRef.current?.contains(e.target)
-      ) {
+      if (!btnRef.current?.contains(e.target) && !menuRef.current?.contains(e.target)) {
         setOpen(false);
       }
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
+
+  if (hideBillingUi) return null;
 
   return (
     <div className={styles.wrap}>

@@ -54,7 +54,7 @@ export default function Flashcard({ words, accentColor, onDone }) {
         )}
       </div>
       <div className={styles.recPair}>
-        <RecordPlaybackButtons label="🎙 Ghi âm từ" resetKey={`${w.id}-card-word`} scoreTarget={w.word} scoreAsSentence={false} />
+        <RecordPlaybackButtons label="🎙 Con nói thử" resetKey={`${w.id}-card-word`} scoreTarget={w.word} scoreAsSentence={false} />
         <RecordPlaybackButtons
           label="🎙 Ghi âm câu"
           resetKey={`${w.id}-card-sent`}

@@ -29,9 +29,11 @@ import {
   normalizeSessionMode,
 } from "@/lib/lessons/speaking-session-modes";
 import SpeakingPageHeader from "@/components/speaking/SpeakingPageHeader";
+import SpeakingSessionBar from "@/components/speaking/SpeakingSessionBar";
 import SpeakingScenarioChips from "@/components/speaking/SpeakingScenarioChips";
 import SpeakingRoom from "@/components/speaking/SpeakingRoom";
 import SpeakingProgressPanel from "@/components/speaking/SpeakingProgressPanel";
+import RescuePhrases from "@/components/speaking/RescuePhrases";
 import AiCallLayout from "@/components/ai-call/AiCallLayout";
 import "./lessons.css";
 import "./lessons-mockup.css";
@@ -811,7 +813,7 @@ export default function LessonsPage() {
   };
 
   return (
-    <main className={`speaking-page speaking-page--mockup${sessionMode === "voice_call" ? " speaking-page--ai-call" : ""}`}>
+    <main className={`speaking-page speaking-page--mockup speaking-page--chat-first${sessionMode === "voice_call" ? " speaking-page--ai-call" : ""}`}>
       {sessionMode !== "voice_call" ? (
         <SpeakingPageHeader
           streakDays={7}
@@ -841,20 +843,33 @@ export default function LessonsPage() {
           onEndSession={resetChatFromStart}
         />
       ) : (
-        <div className="speaking-grid speaking-grid--mockup">
-          <SpeakingRoom
-            topSlot={
-              <SpeakingScenarioChips
-                activeScenarioId={activeScenarioId}
-                onPick={pickScenario}
-                disabled={inputDisabled}
-              />
-            }
+        <>
+          <SpeakingSessionBar
             sessionMode={sessionMode}
             onSessionModeChange={handleSessionModeChange}
             quickSecsLeft={sessionMode === "quick_5" ? quickSecsLeft : null}
+            quickDoneMessage={
+              sessionMode === "quick_5" && quickSecsLeft === 0
+                ? "⏱️ Hết 5 phút! Xem phản hồi bên phải và bấm Tiếp tục."
+                : ""
+            }
+            scenarioSlot={
+              sessionMode === "scenario" ? (
+                <SpeakingScenarioChips
+                  activeScenarioId={activeScenarioId}
+                  onPick={pickScenario}
+                  disabled={inputDisabled}
+                />
+              ) : null
+            }
+            inputDisabled={inputDisabled}
+          />
+
+          <div className="speaking-studio speaking-grid speaking-grid--mockup">
+            <SpeakingRoom
             teacherName={teacherDisplayName}
             teacherEmoji={teacherEmoji}
+            teacherScore={speakingFeedback?.total ?? null}
             messages={chatMessages}
             listRef={listRef}
             chatLoading={chatLoading}
@@ -872,14 +887,19 @@ export default function LessonsPage() {
             onTranslate={handleTranslate}
             onHint={handleHint}
             onEasierSpeak={handleEasierSpeak}
-            onRescuePhrase={handleRescuePhrase}
             onSpeakMessage={speakEnglishText}
+            spokenText={spokenText}
+            onReplaySpoken={() => {
+              const t = String(spokenText || "").trim();
+              if (t) speakEnglishText(t, 0.9);
+            }}
             onMic={recording ? stopVoice : startVoice}
             onContinue={handleContinue}
             onEndSession={resetChatFromStart}
             chatInput={chatInput}
             onChatInput={setChatInput}
             onSendText={() => sendChat(chatInput)}
+            onChatInputFocus={scrollToBottom}
             inputDisabled={inputDisabled}
           />
 
@@ -900,8 +920,13 @@ export default function LessonsPage() {
             onContinue={handleContinue}
             showFeedbackActions={showFeedbackActions}
             actionsDisabled={chatLoading || recording}
+            recentMessages={chatMessages}
+            rescueSlot={
+              <RescuePhrases onPick={handleRescuePhrase} disabled={inputDisabled} />
+            }
           />
-        </div>
+          </div>
+        </>
       )}
 
     </main>

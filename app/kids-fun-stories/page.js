@@ -20,8 +20,8 @@ export default function KidsFunStoriesPage() {
           <Link href="/vocabulary" className={`${styles.bigBtn} ${styles.bigBtnGhost}`}>
             Từ vựng
           </Link>
-          <Link href="/kids-learn-vocabulary" className={`${styles.bigBtn} ${styles.bigBtnGhost}`}>
-            Beego Kids
+          <Link href="/kids" className={`${styles.bigBtn} ${styles.bigBtnGhost}`}>
+            🐝 Beego Kids
           </Link>
         </div>
       </header>

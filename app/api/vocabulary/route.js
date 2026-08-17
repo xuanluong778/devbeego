@@ -2,18 +2,24 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { normalizeMediaUrl } from "@/lib/media-url";
 import { getSessionUserIdFromRequest } from "@/lib/http/ai-entitlement";
-import { ensureUserWordProgressTable } from "@/lib/srs/ensure-schema";
+import { ensureUserWordProgressTable, PROGRESS_SELECT_FIELDS } from "@/lib/srs/ensure-schema";
 import { ensureVocabularySchema } from "@/lib/vocabulary/ensure-schema";
+import { resolveStudyStatusFromProgress } from "@/lib/srs/srs-types";
 import {
   buildVocabularySelectFragments,
   getVocabularyTableColumnSet,
 } from "@/lib/vocabulary/vocabulary-columns";
+import {
+  basicVocabTopicWhere,
+  excludeBasicVocabWhere,
+} from "@/lib/vocabulary/basic-vocab";
 
 export async function GET(request) {
   try {
     await ensureVocabularySchema(pool);
     const cols = await getVocabularyTableColumnSet();
-    const { selectList, meaningCol, hasLevel, hasTopic, hasPos } = buildVocabularySelectFragments(cols);
+    const { selectList, meaningCol, hasLevel, hasTopic, hasPos, hasVocabSource } =
+      buildVocabularySelectFragments(cols);
 
     if (!meaningCol) {
       return NextResponse.json(
@@ -52,8 +58,23 @@ export async function GET(request) {
     }
 
     if (topic && hasTopic) {
-      whereClauses.push("topic = ?");
-      whereParams.push(topic);
+      const basicWhere = basicVocabTopicWhere(topic, hasVocabSource);
+      if (basicWhere) {
+        whereClauses.push(basicWhere.clause);
+        whereParams.push(...basicWhere.params);
+      } else {
+        whereClauses.push("topic = ?");
+        whereParams.push(topic);
+        if (hasVocabSource) {
+          whereClauses.push("(vocab_source IS NULL OR vocab_source = '' OR vocab_source = 'beego')");
+        }
+      }
+    } else if (!topic && hasVocabSource) {
+      const hideBasic = excludeBasicVocabWhere(hasVocabSource);
+      if (hideBasic) {
+        whereClauses.push(hideBasic.clause);
+        whereParams.push(...hideBasic.params);
+      }
     }
     if (pos && hasPos) {
       whereClauses.push("part_of_speech = ?");
@@ -89,14 +110,22 @@ export async function GET(request) {
       const progressBase = "SELECT word_id FROM user_word_progress WHERE user_id = ?";
       whereParams.push(userId);
       if (studyFilter === "learning") {
-        whereClauses.push(`id IN (${progressBase})`);
+        whereClauses.push(
+          `id IN (${progressBase} AND (status IN ('learning', 'review') OR (status = 'new' AND last_reviewed_at IS NOT NULL)))`
+        );
       } else if (studyFilter === "review_today") {
         whereClauses.push(
           `id IN (${progressBase} AND next_review_at IS NOT NULL AND next_review_at <= NOW())`
         );
       } else if (studyFilter === "difficult") {
         whereClauses.push(
-          `id IN (${progressBase} AND (wrong_count >= 2 OR (mastery_level = 0 AND wrong_count >= 1)))`
+          `id IN (${progressBase} AND (status = 'weak' OR wrong_count >= 2 OR (mastery_level = 0 AND wrong_count >= 1)))`
+        );
+      } else if (studyFilter === "not_learned") {
+        whereClauses.push(`id NOT IN (${progressBase} AND status != 'new')`);
+      } else if (studyFilter === "mastered") {
+        whereClauses.push(
+          `id IN (${progressBase} AND (status = 'mastered' OR mastery_level >= 4))`
         );
       }
     }
@@ -116,6 +145,44 @@ export async function GET(request) {
       [...whereParams, limit, offset]
     );
 
+    const sessionUserId = await getSessionUserIdFromRequest(request);
+    let enrichedRows = rows;
+    if (sessionUserId && rows.length) {
+      await ensureUserWordProgressTable();
+      const ids = rows.map((r) => r.id);
+      const [progRows] = await pool.query(
+        `SELECT ${PROGRESS_SELECT_FIELDS}
+         FROM user_word_progress
+         WHERE user_id = ? AND word_id IN (?)`,
+        [sessionUserId, ids]
+      );
+      const progMap = new Map(progRows.map((p) => [p.word_id, p]));
+      enrichedRows = rows.map((row) => {
+        const prog = progMap.get(row.id);
+        if (!prog) {
+          return { ...row, has_progress: false, study_status: "not_learned" };
+        }
+        const reviewDue =
+          prog.next_review_at && new Date(prog.next_review_at).getTime() <= Date.now();
+        const studyStatus = resolveStudyStatusFromProgress({ ...prog, has_progress: true });
+        return {
+          ...row,
+          mastery_level: prog.mastery_level,
+          mastery_score: prog.mastery_score,
+          wrong_count: prog.wrong_count,
+          correct_streak: prog.correct_streak,
+          next_review_at: prog.next_review_at,
+          interval_days: prog.interval_days,
+          status: prog.status,
+          has_progress: true,
+          review_due: reviewDue,
+          study_status: studyStatus,
+        };
+      });
+    } else {
+      enrichedRows = rows.map((row) => ({ ...row, study_status: "not_learned" }));
+    }
+
     const [countRows] = await pool.query(
       `SELECT COUNT(*) AS total
        FROM vocabulary
@@ -123,7 +190,7 @@ export async function GET(request) {
       whereParams
     );
 
-    const normalizedRows = rows.map((item) => ({
+    const normalizedRows = enrichedRows.map((item) => ({
       ...item,
       image_url: normalizeMediaUrl(item.image_url),
       audio_url: normalizeMediaUrl(item.audio_url),
