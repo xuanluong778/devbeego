@@ -21,6 +21,7 @@ import VocabularyAssignmentsPanel from "@/components/vocabulary/VocabularyAssign
 import { resolveTopicChipsFromApi } from "@/lib/vocabulary/dashboard-config";
 import { mergeGuestStatsIntoDashboard } from "@/lib/vocabulary/guest-srs";
 import { fetchStudySessionWords, fetchPracticeSession, fetchDistractorPool } from "@/lib/vocabulary/study-session";
+import { playBeegoAudio } from "@/lib/beego/audio-player";
 import "./vocabulary.css";
 
 const PAGE_SIZE = 12;
@@ -184,34 +185,15 @@ export default function VocabularyPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   function listenWord(item) {
-    const audio = new Audio(item.audio_url);
-    audio.play().catch(() => {
-      const utterance = new SpeechSynthesisUtterance(item.word);
-      utterance.lang = "en-US";
-      utterance.rate = 0.9;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-    });
+    void playBeegoAudio({ url: item.audio_url, text: item.word, lang: "en" });
   }
 
   function listenSentence(item) {
-    const sentenceAudio = item.example_audio_url || "";
-    if (sentenceAudio) {
-      const audio = new Audio(sentenceAudio);
-      audio.play().catch(() => {
-        const utterance = new SpeechSynthesisUtterance(item.example_sentence || "");
-        utterance.lang = "en-US";
-        utterance.rate = 0.9;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
-      });
-    } else {
-      const utterance = new SpeechSynthesisUtterance(item.example_sentence || "");
-      utterance.lang = "en-US";
-      utterance.rate = 0.9;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-    }
+    void playBeegoAudio({
+      url: item.example_audio_url,
+      text: item.example_sentence || "",
+      lang: "en",
+    });
   }
 
   function handleKeywordChange(value) {

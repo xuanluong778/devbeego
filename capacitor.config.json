@@ -1,0 +1,29 @@
+{
+  "appId": "vn.beego.app",
+  "appName": "Beego",
+  "webDir": "out",
+  "server": {
+    "url": "https://beego.vn",
+    "cleartext": false,
+    "allowNavigation": ["beego.vn", "www.beego.vn", "*.beego.vn"]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#FFF8E7",
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#FFF8E7",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#FFF8E7"
+    },
+    "Keyboard": {
+      "resize": "body"
+    }
+  }
+}

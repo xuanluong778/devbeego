@@ -237,7 +237,7 @@ async function main() {
         buildSentenceIpa(sentence, ipaMap),
         item.question_text || buildQuestion(word),
         TOPIC,
-        fallbackImage({ word: item.word, wordKey, vietnamese_meaning: item.vietnamese_meaning, topic: TOPIC, id: item.lineNo }),
+        fallbackImage({ word: item.word, wordKey: item.wordKey, vietnamese_meaning: item.vietnamese_meaning, topic: TOPIC, id: item.lineNo }),
         fallbackAudio(word),
         buildSentenceAudio(sentence),
         VOCAB_SOURCE,

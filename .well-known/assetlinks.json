@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "vn.beego.app",
+      "sha256_cert_fingerprints": [
+        "08:2B:25:F0:AE:32:E5:3C:98:61:C0:CA:BD:06:1A:D2:DD:06:24:FB:85:37:62:A7:66:39:F7:B6:D0:F8:15:9D",
+        "03:D7:08:50:34:E1:9A:D4:19:C4:E1:90:3A:93:68:62:01:4F:6E:D4:14:C6:71:7B:D8:61:0A:E8:EC:96:2C:F8"
+      ]
+    }
+  }
+]

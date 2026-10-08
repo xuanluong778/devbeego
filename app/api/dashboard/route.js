@@ -54,13 +54,18 @@ export async function GET(request) {
     const new_words_count = Number(newRow?.total || 0);
 
     const [statsRows] = await pool.query(
-      `SELECT xp_total, current_streak
+      `SELECT xp_total, honey_total, current_streak, active_lesson_id
        FROM user_stats
        WHERE user_id = ?
        LIMIT 1`,
       [userId]
     );
-    const stats = statsRows?.[0] || { xp_total: 0, current_streak: 0 };
+    const stats = statsRows?.[0] || {
+      xp_total: 0,
+      honey_total: 0,
+      current_streak: 0,
+      active_lesson_id: null,
+    };
 
     const [[todayRow]] = await pool.query(
       `SELECT
@@ -87,10 +92,43 @@ export async function GET(request) {
         completed_today,
         new_words_count,
         xp_total: Number(stats.xp_total || 0),
+        honey_total: Number(stats.honey_total || 0),
         streak: Number(stats.current_streak || 0),
+        active_lesson_id: stats.active_lesson_id || null,
       },
     });
   } catch (error) {
+    // Fallback if honey_total column not migrated yet
+    if (String(error?.message || "").includes("honey_total") || error?.errno === 1054) {
+      try {
+        const userId = await getSessionUserIdFromRequest(request);
+        if (!userId) {
+          return NextResponse.json({ success: false, message: "Not authenticated." }, { status: 401 });
+        }
+        const [statsRows] = await pool.query(
+          `SELECT xp_total, current_streak FROM user_stats WHERE user_id = ? LIMIT 1`,
+          [userId]
+        );
+        const stats = statsRows?.[0] || { xp_total: 0, current_streak: 0 };
+        return NextResponse.json({
+          success: true,
+          data: {
+            review_count: 0,
+            daily_progress: 0,
+            xp_today: 0,
+            new_target: 10,
+            completed_today: 0,
+            new_words_count: 0,
+            xp_total: Number(stats.xp_total || 0),
+            honey_total: Number(stats.xp_total || 0),
+            streak: Number(stats.current_streak || 0),
+            active_lesson_id: null,
+          },
+        });
+      } catch {
+        /* fall through */
+      }
+    }
     const detail =
       process.env.NODE_ENV === "development" && error instanceof Error ? ` ${error.message}` : "";
     return NextResponse.json(

@@ -2380,7 +2380,8 @@
   align-items: center;
   justify-content: center;
   gap: 1px;
-  min-height: 40px;
+  min-height: 44px;
+  min-width: 44px;
   padding: 4px 2px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -2389,6 +2390,8 @@
   font-family: inherit;
   cursor: pointer;
   font-size: 0.82rem;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .vocab-dash-iconBtn__label {
@@ -3034,6 +3037,7 @@
 .vocab-session-playBtn,
 .vocab-session-micBtn {
   min-height: 52px;
+  min-width: 44px;
   padding: 0 24px;
   border: none;
   border-radius: 14px;
@@ -3043,6 +3047,8 @@
   font-size: 1rem;
   cursor: pointer;
   font-family: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .vocab-session-micBtn {

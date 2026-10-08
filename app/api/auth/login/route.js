@@ -7,12 +7,21 @@ import { normalizePhoneForStorage, phoneLoginCandidates } from "@/lib/phone-vn";
 import { findUserByEmail } from "@/lib/auth/find-user-by-identifier";
 import { ensureUserSessionsTable } from "@/lib/auth/ensure-session-schema";
 import { syncLoginMeta } from "@/lib/auth/user-role";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 const COOKIE_NAME = "session_token";
 const SESSION_DAYS = 7;
 
 export async function POST(request) {
   try {
+    const rl = await checkRateLimit(request, { key: "auth_login", windowMs: 60_000, max: 20 });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { success: false, message: "Too many login attempts. Try again later." },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSec || 60) } }
+      );
+    }
+
     const body = await request.json();
     const identifier =
       typeof body.identifier === "string"

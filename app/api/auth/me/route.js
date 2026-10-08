@@ -11,12 +11,11 @@ import { ensureUserSessionsTable } from "@/lib/auth/ensure-session-schema";
 import { ensureRoleSchema } from "@/lib/auth/ensure-role-schema";
 import { isAdminUser, resolveRoleForEmail } from "@/lib/auth/user-role";
 import { resolveEffectivePlanForEmail } from "@/lib/auth/admin-entitlement";
-
-const COOKIE_NAME = "session_token";
+import { resolveSessionToken } from "@/lib/auth/resolve-session-token";
 
 export async function GET(request) {
   try {
-    const token = request.cookies.get(COOKIE_NAME)?.value;
+    const token = resolveSessionToken(request);
     if (!token) {
       return NextResponse.json(
         { success: false, message: "Not authenticated." },
@@ -28,14 +27,29 @@ export async function GET(request) {
     await ensureUserProfileColumns();
     await ensureRoleSchema();
 
-    const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.email, u.phone, u.avatar_url, u.date_of_birth, u.role, u.is_active
-       FROM user_sessions s
-       INNER JOIN users u ON u.id = s.user_id
-       WHERE s.token = ? AND s.expires_at > NOW()
-       LIMIT 1`,
-      [token]
-    );
+    let rows;
+    try {
+      const [r] = await pool.query(
+        `SELECT u.id, u.name, u.email, u.phone, u.avatar_url, u.date_of_birth, u.role, u.is_active
+         FROM user_sessions s
+         INNER JOIN users u ON u.id = s.user_id
+         WHERE s.token = ? AND s.expires_at > NOW()
+           AND (s.revoked_at IS NULL)
+         LIMIT 1`,
+        [token]
+      );
+      rows = r;
+    } catch {
+      const [r] = await pool.query(
+        `SELECT u.id, u.name, u.email, u.phone, u.avatar_url, u.date_of_birth, u.role, u.is_active
+         FROM user_sessions s
+         INNER JOIN users u ON u.id = s.user_id
+         WHERE s.token = ? AND s.expires_at > NOW()
+         LIMIT 1`,
+        [token]
+      );
+      rows = r;
+    }
     const user = rows[0];
 
     if (!user) {

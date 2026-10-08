@@ -1,7 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
 import mysql from "mysql2/promise";
-import { buildAiImageUrl } from "../lib/ai-image-url.js";
 
 function getConfig() {
   if (process.env.DATABASE_URL) {
@@ -81,7 +80,8 @@ function parseLine(line) {
 }
 
 function fallbackImage(word) {
-  return buildAiImageUrl(word, "animals");
+  const seed = encodeURIComponent(String(word).toLowerCase());
+  return `https://api.dicebear.com/9.x/shapes/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
 }
 
 function fallbackAudio(text) {
@@ -109,13 +109,22 @@ async function main() {
   }
 
   const db = await mysql.createConnection(getConfig());
-  await db.query("ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS question_text VARCHAR(255) NULL AFTER example_sentence");
-  await db.query("ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS topic VARCHAR(120) NULL AFTER question_text");
-  await db.query("ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS example_audio_url VARCHAR(500) NULL AFTER audio_url");
-  await db.query("ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS example_sentence_ipa VARCHAR(500) NULL AFTER example_sentence");
-  await db.query("ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS example_sentence_vi VARCHAR(500) NULL AFTER example_sentence");
-  await db.query("ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS vietnamese_meaning VARCHAR(255) NULL AFTER ipa");
-  await db.query("ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS part_of_speech VARCHAR(20) NULL AFTER vietnamese_meaning");
+  const alters = [
+    "ALTER TABLE vocabulary ADD COLUMN question_text VARCHAR(255) NULL AFTER example_sentence",
+    "ALTER TABLE vocabulary ADD COLUMN topic VARCHAR(120) NULL AFTER question_text",
+    "ALTER TABLE vocabulary ADD COLUMN example_audio_url VARCHAR(500) NULL AFTER audio_url",
+    "ALTER TABLE vocabulary ADD COLUMN example_sentence_ipa VARCHAR(500) NULL AFTER example_sentence",
+    "ALTER TABLE vocabulary ADD COLUMN example_sentence_vi VARCHAR(500) NULL AFTER example_sentence",
+    "ALTER TABLE vocabulary ADD COLUMN vietnamese_meaning VARCHAR(255) NULL AFTER ipa",
+    "ALTER TABLE vocabulary ADD COLUMN part_of_speech VARCHAR(20) NULL AFTER vietnamese_meaning",
+  ];
+  for (const sql of alters) {
+    try {
+      await db.query(sql);
+    } catch {
+      /* column may already exist */
+    }
+  }
 
   const batchSize = 200;
   let imported = 0;

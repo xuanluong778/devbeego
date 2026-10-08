@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { getSessionUserFromRequest } from "@/lib/auth/get-session-user";
 
 export async function GET(request) {
   try {
+    const user = await getSessionUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ success: false, message: "Not authenticated." }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const lessonIdParam = searchParams.get("lesson_id");
     const lessonId = Number(lessonIdParam);
@@ -35,9 +41,17 @@ export async function GET(request) {
       [lessonId]
     );
 
+    const isAdmin = user.role === "admin";
+    const data = isAdmin
+      ? rows
+      : rows.map(({ correct_option, explanation, ...rest }) => ({
+          ...rest,
+          explanation: explanation || null,
+        }));
+
     return NextResponse.json({
       success: true,
-      data: rows,
+      data,
     });
   } catch (error) {
     return NextResponse.json(

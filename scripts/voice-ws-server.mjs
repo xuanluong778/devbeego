@@ -40,7 +40,7 @@ import { WebSocketServer } from "ws";
 const require = createRequire(import.meta.url);
 const sdk = require("microsoft-cognitiveservices-speech-sdk");
 
-const PORT = Number(process.env.VOICE_WS_PORT || 3001);
+const PORT = Number(process.env.VOICE_WS_PORT || 3031);
 const AZURE_KEY = String(process.env.AZURE_SPEECH_KEY || "").trim();
 const AZURE_REGION = String(process.env.AZURE_SPEECH_REGION || "").trim();
 const USE_AZURE = Boolean(AZURE_KEY && AZURE_REGION);

@@ -2,6 +2,7 @@
 
 import AnswerOption from "./AnswerOption";
 import WordBankAnswer from "./WordBankAnswer";
+import { resolveLessonOptionVisualPolicy } from "@/lib/beego/learn/lesson-option-visual-policy";
 
 function ListeningPrompt({ question }) {
   const play = () => {
@@ -32,8 +33,17 @@ export default function QuestionRenderer({
     return null;
   };
 
+  const visualPolicy = resolveLessonOptionVisualPolicy(question);
+
   return (
-    <div className="beego-lesson-question">
+    <div
+      className={[
+        "beego-lesson-question",
+        visualPolicy.compactDecorMascot ? "beego-lesson-question--compact-visual" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <p className="beego-lesson-question__skill">{question.skillLabel}</p>
       <h2 className="beego-lesson-question__prompt">{question.prompt}</h2>
 
@@ -42,7 +52,15 @@ export default function QuestionRenderer({
           <span>{question.imageEmoji}</span>
         </div>
       ) : (
-        <div className="beego-lesson-question__mascot" aria-hidden>
+        <div
+          className={[
+            "beego-lesson-question__mascot",
+            visualPolicy.compactDecorMascot ? "beego-lesson-question__mascot--compact" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          aria-hidden
+        >
           <span className="beego-lesson-question__bee">🐝</span>
         </div>
       )}
@@ -61,7 +79,7 @@ export default function QuestionRenderer({
       {question.options && question.type !== "translate_word_bank" ? (
         <div
           className={`beego-lesson-options${
-            question.type === "vocabulary_choice" ? " beego-lesson-options--grid" : ""
+            visualPolicy.choiceLayout === "grid" ? " beego-lesson-options--grid" : ""
           }`}
         >
           {question.options.map((opt) => (
@@ -71,7 +89,8 @@ export default function QuestionRenderer({
               selected={answer === opt.id}
               state={optionState(opt.id)}
               onSelect={onAnswerChange}
-              layout={question.type === "vocabulary_choice" ? "grid" : "default"}
+              layout={visualPolicy.choiceLayout}
+              showVisual={visualPolicy.showOptionVisuals}
             />
           ))}
         </div>

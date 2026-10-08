@@ -29,7 +29,14 @@ function defaultWsUrl() {
   if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_VOICE_WS_URL) {
     return process.env.NEXT_PUBLIC_VOICE_WS_URL;
   }
-  return "ws://127.0.0.1:3001";
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "beego.vn" || host === "www.beego.vn") {
+      return `${window.location.protocol === "https:" ? "wss" : "ws"}://${host}/voice`;
+    }
+  }
+  // Local/dev only — production uses wss://beego.vn/voice (port 3031 behind nginx)
+  return "ws://127.0.0.1:3031";
 }
 
 /**

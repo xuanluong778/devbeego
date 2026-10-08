@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { normalizeMediaUrl } from "@/lib/media-url";
 import { getSessionUserIdFromRequest } from "@/lib/http/ai-entitlement";
+import { requireAdminUser } from "@/lib/admin/require-admin";
+import { assertMutationOrigin } from "@/lib/security/csrf-origin";
 import { ensureUserWordProgressTable, PROGRESS_SELECT_FIELDS } from "@/lib/srs/ensure-schema";
 import { ensureVocabularySchema } from "@/lib/vocabulary/ensure-schema";
 import { resolveStudyStatusFromProgress } from "@/lib/srs/srs-types";
@@ -230,11 +232,16 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const userId = await getSessionUserIdFromRequest(request);
-    if (!userId) {
+    const csrf = assertMutationOrigin(request);
+    if (!csrf.ok) {
+      return NextResponse.json({ success: false, message: csrf.message, code: csrf.code }, { status: 403 });
+    }
+
+    const admin = await requireAdminUser(request);
+    if (!admin) {
       return NextResponse.json(
-        { success: false, message: "Đăng nhập để thêm từ vựng." },
-        { status: 401 }
+        { success: false, message: "Admin only." },
+        { status: 403 }
       );
     }
 

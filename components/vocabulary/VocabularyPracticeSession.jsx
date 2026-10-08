@@ -18,6 +18,7 @@ import {
   checkMeaningChoice,
   speakPassScore,
   playAudioUrl,
+  beginReviewAttempt,
   submitWordRating,
 } from "@/lib/vocabulary/study-session";
 import VocabularySessionPhonetics from "./VocabularySessionPhonetics";
@@ -271,7 +272,7 @@ export default function VocabularyPracticeSession({
     async (ok) => {
       if (practiceMode !== "weak_words" || !currentWord) return;
       try {
-        const attemptId = `practice-weak-${sessionKey}-${currentWord.id}-${Date.now()}`;
+        const attemptId = await beginReviewAttempt(currentWord.id);
         await submitWordRating(currentWord.id, ok ? "normal" : "forgot", attemptId);
       } catch {
         /* optional */

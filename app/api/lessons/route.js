@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { isDbConnectionError } from "@/lib/db-errors";
 import { normalizeMediaUrl } from "@/lib/media-url";
+import { requireAdminUser } from "@/lib/admin/require-admin";
 
 export async function GET() {
   try {
@@ -51,6 +52,11 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    const admin = await requireAdminUser(request);
+    if (!admin) {
+      return NextResponse.json({ success: false, message: "Admin access required." }, { status: 403 });
+    }
+
     const body = await request.json();
     const word = typeof body.word === "string" ? body.word.trim() : "";
     const image = normalizeMediaUrl(body.image);

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Beego</string>
+    <string name="title_activity_main">Beego</string>
+    <string name="package_name">vn.beego.app</string>
+    <string name="custom_url_scheme">vn.beego.app</string>
+</resources>

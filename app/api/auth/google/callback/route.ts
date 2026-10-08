@@ -5,10 +5,16 @@ import pool from "@/lib/db";
 import { ensureUsersAuthColumns } from "@/lib/auth/ensure-verification-schema";
 import { ensureGoogleAuthColumns } from "@/lib/auth/ensure-google-auth-columns";
 import { hashPassword } from "@/lib/auth";
-import { setSessionOnResponse } from "@/lib/auth/create-session";
+import { SESSION_COOKIE_NAME, sessionCookieOptions, setSessionOnResponse } from "@/lib/auth/create-session";
+import { resolveCookieSecure } from "@/lib/auth/resolve-cookie-secure";
+import { createAppSession } from "@/lib/auth/app-session";
 import { createInitialSubscriptionForNewUser } from "@/lib/subscriptions/subscription-service";
 import { getGoogleCallbackUrl, getGoogleClientConfig, publicOrigin } from "@/lib/auth/google-oauth-config";
 import { findDuplicateRegistrationEmail, validateRegistrationEmail } from "@/lib/auth/gmail-registration";
+import {
+  consumeAndroidOAuthState,
+  issueNativeAuthCode,
+} from "@/lib/auth/google-oauth-android";
 
 type GoogleProfile = {
   id?: string;
@@ -47,8 +53,22 @@ export async function GET(request: NextRequest) {
   const state = request.nextUrl.searchParams.get("state");
   const cookieState = request.cookies.get("google_oauth_state")?.value;
   const nextPath = request.cookies.get("google_oauth_next")?.value;
+  const cookiePlatform = request.cookies.get("google_oauth_platform")?.value;
 
-  if (!code || !state || !cookieState || state !== cookieState) {
+  const androidState = state ? await consumeAndroidOAuthState(state) : null;
+  const isAndroid = Boolean(androidState) || cookiePlatform === "android";
+
+  if (!code || !state) {
+    return fail("google_state");
+  }
+  // Web: require cookie state. Android: cookie OR DB-backed state (Custom Tabs).
+  if (!isAndroid && (!cookieState || state !== cookieState)) {
+    return fail("google_state");
+  }
+  if (isAndroid && cookieState && state !== cookieState && !androidState) {
+    return fail("google_state");
+  }
+  if (isAndroid && !androidState && (!cookieState || state !== cookieState)) {
     return fail("google_state");
   }
 
@@ -164,10 +184,41 @@ export async function GET(request: NextRequest) {
     return fail("google_user");
   }
 
-  const dest = safeNextPath(nextPath);
+  const dest = safeNextPath(androidState?.nextPath || nextPath);
+
+  // Android Capacitor: issue one-time code → App Link /auth/native-callback
+  if (isAndroid) {
+    const session = await createAppSession(userId, {
+      platform: "android",
+      deviceId: androidState?.deviceId || null,
+      userAgent: request.headers.get("user-agent"),
+    });
+    const nativeCode = await issueNativeAuthCode({
+      accessToken: session.access_token,
+      refreshToken: session.refresh_token,
+      userId,
+    });
+    const bridge = new URL("/auth/native-callback", origin);
+    bridge.searchParams.set("code", nativeCode);
+    bridge.searchParams.set("next", dest);
+    const res = NextResponse.redirect(bridge);
+    const secure = resolveCookieSecure(request);
+    const expiresAt = new Date(session.expires_at);
+    res.cookies.set(
+      SESSION_COOKIE_NAME,
+      session.access_token,
+      sessionCookieOptions(expiresAt, secure)
+    );
+    res.cookies.delete("google_oauth_state");
+    res.cookies.delete("google_oauth_next");
+    res.cookies.delete("google_oauth_platform");
+    return res;
+  }
+
   const res = NextResponse.redirect(new URL(dest, origin));
   res.cookies.delete("google_oauth_state");
   res.cookies.delete("google_oauth_next");
+  res.cookies.delete("google_oauth_platform");
   await setSessionOnResponse(res, userId, request);
   return res;
 }

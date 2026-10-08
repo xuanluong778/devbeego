@@ -29,8 +29,8 @@ function TodayHome({ profile, userName, loggedIn, dash, dashLoading }) {
   const lesson = getSuggestedLesson(profile);
   const [streakFreeze, setStreakFreeze] = useState(true);
 
-  const streak = Number(dash?.streak ?? 7);
-  const honeyPoints = Number(dash?.xp_total ?? 1250);
+  const streak = Number(dash?.streak ?? 0);
+  const honeyPoints = Number(dash?.honey_total ?? dash?.xp_total ?? 0);
   const firstName = getDisplayName(userName);
 
   const lessonCurrent = lesson.progressCurrent ?? 2;

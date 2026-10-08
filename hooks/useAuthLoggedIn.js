@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AUTH_EVENT, notifyAuthChanged } from "@/hooks/useAuthMe";
+import { authFetch } from "@/lib/beego/native-bridge";
 
 export { notifyAuthChanged };
 
@@ -13,7 +14,7 @@ export function useAuthLoggedIn() {
 
   const recheck = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" });
+      const res = await authFetch("/api/auth/me", { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
       setLoggedIn(res.ok && json.success && Boolean(json.data?.id));
     } catch {

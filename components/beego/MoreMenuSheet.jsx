@@ -4,7 +4,6 @@ import { useEffect, useId, useRef } from "react";
 import Link from "next/link";
 import { BEEGO_MORE_MENU_GROUPS } from "@/lib/beego/nav";
 import { useAuthMe } from "@/hooks/useAuthMe";
-
 export default function MoreMenuSheet({ open, onClose }) {
   const { hideBillingUi } = useAuthMe();
   const titleId = useId();
@@ -59,6 +58,22 @@ export default function MoreMenuSheet({ open, onClose }) {
         </header>
 
         <div className="beego-more-sheet__body">
+          <section className="beego-more-sheet__group" aria-label="Ứng dụng">
+            <h3 className="beego-more-sheet__groupTitle">Ứng dụng</h3>
+            <ul className="beego-more-sheet__list">
+              <li>
+                <Link href="/cai-dat-app" className="beego-more-sheet__link" onClick={onClose}>
+                  <span className="beego-more-sheet__linkIcon" aria-hidden>
+                    📲
+                  </span>
+                  <span className="beego-more-sheet__linkLabel">Cài ứng dụng Beego</span>
+                  <span className="beego-more-sheet__chevron" aria-hidden>
+                    ›
+                  </span>
+                </Link>
+              </li>
+            </ul>
+          </section>
           {groups.map((group) => (
             <section key={group.id} className="beego-more-sheet__group" aria-label={group.title}>
               <h3 className="beego-more-sheet__groupTitle">{group.title}</h3>

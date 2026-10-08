@@ -1408,3 +1408,1092 @@ body.page-learn-path .beego-shell-main {
     font-size: 1.65rem;
   }
 }
+
+/* ========== Redesign: Unit banner, zig-zag, mobile stats, float sheet ========== */
+
+.beego-unit-banner {
+  margin: 0 0 20px;
+  padding: 0 4px;
+}
+
+.beego-unit-banner__inner {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 18px 18px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 42%, #2563eb 78%, #f59e0b 140%);
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(76, 29, 149, 0.22);
+}
+
+.beego-unit-banner__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.beego-unit-banner__gate {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--beego-learn-honey-soft);
+}
+
+.beego-unit-banner__level {
+  display: inline-flex;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.beego-unit-banner__title {
+  margin: 0;
+  font-family: var(--font-heading), Oswald, sans-serif;
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #fff;
+}
+
+.beego-unit-banner__desc {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.beego-unit-banner__part {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+.beego-learn-section--placeholder {
+  margin-bottom: var(--beego-learn-space-section);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), transparent);
+}
+
+.beego-learn-section__step--left .beego-learn-node-wrap,
+.beego-learn-section__step--right .beego-learn-node-wrap,
+.beego-learn-section__step--center .beego-learn-node-wrap {
+  scroll-margin-top: calc(var(--beego-learn-header-offset, 132px) + 12px);
+}
+
+.beego-learn-node-wrap--left {
+  padding-left: clamp(4%, 8vw, 18%);
+}
+
+.beego-learn-node-wrap--right {
+  padding-right: clamp(4%, 8vw, 18%);
+}
+
+.beego-learn-section__connector {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.beego-learn-section__connector--left {
+  transform: translateX(-28px) rotate(-12deg);
+}
+
+.beego-learn-section__connector--right {
+  transform: translateX(28px) rotate(12deg);
+}
+
+.beego-learn-node__check {
+  font-size: 1.45rem;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+}
+
+.beego-learn-node--completed .beego-learn-node__circle {
+  background: linear-gradient(180deg, #34d399, #15803d);
+  border-color: #fff;
+}
+
+.beego-learn-node--done-anim .beego-learn-node__circle {
+  animation: beego-learn-node-pop 0.45s ease both;
+}
+
+.beego-learn-node--current {
+  scroll-margin-top: calc(var(--beego-learn-header-offset, 132px) + 24px);
+}
+
+@keyframes beego-learn-node-pop {
+  0% {
+    transform: scale(0.86);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.beego-learn-sheet__honey-bump {
+  animation: beego-learn-honey-bump 0.55s ease both;
+  color: var(--beego-learn-honey-dark);
+  font-weight: 800;
+}
+
+@keyframes beego-learn-honey-bump {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.beego-learn-mobile-stats {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0 2px;
+  flex-wrap: wrap;
+}
+
+.beego-learn-mobile-stats__item {
+  flex: 1 1 calc(50% - 8px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.beego-learn-mobile-stats__bar {
+  flex: 1 1 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.beego-learn-mobile-stats__bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #22c55e);
+}
+
+.beego-learn-goal-toast {
+  position: sticky;
+  top: calc(var(--beego-learn-header-offset, 72px) + 4px);
+  z-index: 20;
+  margin: 0 12px 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+  animation: beego-goal-toast-in 0.35s ease;
+}
+
+@keyframes beego-goal-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Phase 10 — Dành cho bạn hôm nay */
+.beego-today-for-you {
+  margin: 0 12px 14px;
+  padding: 14px 14px 10px;
+  border-radius: 16px;
+  background: linear-gradient(165deg, #fffbeb 0%, #ffffff 55%, #f0fdf4 100%);
+  border: 1px solid #fde68a;
+}
+
+.beego-today-for-you__head {
+  margin-bottom: 10px;
+}
+
+.beego-today-for-you__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #92400e;
+  letter-spacing: -0.01em;
+}
+
+.beego-today-for-you__sub {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: #78716c;
+  font-weight: 500;
+}
+
+.beego-today-for-you__loading {
+  margin: 0;
+  padding: 8px 0 12px;
+  font-size: 0.85rem;
+  color: #a8a29e;
+}
+
+.beego-today-for-you__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.beego-today-for-you__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #fef3c7;
+}
+
+.beego-today-for-you__meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.beego-today-for-you__slot {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #b45309;
+  text-transform: none;
+}
+
+.beego-today-for-you__name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #1c1917;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.beego-today-for-you__reason {
+  font-size: 0.75rem;
+  color: #57534e;
+  line-height: 1.35;
+}
+
+.beego-today-for-you__mins {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #a8a29e;
+}
+
+.beego-today-for-you__cta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.beego-today-for-you__cta:hover {
+  background: #d97706;
+}
+
+@media (min-width: 900px) {
+  .beego-today-for-you {
+    margin: 0 0 16px;
+  }
+}
+
+/* Phase 11 — Tiến độ của bạn */
+.beego-progress-insights {
+  margin: 0 12px 14px;
+  padding: 14px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 40%);
+  border: 1px solid #e2e8f0;
+}
+
+.beego-progress-insights__head {
+  margin-bottom: 10px;
+}
+
+.beego-progress-insights__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.beego-progress-insights__sub {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.beego-progress-insights__loading {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.beego-progress-insights__overview {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.beego-progress-insights__stat {
+  text-align: center;
+  padding: 8px 4px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #f1f5f9;
+}
+
+.beego-progress-insights__stat-val {
+  display: block;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.beego-progress-insights__stat-lab {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 2px;
+}
+
+.beego-progress-insights__meta {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.beego-progress-insights__insights {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.beego-progress-insights__insight {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.beego-progress-insights__insight--positive {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.beego-progress-insights__insight--action {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.beego-progress-insights__insight--warn {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.beego-progress-insights__insight--info {
+  background: #f8fafc;
+  color: #475569;
+}
+
+.beego-progress-insights__h3 {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.beego-progress-insights__skill-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.beego-progress-insights__skill {
+  display: grid;
+  grid-template-columns: 72px 1fr 32px;
+  align-items: center;
+  gap: 8px;
+}
+
+.beego-progress-insights__skill-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.beego-progress-insights__skill-bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.beego-progress-insights__skill-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #22c55e);
+  border-radius: 999px;
+}
+
+.beego-progress-insights__skill-pct {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  text-align: right;
+}
+
+.beego-progress-insights__week {
+  margin-bottom: 12px;
+}
+
+.beego-progress-insights__bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 52px;
+  padding: 4px 2px 0;
+}
+
+.beego-progress-insights__bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.beego-progress-insights__bar {
+  width: 100%;
+  max-width: 28px;
+  border-radius: 6px 6px 2px 2px;
+  background: #e2e8f0;
+}
+
+.beego-progress-insights__bar.is-active {
+  background: linear-gradient(180deg, #38bdf8, #0ea5e9);
+}
+
+.beego-progress-insights__bar-day {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.beego-progress-insights__sw {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.beego-progress-insights__chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.beego-progress-insights__chips li {
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.beego-progress-insights__chips--weak li {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.beego-progress-insights__empty {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.beego-progress-insights__cta {
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #b45309;
+  text-decoration: none;
+}
+
+.beego-progress-insights__cta:hover {
+  color: #92400e;
+}
+
+@media (min-width: 900px) {
+  .beego-progress-insights {
+    margin: 0 0 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .beego-progress-insights__overview {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Phase 12 — Thành tích */
+.beego-achievements {
+  margin: 0 12px 14px;
+  padding: 14px;
+  border-radius: 16px;
+  background: linear-gradient(165deg, #fff7ed 0%, #ffffff 50%);
+  border: 1px solid #fed7aa;
+}
+
+.beego-achievements__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.beego-achievements__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #9a3412;
+}
+
+.beego-achievements__sub {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #a8a29e;
+}
+
+.beego-achievements__empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #78716c;
+}
+
+.beego-achievements__badges {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.beego-achievements__badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 72px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #ffedd5;
+}
+
+.beego-achievements__icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.beego-achievements__badge-title {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #57534e;
+  text-align: center;
+  line-height: 1.2;
+  max-height: 2.4em;
+  overflow: hidden;
+}
+
+.beego-achievements__h3 {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #78716c;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.beego-achievements__progress-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.beego-achievements__progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #44403c;
+  margin-bottom: 4px;
+}
+
+.beego-achievements__progress-nums {
+  color: #a8a29e;
+  font-size: 0.72rem;
+}
+
+.beego-achievements__bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: #ffedd5;
+  overflow: hidden;
+}
+
+.beego-achievements__bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #fb923c, #f59e0b);
+  border-radius: 999px;
+}
+
+.beego-achievement-toast {
+  position: sticky;
+  top: calc(var(--beego-learn-header-offset, 72px) + 4px);
+  z-index: 21;
+  margin: 0 12px 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+  animation: beego-goal-toast-in 0.35s ease;
+}
+
+@media (min-width: 900px) {
+  .beego-achievements {
+    margin: 0 0 16px;
+  }
+}
+
+.beego-learn-panel__goal-done {
+  margin-left: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #059669;
+}
+
+.beego-learn-panel__card--daily-goal .beego-learn-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.beego-learn-mobile-stats__icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.beego-learn-mobile-stats__value {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--beego-learn-ink);
+}
+
+.beego-learn-mobile-stats__label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--beego-learn-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.beego-learn-mobile-stats__item--honey .beego-learn-mobile-stats__value {
+  color: var(--beego-learn-honey-dark);
+}
+
+.beego-learn-header__desc--mobile-only {
+  display: block;
+}
+
+@media (min-width: 1024px) {
+  .beego-learn-mobile-stats {
+    display: none;
+  }
+
+  .beego-learn-header__desc--mobile-only {
+    display: none;
+  }
+
+  .beego-learn-sheet-root--desktop {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .beego-learn-sheet--float {
+    width: min(420px, calc(100% - 48px));
+    max-width: 420px;
+    border-radius: 22px;
+    animation: beego-learn-modal-in 0.22s ease;
+    box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+  }
+
+  .beego-unit-banner__title {
+    font-size: 1.35rem;
+  }
+
+  .beego-learn-node-wrap--left {
+    padding-left: 14%;
+  }
+
+  .beego-learn-node-wrap--right {
+    padding-right: 14%;
+  }
+
+  .beego-learn__layout {
+    max-width: 1280px;
+  }
+}
+
+@media (min-width: 1366px) {
+  .beego-learn__layout {
+    max-width: 1340px;
+    gap: 36px;
+  }
+
+  .beego-learn-panel {
+    width: 290px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .beego-learn__layout {
+    max-width: 1420px;
+    gap: 44px;
+  }
+
+  .beego-learn-panel {
+    width: 310px;
+  }
+}
+
+@media (min-width: 1920px) {
+  .beego-learn__layout {
+    max-width: 1520px;
+  }
+}
+
+@media (max-width: 375px) {
+  .beego-unit-banner__inner {
+    padding: 14px 14px 16px;
+  }
+
+  .beego-unit-banner__title {
+    font-size: 1.05rem;
+  }
+
+  .beego-learn-mobile-stats__label {
+    display: none;
+  }
+}
+
+@media (max-width: 320px) {
+  .beego-learn-mobile-stats {
+    gap: 6px;
+  }
+
+  .beego-learn-mobile-stats__item {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .beego-unit-banner__desc {
+    font-size: 0.74rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beego-learn-node--done-anim .beego-learn-node__circle,
+  .beego-learn-sheet__honey-bump,
+  .beego-learn-sheet--float {
+    animation: none;
+  }
+}
+
+
+/* Phase 9 — Placement banner + modal */
+.beego-placement-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+.beego-placement-banner__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+  color: #1e3a8a;
+}
+.beego-placement-banner__text strong {
+  font-size: 0.95rem;
+}
+.beego-placement-banner__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.beego-placement-banner__cta {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+.beego-placement-banner__skip {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.beego-placement-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.45);
+}
+.beego-placement-modal__card {
+  width: min(520px, 100%);
+  max-height: min(90dvh, 720px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px 16px 14px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+}
+.beego-placement-modal__meta {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 700;
+}
+.beego-placement-modal__prompt {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  line-height: 1.35;
+}
+.beego-placement-modal__options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.beego-placement-modal__opt {
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  font-weight: 600;
+  cursor: pointer;
+}
+.beego-placement-modal__opt.is-selected {
+  border-color: #2563eb;
+  background: #dbeafe;
+}
+.beego-placement-modal__fb--correct { color: #059669; font-weight: 800; }
+.beego-placement-modal__fb--wrong { color: #dc2626; font-weight: 800; }
+.beego-placement-modal__result {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  line-height: 1.55;
+}
+.beego-placement-modal__choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.beego-placement-modal__hint {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+.beego-placement-modal__error { color: #dc2626; font-weight: 700; }
+.beego-placement-modal__close {
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-weight: 700;
+  cursor: pointer;
+}
+.beego-learn-node--skipped {
+  opacity: 0.72;
+}
+
+/* Phase 14 — narrow mobile QA (320 / 375 / 390 / 430) */
+@media (max-width: 430px) {
+  .beego-learn {
+    overflow-x: hidden;
+  }
+  .beego-today-for-you,
+  .beego-progress-insights,
+  .beego-achievements {
+    margin-left: 8px;
+    margin-right: 8px;
+    padding: 12px;
+  }
+  .beego-today-for-you__item {
+    flex-wrap: wrap;
+  }
+  .beego-today-for-you__cta {
+    width: 100%;
+  }
+  .beego-progress-insights__overview {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .beego-progress-insights__skill {
+    grid-template-columns: 64px 1fr 28px;
+    gap: 6px;
+  }
+  .beego-achievements__badge {
+    width: 64px;
+  }
+  .beego-achievements__badges {
+    justify-content: flex-start;
+  }
+  .beego-learn-mobile-stats {
+    margin-left: 8px;
+    margin-right: 8px;
+  }
+}
+
+@media (max-width: 390px) {
+  .beego-progress-insights__overview {
+    gap: 8px;
+  }
+  .beego-today-for-you__meta,
+  .beego-achievements__meta {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 375px) {
+  .beego-today-for-you__title,
+  .beego-progress-insights__title,
+  .beego-achievements__title {
+    font-size: 0.98rem;
+  }
+  .beego-progress-insights__stat-val {
+    font-size: 0.92rem;
+  }
+  .beego-placement-banner {
+    margin-left: 8px;
+    margin-right: 8px;
+  }
+}
+
+@media (max-width: 320px) {
+  .beego-today-for-you,
+  .beego-progress-insights,
+  .beego-achievements,
+  .beego-learn-mobile-stats {
+    margin-left: 6px;
+    margin-right: 6px;
+    border-radius: 12px;
+  }
+  .beego-progress-insights__sw {
+    grid-template-columns: 1fr;
+  }
+  .beego-achievements__badge {
+    width: 56px;
+    padding: 6px 2px;
+  }
+  .beego-today-for-you__name {
+    font-size: 0.85rem;
+  }
+}

@@ -1,83 +1,365 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import LessonTopBar from "./LessonTopBar";
-import QuestionRenderer from "./QuestionRenderer";
+import ExerciseRenderer from "./ExerciseRenderer";
 import LessonBottomBar from "./LessonBottomBar";
 import LessonFeedbackBar from "./LessonFeedbackBar";
 import LessonCompleteScreen from "./LessonCompleteScreen";
+import LessonAiConversation from "./LessonAiConversation";
+import { isLessonSuitableForAiPractice } from "@/lib/beego/learn/learn-ai-practice-eligibility";
 import {
-  checkAnswer,
-  getCorrectAnswerDisplay,
   hasAnswerSelected,
-  loadLesson,
 } from "@/lib/beego/lesson-player";
+import {
+  notifyLearningPathUpdated,
+  postLearningPathComplete,
+} from "@/lib/beego/learn/complete-lesson-client";
+import { fetchLessonForPlayer } from "@/lib/beego/learn/fetch-lesson-for-player";
+import { postLearnExerciseResult } from "@/lib/beego/learn/post-exercise-result-client";
+import { stopLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
 
 export default function LessonPlayer({ lessonId }) {
   const router = useRouter();
-  const lesson = useMemo(() => loadLesson(lessonId), [lessonId]);
-  const total = lesson.questions.length;
+
+  const [loadState, setLoadState] = useState("loading");
+  const [loadError, setLoadError] = useState("");
+  const [lesson, setLesson] = useState(null);
+  const [contentSource, setContentSource] = useState("");
 
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState(null);
   const [feedback, setFeedback] = useState(null);
-  const [lives, setLives] = useState(lesson.lives);
+  const [reveal, setReveal] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [lives, setLives] = useState(3);
   const [correctCount, setCorrectCount] = useState(0);
   const [keyboardMode, setKeyboardMode] = useState(false);
   const [phase, setPhase] = useState("playing");
 
-  const question = lesson.questions[index];
-  const progress = phase === "complete" ? 100 : Math.round((index / total) * 100);
+  const [completeSaving, setCompleteSaving] = useState(false);
+  const [completeGuest, setCompleteGuest] = useState(false);
+  const [completeError, setCompleteError] = useState("");
+  const [xpAwarded, setXpAwarded] = useState(0);
+  const [honeyAwarded, setHoneyAwarded] = useState(0);
+  const [streak, setStreak] = useState(null);
+  const [alreadyCompleted, setAlreadyCompleted] = useState(false);
+  const [aiPracticeOn, setAiPracticeOn] = useState(false);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
-  const canCheck = hasAnswerSelected(question, answer) && !feedback;
+  const exerciseAttemptKeyRef = useRef(null);
+  const exerciseResultSentRef = useRef(false);
 
-  const handleCheck = useCallback(() => {
-    if (!canCheck) return;
-    const ok = checkAnswer(question, answer);
-    setFeedback(ok ? "correct" : "wrong");
-    if (ok) {
-      setCorrectCount((c) => c + 1);
-    } else if (lives > 0) {
-      setLives((l) => l - 1);
+  const completeSubmitRef = useRef(false);
+  const scoreAtFinishRef = useRef(0);
+  const correctAtFinishRef = useRef(0);
+  const correctRef = useRef(0);
+  const canPersistCompleteRef = useRef(false);
+
+  const total = lesson?.questions?.length ?? 0;
+  const question = lesson?.questions?.[index];
+  const progress = phase === "complete" ? 100 : total ? Math.round((index / total) * 100) : 0;
+
+  const canCheck = question && hasAnswerSelected(question, answer) && !feedback && !checking;
+  const skipDisabled = Boolean(question?.required);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadState("loading");
+    setLoadError("");
+    setLesson(null);
+    setPhase("playing");
+    setIndex(0);
+    setAnswer(null);
+    setFeedback(null);
+    setReveal(null);
+    correctRef.current = 0;
+    setCorrectCount(0);
+    completeSubmitRef.current = false;
+    exerciseAttemptKeyRef.current = null;
+    exerciseResultSentRef.current = false;
+    canPersistCompleteRef.current = false;
+
+    (async () => {
+      const result = await fetchLessonForPlayer(lessonId);
+      if (cancelled) return;
+      if (!result.ok) {
+        setLoadState("error");
+        setLoadError(result.message || "Không tải được bài học.");
+        return;
+      }
+      setLesson(result.lesson);
+      setLives(result.lesson.lives ?? 3);
+      setContentSource(result.source);
+      const resume = result.lesson.resume;
+      const questionCount = result.lesson.questions?.length || 0;
+      const resumeCorrect = Number(resume?.correctCount) || 0;
+      if (resume?.completed) {
+        canPersistCompleteRef.current = false;
+        correctRef.current = resumeCorrect;
+        setCorrectCount(resumeCorrect);
+        scoreAtFinishRef.current = questionCount ? Math.round((resumeCorrect / questionCount) * 100) : 0;
+        setPhase("complete");
+      } else {
+        canPersistCompleteRef.current = true;
+        const startIndex = Number(resume?.startIndex) || 0;
+        if (startIndex > 0 && startIndex < questionCount) {
+          correctRef.current = resumeCorrect;
+          setCorrectCount(resumeCorrect);
+          setIndex(startIndex);
+        } else if (startIndex >= questionCount && questionCount > 0 && resume?.answeredQuestionIds?.length) {
+          correctRef.current = resumeCorrect;
+          setCorrectCount(resumeCorrect);
+          scoreAtFinishRef.current = Math.round((resumeCorrect / questionCount) * 100);
+          setPhase("complete");
+        }
+      }
+      setLoadState("ready");
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lessonId]);
+
+  const goToCompletePhase = useCallback(
+    (finalCorrect) => {
+      if (!canPersistCompleteRef.current) return;
+      const n = total > 0 ? finalCorrect : 0;
+      correctAtFinishRef.current = n;
+      scoreAtFinishRef.current = total > 0 ? Math.round((n / total) * 100) : 0;
+      setPhase("complete");
+    },
+    [total]
+  );
+
+  const handleCheck = useCallback(async () => {
+    if (!canCheck || checking) return;
+    setChecking(true);
+
+    if (!exerciseAttemptKeyRef.current) {
+      exerciseAttemptKeyRef.current =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${lessonId}-${question?.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     }
-  }, [canCheck, question, answer, lives]);
+
+    const gradeLessonId =
+      question?.activityMeta?.sourceLessonId ||
+      question?.reviewMeta?.sourceLessonId ||
+      lessonId;
+    const gradeQuestionId = String(
+      question?.activityMeta?.sourceQuestionId ||
+        question?.reviewMeta?.sourceQuestionId ||
+        question?.id ||
+        `q-${index}`
+    );
+
+    try {
+      if (!exerciseResultSentRef.current) {
+        exerciseResultSentRef.current = true;
+        const result = await postLearnExerciseResult({
+          attemptKey: exerciseAttemptKeyRef.current,
+          lessonId: gradeLessonId,
+          questionId: gradeQuestionId,
+          lessonType:
+            question?.activityMeta?.sourceLessonType ||
+            question?.reviewMeta?.sourceLessonType ||
+            lesson?.type ||
+            "",
+          exerciseType: question?.type || "unknown",
+          skillLabel: question?.skillLabel || "",
+          activityStage: question?.activityMeta?.stage || "",
+          difficulty: question?.activityMeta?.difficulty || "",
+          answer,
+        });
+
+        if (!result.ok) {
+          exerciseResultSentRef.current = false;
+          setFeedback("wrong");
+          setReveal({
+            correctAnswerText: "Không chấm được — thử lại.",
+            explanation: result.message || null,
+            correctAnswerId: null,
+          });
+          return;
+        }
+
+        const ok = Boolean(result.data?.is_correct);
+        setFeedback(ok ? "correct" : "wrong");
+        setReveal({
+          correctAnswerText: result.data?.correct_answer_display || "—",
+          explanation: result.data?.explanation || null,
+          correctAnswerId: result.data?.correct_answer_id ?? null,
+        });
+        if (ok) {
+          correctRef.current += 1;
+          setCorrectCount(correctRef.current);
+        } else if (lives > 0) {
+          setLives((l) => l - 1);
+        }
+      }
+    } finally {
+      setChecking(false);
+    }
+  }, [canCheck, checking, question, answer, lives, lessonId, lesson?.type, index]);
 
   const handleContinue = useCallback(() => {
     if (index >= total - 1) {
-      setPhase("complete");
+      goToCompletePhase(correctRef.current);
       return;
     }
     setIndex((i) => i + 1);
     setAnswer(null);
     setFeedback(null);
-  }, [index, total]);
+    setReveal(null);
+    exerciseAttemptKeyRef.current = null;
+    exerciseResultSentRef.current = false;
+  }, [index, total, goToCompletePhase]);
 
   const handleSkip = useCallback(() => {
-    if (feedback) return;
+    if (feedback || checking) return;
+    if (question?.required) return;
     if (index >= total - 1) {
-      setPhase("complete");
+      goToCompletePhase(correctRef.current);
       return;
     }
     setIndex((i) => i + 1);
     setAnswer(null);
-  }, [feedback, index, total]);
+    setReveal(null);
+  }, [feedback, checking, index, total, goToCompletePhase, question?.required]);
 
   const handleExit = useCallback(() => {
-    if (window.confirm("Bạn muốn thoát bài học? Tiến độ sẽ không được lưu.")) {
+    if (window.confirm("Bạn muốn thoát bài học? Các câu đã nộp vẫn được giữ.")) {
+      stopLessonTts();
       router.push("/");
     }
   }, [router]);
+
+  useEffect(() => {
+    stopLessonTts();
+  }, [index, phase]);
+
+  useEffect(() => {
+    if (question?.type !== "matching_pairs") return;
+    if (!answer?.completed || feedback || checking) return;
+    void handleCheck();
+  }, [question?.id, question?.type, answer, feedback, checking, handleCheck]);
+
+  useEffect(() => {
+    if (phase !== "complete") return;
+    if (!canPersistCompleteRef.current) return;
+    if (completeSubmitRef.current) return;
+    completeSubmitRef.current = true;
+
+    let cancelled = false;
+    setCompleteSaving(true);
+    setCompleteGuest(false);
+    setCompleteError("");
+
+    (async () => {
+      const result = await postLearningPathComplete(lessonId, {
+        score: scoreAtFinishRef.current,
+      });
+      if (cancelled) return;
+
+      setCompleteSaving(false);
+
+      if (!result.ok) {
+        if (result.status === 401) {
+          setCompleteGuest(true);
+          return;
+        }
+        if (result.code === "LESSON_LOCKED") {
+          setCompleteError("Bài chưa mở khóa — hoàn thành bài trước trên lộ trình.");
+          return;
+        }
+        setCompleteError(result.message || "Không lưu được tiến độ.");
+        return;
+      }
+
+      const data = result.data;
+      const idempotent = Boolean(data.already_completed);
+      setAlreadyCompleted(idempotent);
+      setXpAwarded(Number(data.xp_awarded ?? 0));
+      setHoneyAwarded(Number(data.honey_awarded ?? 0));
+      const prog = data.progress || data.path?.progress;
+      if (prog?.streak != null) {
+        setStreak(Number(prog.streak));
+      }
+      notifyLearningPathUpdated(data);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, lessonId]);
+
+  useEffect(() => {
+    if (phase !== "complete" || !isLessonSuitableForAiPractice(lesson)) {
+      setAiPracticeOn(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/learn/chat/status", { cache: "no-store" });
+        const json = await res.json().catch(() => ({}));
+        if (!cancelled) setAiPracticeOn(Boolean(res.ok && json?.data?.enabled));
+      } catch {
+        if (!cancelled) setAiPracticeOn(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, lesson]);
+
+  if (loadState === "loading") {
+    return (
+      <div className="beego-lesson-player beego-lesson-player--loading">
+        <p className="beego-lesson-complete__msg">Đang tải bài học…</p>
+      </div>
+    );
+  }
+
+  if (loadState === "error" || !lesson) {
+    return (
+      <div className="beego-lesson-player beego-lesson-player--error">
+        <div className="beego-lesson-complete__card">
+          <h1>Không mở được bài học</h1>
+          <p>{loadError || "Nội dung không khả dụng."}</p>
+          <Link href="/" className="beego-lesson-complete__cta">
+            Về lộ trình học
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (phase === "complete") {
     return (
       <div className="beego-lesson-player beego-lesson-player--complete">
         <LessonCompleteScreen
           lesson={lesson}
-          correctCount={correctCount}
+          correctCount={correctAtFinishRef.current}
           total={total}
           livesLeft={lives}
+          saving={completeSaving}
+          guest={completeGuest}
+          errorMessage={completeError}
+          xpAwarded={xpAwarded}
+          honeyAwarded={honeyAwarded}
+          streak={streak}
+          alreadyCompleted={alreadyCompleted}
+          showAiPractice={aiPracticeOn}
+          onAiPractice={() => setAiPanelOpen(true)}
         />
+        {aiPanelOpen ? (
+          <LessonAiConversation lessonId={lessonId} onClose={() => setAiPanelOpen(false)} />
+        ) : null}
       </div>
     );
   }
@@ -87,23 +369,23 @@ export default function LessonPlayer({ lessonId }) {
       <LessonTopBar progress={progress} lives={lives} onExit={handleExit} />
 
       <main className="beego-lesson-player__main">
-        <QuestionRenderer
-          question={question}
+        <ExerciseRenderer
+          exercise={question}
+          activityType={lesson?.type}
           answer={answer}
           onAnswerChange={setAnswer}
           feedback={feedback}
-          correctId={
-            question.type === "translate_word_bank" ? null : question.correctAnswer
-          }
+          revealCorrectId={reveal?.correctAnswerId ?? null}
+          onCheck={handleCheck}
         />
-        {keyboardMode ? (
+        {keyboardMode && question?.type !== "listening_dictation" ? (
           <input
             type="text"
             className="beego-lesson-keyboard-input"
             placeholder="Nhập đáp án..."
             value={typeof answer === "string" ? answer : ""}
             onChange={(e) => setAnswer(e.target.value)}
-            disabled={!!feedback}
+            disabled={!!feedback || checking}
           />
         ) : null}
       </main>
@@ -111,8 +393,8 @@ export default function LessonPlayer({ lessonId }) {
       {feedback ? (
         <LessonFeedbackBar
           correct={feedback === "correct"}
-          correctAnswerText={getCorrectAnswerDisplay(question)}
-          explanation={question.explanation}
+          correctAnswerText={reveal?.correctAnswerText || "—"}
+          explanation={reveal?.explanation}
           onContinue={handleContinue}
         />
       ) : (
@@ -122,6 +404,7 @@ export default function LessonPlayer({ lessonId }) {
           onCheck={handleCheck}
           keyboardMode={keyboardMode}
           onToggleKeyboard={() => setKeyboardMode((v) => !v)}
+          skipDisabled={skipDisabled}
         />
       )}
     </div>

@@ -11,7 +11,7 @@ import {
   type UserPlanState,
 } from "@/lib/subscriptions/subscription-service";
 
-const COOKIE_NAME = "session_token";
+import { resolveSessionToken } from "@/lib/auth/resolve-session-token";
 
 export type AiFeature = "chat" | "translate" | "grammar" | "speaking";
 
@@ -41,20 +41,35 @@ const PAYWALL = {
 } as const;
 
 export async function getSessionUserIdFromRequest(request: {
-  cookies: { get: (name: string) => { value?: string } | undefined };
+  cookies?: { get: (name: string) => { value?: string } | undefined };
+  headers?: Headers | { get: (name: string) => string | null };
 }): Promise<number | null> {
-  const token = request.cookies.get(COOKIE_NAME)?.value;
+  const token = resolveSessionToken(request);
   if (!token) return null;
-  const [rows] = await pool.query(
-    `SELECT u.id AS id
-     FROM user_sessions s
-     INNER JOIN users u ON u.id = s.user_id
-     WHERE s.token = ? AND s.expires_at > NOW()
-     LIMIT 1`,
-    [token]
-  );
-  const id = Number((rows as { id: number }[])[0]?.id);
-  return Number.isFinite(id) ? id : null;
+  try {
+    const [rows] = await pool.query(
+      `SELECT u.id AS id
+       FROM user_sessions s
+       INNER JOIN users u ON u.id = s.user_id
+       WHERE s.token = ? AND s.expires_at > NOW()
+         AND (s.revoked_at IS NULL)
+       LIMIT 1`,
+      [token]
+    );
+    const id = Number((rows as { id: number }[])[0]?.id);
+    return Number.isFinite(id) ? id : null;
+  } catch {
+    const [rows] = await pool.query(
+      `SELECT u.id AS id
+       FROM user_sessions s
+       INNER JOIN users u ON u.id = s.user_id
+       WHERE s.token = ? AND s.expires_at > NOW()
+       LIMIT 1`,
+      [token]
+    );
+    const id = Number((rows as { id: number }[])[0]?.id);
+    return Number.isFinite(id) ? id : null;
+  }
 }
 
 async function getUserEmailById(userId: number): Promise<string | null> {

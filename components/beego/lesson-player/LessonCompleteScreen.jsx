@@ -1,28 +1,96 @@
 "use client";
 
 import Link from "next/link";
+import styles from "./LessonAiConversation.module.css";
 
-export default function LessonCompleteScreen({ lesson, correctCount, total, livesLeft }) {
+/**
+ * @param {object} props
+ * @param {{ title?: string }} props.lesson
+ * @param {number} props.correctCount
+ * @param {number} props.total
+ * @param {number} props.livesLeft
+ * @param {boolean} props.saving
+ * @param {boolean} props.guest
+ * @param {string} [props.errorMessage]
+ * @param {number} props.xpAwarded
+ * @param {number} props.honeyAwarded
+ * @param {number|null} [props.streak]
+ * @param {boolean} props.alreadyCompleted
+ * @param {boolean} [props.showAiPractice]
+ * @param {() => void} [props.onAiPractice]
+ */
+export default function LessonCompleteScreen({
+  lesson,
+  correctCount,
+  total,
+  livesLeft,
+  saving = false,
+  guest = false,
+  errorMessage = "",
+  xpAwarded = 0,
+  honeyAwarded = 0,
+  streak = null,
+  alreadyCompleted = false,
+  showAiPractice = false,
+  onAiPractice,
+}) {
+  const title = lesson?.title || "Bài học Beego";
+
   return (
     <div className="beego-lesson-complete">
       <div className="beego-lesson-complete__card">
         <span className="beego-lesson-complete__bee" aria-hidden>
           🐝
         </span>
-        <h1>Hoàn thành bài học!</h1>
-        <p className="beego-lesson-complete__title">{lesson.title}</p>
+        <h1>{saving ? "Đang lưu tiến độ…" : "Hoàn thành bài học!"}</h1>
+        <p className="beego-lesson-complete__title">{title}</p>
         <ul className="beego-lesson-complete__stats">
           <li>
             ✓ {correctCount}/{total} câu đúng
           </li>
-          <li>🍯 +{lesson.honeyReward} Honey</li>
-          <li>⭐ +{lesson.xpReward} XP</li>
+          {saving ? (
+            <li>⏳ Đồng bộ lộ trình…</li>
+          ) : guest ? (
+            <li>🔐 Đăng nhập để lưu XP, Honey và mở bài tiếp theo.</li>
+          ) : errorMessage ? (
+            <li>⚠️ {errorMessage}</li>
+          ) : (
+            <>
+              <li>
+                🍯 +{honeyAwarded} Honey{alreadyCompleted ? " (đã hoàn thành trước đó)" : ""}
+              </li>
+              <li>
+                ⭐ +{xpAwarded} XP{alreadyCompleted ? "" : ""}
+              </li>
+              {streak != null ? <li>🔥 Streak: {streak} ngày</li> : null}
+            </>
+          )}
           {livesLeft > 0 ? <li>❤️ Còn {livesLeft} tim</li> : null}
         </ul>
-        <p className="beego-lesson-complete__msg">Beego tự hào về bạn! Học tiếp nào.</p>
-        <Link href="/" className="beego-lesson-complete__cta">
+        <p className="beego-lesson-complete__msg">
+          {saving
+            ? "Vui lòng đợi trong giây lát."
+            : guest
+              ? "Bạn vẫn có thể xem lại bài; tiến độ lưu khi đã đăng nhập."
+              : errorMessage
+                ? "Thử quay lại lộ trình hoặc học lại sau."
+                : "Beego tự hào về bạn! Học tiếp nào."}
+        </p>
+        <Link
+          href="/"
+          className="beego-lesson-complete__cta"
+          aria-disabled={saving}
+          onClick={(e) => {
+            if (saving) e.preventDefault();
+          }}
+        >
           Về lộ trình học
         </Link>
+        {showAiPractice ? (
+          <button type="button" className={styles.secondaryCta} onClick={onAiPractice}>
+            Thực hành với AI
+          </button>
+        ) : null}
       </div>
     </div>
   );

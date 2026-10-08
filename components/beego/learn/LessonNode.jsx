@@ -11,7 +11,7 @@ export default function LessonNode({ node, align, onClick }) {
   const nodeType = getNodeType(node);
   const isActive = node.status === "active";
   const isLocked = node.status === "locked";
-  const isCompleted = node.status === "completed";
+  const isCompleted = node.status === "completed" || node.status === "skipped";
   const isTest = isTestNode(node);
   const badge = getActiveNodeBadge(node);
   const showTitle = isActive || isCompleted || (!isLocked && !isActive);
@@ -21,12 +21,16 @@ export default function LessonNode({ node, align, onClick }) {
       <LearnNodeTooltip node={node} open={tooltipOpen}>
         <button
           type="button"
+          data-lesson-id={node.lessonId}
+          data-node-status={node.status}
+          data-node-type={nodeType}
           className={[
             "beego-learn-node",
             `beego-learn-node--${nodeType}`,
             `beego-learn-node--${node.status}`,
             isTest ? "beego-learn-node--test" : "",
             isActive ? "beego-learn-node--current" : "",
+            isCompleted ? "beego-learn-node--done-anim" : "",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -41,10 +45,18 @@ export default function LessonNode({ node, align, onClick }) {
           <span
             className={`beego-learn-node__circle${isTest ? " beego-learn-node__circle--test" : ""}`}
           >
-            <LearningNodeIcon node={node} size={isTest ? "lg" : isActive ? "md" : "md"} />
+            {isCompleted && !isTest ? (
+              <span className="beego-learn-node__check" aria-hidden>
+                ✓
+              </span>
+            ) : (
+              <LearningNodeIcon node={node} size={isTest ? "lg" : "md"} />
+            )}
           </span>
           {badge ? (
-            <span className={`beego-learn-node__badge${isTest ? " beego-learn-node__badge--test" : ""}`}>
+            <span
+              className={`beego-learn-node__badge${isTest ? " beego-learn-node__badge--test" : ""}`}
+            >
               {badge}
             </span>
           ) : null}

@@ -1,9 +1,23 @@
 "use client";
 
-export default function LessonBottomBar({ canCheck, onSkip, onCheck, keyboardMode, onToggleKeyboard }) {
+export default function LessonBottomBar({
+  canCheck,
+  onSkip,
+  onCheck,
+  keyboardMode,
+  onToggleKeyboard,
+  skipDisabled = false,
+}) {
   return (
     <footer className="beego-lesson-bottombar">
-      <button type="button" className="beego-lesson-bottombar__link" onClick={onSkip}>
+      <button
+        type="button"
+        className="beego-lesson-bottombar__link"
+        onClick={onSkip}
+        disabled={skipDisabled}
+        aria-disabled={skipDisabled}
+        title={skipDisabled ? "Bài bắt buộc — không bỏ qua" : undefined}
+      >
         Bỏ qua
       </button>
       <button type="button" className="beego-lesson-bottombar__link" onClick={onToggleKeyboard}>

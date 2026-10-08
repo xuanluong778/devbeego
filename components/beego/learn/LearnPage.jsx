@@ -5,8 +5,10 @@ import LearnHeader from "./LearnHeader";
 import BeegoLearningPath from "./BeegoLearningPath";
 import BeegoMascotBubble from "./BeegoMascotBubble";
 import LearnRightPanel from "./LearnRightPanel";
+import LearnMobileStats from "./LearnMobileStats";
 import LessonStartSheet from "./LessonStartSheet";
 import { useActiveLearnSection } from "./useActiveLearnSection";
+import { useScrollToActiveNode } from "./useScrollToActiveNode";
 import {
   findCurrentSection,
   getMascotMessage,
@@ -15,6 +17,13 @@ import {
 import { buildDailyMissions, MISSION_STATUS } from "@/lib/beego/daily-missions";
 import { readOnboardingProfile } from "@/lib/beego/onboarding-storage";
 import { isTestNode } from "@/lib/beego/learning-path-build";
+import PlacementBanner from "./PlacementBanner";
+import TodayForYouCard from "./TodayForYouCard";
+import ProgressInsightsCard from "./ProgressInsightsCard";
+import AchievementsCard from "./AchievementsCard";
+import InstallAppOffer from "@/components/beego/InstallAppOffer";
+import { LEARNING_PATH_UPDATED_EVENT } from "@/lib/beego/learn/complete-lesson-client";
+import LessonAiConversation from "@/components/beego/lesson-player/LessonAiConversation";
 
 function resolveSheetKind(node) {
   if (node.status === "locked") return "locked";
@@ -28,14 +37,23 @@ export default function LearnPage() {
   const [dash, setDash] = useState(null);
   const [dashLoading, setDashLoading] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
-  const [sheet, setSheet] = useState({ open: false, node: null, kind: "lesson" });
+  const [sheet, setSheet] = useState({ open: false, node: null, kind: "lesson", anchor: null });
+  const [resumeAiLessonId, setResumeAiLessonId] = useState("");
+
+  const [goalCelebrate, setGoalCelebrate] = useState(false);
+  const [achievementToast, setAchievementToast] = useState(null);
 
   const learnRootRef = useRef(null);
   const headerRef = useRef(null);
   const sectionRefs = useRef(new Map());
 
-  const pathData = useMemo(() => loadLearningPath(dash), [dash]);
-  const activeSectionId = useActiveLearnSection(pathData.sections, sectionRefs);
+  const [pathPayload, setPathPayload] = useState(null);
+  const pathData = useMemo(() => loadLearningPath(pathPayload), [pathPayload]);
+  const activeSectionId = useActiveLearnSection(
+    pathData.sections,
+    sectionRefs,
+    pathData.currentSectionId
+  );
   const activeSection = useMemo(
     () =>
       pathData.sections.find((s) => s.sectionId === activeSectionId) ||
@@ -57,6 +75,8 @@ export default function LearnPage() {
     if (el) sectionRefs.current.set(sectionId, el);
     else sectionRefs.current.delete(sectionId);
   }, []);
+
+  useScrollToActiveNode(pathData.sections, true);
 
   useEffect(() => {
     const load = () => setProfile(readOnboardingProfile());
@@ -83,24 +103,114 @@ export default function LearnPage() {
     };
   }, []);
 
+  const refreshLearningPath = useCallback(async (opts = {}) => {
+    const { refreshDashboard = false } = opts;
+    try {
+      const fetches = [
+        fetch("/api/learning-path", { cache: "no-store", credentials: "same-origin" }),
+      ];
+      if (refreshDashboard) {
+        fetches.push(fetch("/api/dashboard", { cache: "no-store", credentials: "same-origin" }));
+      }
+      const [pathRes, dashRes] = await Promise.all(fetches);
+      const pathJson = await pathRes.json().catch(() => null);
+      if (pathRes.ok && pathJson?.success && pathJson.data) {
+        setPathPayload(pathJson.data);
+        const p = pathJson.data.progress;
+        if (p) {
+          setDash((prev) => ({
+            ...(prev || {}),
+            xp_total: Number(p.xp_total ?? prev?.xp_total ?? 0),
+            honey_total: Number(p.honey_total ?? 0),
+            streak: Number(p.streak ?? prev?.streak ?? 0),
+            active_lesson_id: p.active_lesson_id,
+            xp_today: Number(p.xp_today ?? prev?.xp_today ?? 0),
+            daily_goal_xp: Number(p.daily_goal_xp ?? prev?.daily_goal_xp ?? 30),
+            daily_goal_progress_pct: Number(
+              p.daily_goal_progress_pct ?? prev?.daily_goal_progress_pct ?? 0
+            ),
+            daily_goal_completed: Boolean(
+              p.daily_goal_completed ?? prev?.daily_goal_completed ?? false
+            ),
+          }));
+        }
+        const dm = pathJson.data.daily_motivation;
+        if (dm && !dm.guest) {
+          setDash((prev) => ({
+            ...(prev || {}),
+            streak: Number(dm.streak ?? prev?.streak ?? 0),
+            xp_today: Number(dm.xp_today ?? 0),
+            daily_goal_xp: Number(dm.daily_goal_xp ?? 30),
+            daily_goal_progress_pct: Number(dm.daily_goal_progress_pct ?? 0),
+            daily_goal_completed: Boolean(dm.daily_goal_completed),
+          }));
+          if (dm.daily_goal_just_completed || dm.daily_goal_completed) {
+            try {
+              const key = `beego:daily-goal-celebrate:${dm.progress_date || ""}`;
+              if (dm.daily_goal_just_completed && !sessionStorage.getItem(key)) {
+                sessionStorage.setItem(key, "1");
+                setGoalCelebrate(true);
+                window.setTimeout(() => setGoalCelebrate(false), 3200);
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }
+      if (refreshDashboard && dashRes) {
+        const dashJson = await dashRes.json().catch(() => null);
+        if (dashRes.ok && dashJson?.success) setDash(dashJson.data);
+      }
+    } catch {
+      /* guest empty path */
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     setDashLoading(true);
     (async () => {
-      try {
-        const res = await fetch("/api/dashboard", { cache: "no-store", credentials: "same-origin" });
-        const json = await res.json().catch(() => null);
-        if (!cancelled && res.ok && json?.success) setDash(json.data);
-      } catch {
-        /* fallback mock path */
-      } finally {
-        if (!cancelled) setDashLoading(false);
-      }
+      await refreshLearningPath({ refreshDashboard: true });
+      if (!cancelled) setDashLoading(false);
     })();
     return () => {
       cancelled = true;
     };
+  }, [refreshLearningPath]);
+
+  const showAchievementToast = useCallback((list) => {
+    if (!Array.isArray(list) || !list.length) return;
+    const first = list[0];
+    setAchievementToast(first);
+    window.setTimeout(() => setAchievementToast(null), 2800);
   }, []);
+
+  useEffect(() => {
+    const onPathUpdated = (ev) => {
+      const detail = ev?.detail;
+      const dm = detail?.daily_motivation || detail?.path?.daily_motivation;
+      if (dm?.daily_goal_just_completed) {
+        try {
+          const key = `beego:daily-goal-celebrate:${dm.progress_date || ""}`;
+          if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, "1");
+            setGoalCelebrate(true);
+            window.setTimeout(() => setGoalCelebrate(false), 3200);
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      const unlocked = detail?.achievements_unlocked;
+      if (Array.isArray(unlocked) && unlocked.length) {
+        showAchievementToast(unlocked);
+      }
+      void refreshLearningPath({ refreshDashboard: false });
+    };
+    window.addEventListener(LEARNING_PATH_UPDATED_EVENT, onPathUpdated);
+    return () => window.removeEventListener(LEARNING_PATH_UPDATED_EVENT, onPathUpdated);
+  }, [refreshLearningPath, showAchievementToast]);
 
   useEffect(() => {
     const root = learnRootRef.current;
@@ -109,7 +219,7 @@ export default function LearnPage() {
 
     const syncOffset = () => {
       const height = header.getBoundingClientRect().height;
-      const offset = Math.max(Math.ceil(height) + 16, 120);
+      const offset = Math.max(Math.ceil(height) + 16, 100);
       root.style.setProperty("--beego-learn-header-offset", `${offset}px`);
     };
 
@@ -120,15 +230,29 @@ export default function LearnPage() {
   }, [activeSectionId, guideOpen]);
 
   const handleNodeClick = useCallback((node) => {
-    setSheet({ open: true, node, kind: resolveSheetKind(node) });
+    let anchor = null;
+    try {
+      const el = document.querySelector(`[data-lesson-id="${CSS.escape(node.lessonId)}"]`);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        anchor = { top: r.top, left: r.left, width: r.width, height: r.height };
+      }
+    } catch {
+      /* ignore */
+    }
+    setSheet({ open: true, node, kind: resolveSheetKind(node), anchor });
   }, []);
 
   const closeSheet = useCallback(() => {
-    setSheet({ open: false, node: null, kind: "lesson" });
+    setSheet({ open: false, node: null, kind: "lesson", anchor: null });
   }, []);
 
-  const streak = Number(dash?.streak ?? 7);
-  const honeyPoints = Number(dash?.xp_total ?? 1250);
+  const streak = Number(dash?.streak ?? 0);
+  const honeyPoints = Number(dash?.honey_total ?? dash?.xp_total ?? 0);
+  const xpToday = Number(dash?.xp_today ?? 0);
+  const dailyGoalXp = Number(dash?.daily_goal_xp ?? 30);
+  const dailyGoalPct = Number(dash?.daily_goal_progress_pct ?? 0);
+  const dailyGoalCompleted = Boolean(dash?.daily_goal_completed);
 
   return (
     <div className="beego-learn" ref={learnRootRef}>
@@ -138,6 +262,18 @@ export default function LearnPage() {
         userName={userName}
         onGuideClick={() => setGuideOpen((v) => !v)}
       />
+
+      {goalCelebrate ? (
+        <div className="beego-learn-goal-toast" role="status">
+          🎯 Daily Goal đạt rồi! Giữ streak và học tiếp ngày mai.
+        </div>
+      ) : null}
+
+      {achievementToast ? (
+        <div className="beego-achievement-toast" role="status">
+          {achievementToast.icon} Mở khóa: {achievementToast.title}
+        </div>
+      ) : null}
 
       {guideOpen ? (
         <div className="beego-learn-guide" role="note">
@@ -154,9 +290,28 @@ export default function LearnPage() {
       <div className="beego-learn__body">
         <div className="beego-learn__layout">
           <div className="beego-learn__main">
+            <PlacementBanner
+              onApplied={() => {
+                void refreshLearningPath({ refreshDashboard: true });
+              }}
+            />
+            <TodayForYouCard />
+            <ProgressInsightsCard />
+            <AchievementsCard onToast={showAchievementToast} />
+            <LearnMobileStats
+              streak={streak}
+              honeyPoints={honeyPoints}
+              xpToday={xpToday}
+              dailyGoalXp={dailyGoalXp}
+              dailyGoalPct={dailyGoalPct}
+              dailyGoalCompleted={dailyGoalCompleted}
+              loading={dashLoading}
+            />
             <BeegoMascotBubble message={mascotMessage} />
+            <InstallAppOffer variant="card" />
             <BeegoLearningPath
               sections={pathData.sections}
+              activeSectionId={activeSectionId || pathData.currentSectionId}
               onNodeClick={handleNodeClick}
               onSectionRef={registerSectionRef}
             />
@@ -169,6 +324,10 @@ export default function LearnPage() {
             missionsDone={missionsDone}
             missionsTotal={missions.length}
             loading={dashLoading}
+            xpToday={xpToday}
+            dailyGoalXp={dailyGoalXp}
+            dailyGoalPct={dailyGoalPct}
+            dailyGoalCompleted={dailyGoalCompleted}
           />
         </div>
       </div>
@@ -177,8 +336,19 @@ export default function LearnPage() {
         open={sheet.open}
         node={sheet.node}
         sheetKind={sheet.kind}
+        anchor={sheet.anchor}
         onClose={closeSheet}
+        onResumeAi={(lessonId) => {
+          closeSheet();
+          setResumeAiLessonId(lessonId);
+        }}
       />
+      {resumeAiLessonId ? (
+        <LessonAiConversation
+          lessonId={resumeAiLessonId}
+          onClose={() => setResumeAiLessonId("")}
+        />
+      ) : null}
     </div>
   );
 }

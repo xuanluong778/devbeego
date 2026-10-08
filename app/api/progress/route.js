@@ -1,32 +1,14 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
-
-const COOKIE_NAME = "session_token";
+import { getSessionUserFromRequest } from "@/lib/auth/get-session-user";
+import { assertMutationOrigin } from "@/lib/security/csrf-origin";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 export async function GET(request) {
   try {
-    const token = request.cookies.get(COOKIE_NAME)?.value;
-    if (!token) {
-      return NextResponse.json(
-        { success: false, message: "Not authenticated." },
-        { status: 401 }
-      );
-    }
-
-    const [sessions] = await pool.query(
-      `SELECT user_id
-       FROM user_sessions
-       WHERE token = ? AND expires_at > NOW()
-       LIMIT 1`,
-      [token]
-    );
-    const session = sessions[0];
-
-    if (!session) {
-      return NextResponse.json(
-        { success: false, message: "Session expired." },
-        { status: 401 }
-      );
+    const user = await getSessionUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ success: false, message: "Not authenticated." }, { status: 401 });
     }
 
     const [rows] = await pool.query(
@@ -40,7 +22,7 @@ export async function GET(request) {
        INNER JOIN lessons l ON l.id = p.lesson_id
        WHERE p.user_id = ?
        ORDER BY p.updated_at DESC`,
-      [session.user_id]
+      [user.id]
     );
 
     const totalLessons = rows.length;
@@ -72,24 +54,41 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    const csrf = assertMutationOrigin(request);
+    if (!csrf.ok) {
+      return NextResponse.json({ success: false, message: csrf.message, code: csrf.code }, { status: 403 });
+    }
+    const rl = await checkRateLimit(request, { key: "progress_post", windowMs: 60_000, max: 60 });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { success: false, message: "Too many requests.", retry_after: rl.retryAfterSec },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSec || 60) } }
+      );
+    }
+
+    const user = await getSessionUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ success: false, message: "Not authenticated." }, { status: 401 });
+    }
+
     const body = await request.json();
-    const userId = Number(body.user_id);
     const lessonId = Number(body.lesson_id);
     const score = Number(body.score);
 
-    const isUserIdValid = Number.isInteger(userId) && userId > 0;
     const isLessonIdValid = Number.isInteger(lessonId) && lessonId > 0;
     const isScoreValid = Number.isFinite(score) && score >= 0 && score <= 100;
 
-    if (!isUserIdValid || !isLessonIdValid || !isScoreValid) {
+    if (!isLessonIdValid || !isScoreValid) {
       return NextResponse.json(
         {
           success: false,
-          message: "Valid user_id, lesson_id, and score (0-100) are required.",
+          message: "Valid lesson_id and score (0-100) are required.",
         },
         { status: 400 }
       );
     }
+
+    const userId = user.id;
 
     const [result] = await pool.query(
       `INSERT INTO progress (user_id, lesson_id, score, attempts, completed_at)

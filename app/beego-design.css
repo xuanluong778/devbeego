@@ -418,6 +418,121 @@ html.beego-shell-active body {
   flex-shrink: 0;
 }
 
+.beego-install-offer {
+  margin: 0 12px 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--beego-blue-soft);
+  border: 1px solid #bfdbfe;
+  color: var(--beego-ink);
+}
+
+.beego-install-offer--menu {
+  margin: 0;
+}
+
+.beego-install-page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+}
+
+.beego-install-offer--page {
+  margin: 0;
+  padding: 16px;
+}
+
+.beego-install-offer--page .beego-install-offer__title {
+  font-size: 1.15rem;
+}
+
+.beego-install-offer--page .beego-install-offer__apk {
+  width: 100%;
+  text-align: center;
+}
+
+.beego-install-offer__brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.beego-install-offer__appIcon {
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  box-shadow: 0 4px 0 rgba(230, 149, 0, 0.35);
+}
+
+.beego-install-offer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.beego-install-offer__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e3a8a;
+}
+
+.beego-install-offer__dismiss {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 0.85rem;
+  min-height: 44px;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.beego-install-offer__text {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: #1e3a8a;
+}
+
+.beego-install-offer__steps {
+  margin: 6px 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #1e3a8a;
+}
+
+.beego-install-offer__actions {
+  margin-top: 8px;
+}
+
+.beego-install-offer__apk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--beego-blue);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.beego-install-offer__meta,
+.beego-install-offer__soon {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
 /* Tablet sidebar */
 .beego-sidebar {
   display: none;
@@ -485,6 +600,61 @@ html.beego-shell-active body {
   margin-top: auto;
   padding-top: 12px;
   border-top: 1px dashed var(--beego-border);
+}
+
+/* Learn path: compact professional sidebar */
+body.page-learn-path .beego-sidebar--learn-compact {
+  --beego-sidebar-w: 200px;
+  flex-basis: 200px;
+  padding: 14px 10px;
+  gap: 4px;
+}
+
+body.page-learn-path .beego-sidebar--learn-compact .beego-sidebar-brand {
+  padding: 6px 8px 12px;
+  margin-bottom: 4px;
+  gap: 8px;
+}
+
+body.page-learn-path .beego-sidebar--learn-compact .beego-sidebar-brand strong {
+  font-size: 0.95rem;
+}
+
+body.page-learn-path .beego-sidebar--learn-compact .beego-sidebar-brand small {
+  font-size: 0.65rem;
+}
+
+body.page-learn-path .beego-sidebar--learn-compact .beego-sidebar-link {
+  min-height: 42px;
+  padding: 8px 10px;
+  gap: 10px;
+  border-radius: 12px;
+  font-size: 0.86rem;
+}
+
+body.page-learn-path .beego-sidebar--learn-compact .beego-sidebar-link--active {
+  background: linear-gradient(90deg, rgba(109, 40, 217, 0.12), rgba(37, 99, 235, 0.1));
+  color: #6d28d9;
+  box-shadow: inset 3px 0 0 #ffb020;
+}
+
+body.page-learn-path .beego-sidebar--learn-compact .beego-sidebar-link-icon {
+  font-size: 1.1rem;
+  width: 24px;
+}
+
+@media (min-width: 1366px) {
+  body.page-learn-path .beego-sidebar--learn-compact {
+    --beego-sidebar-w: 212px;
+    flex-basis: 212px;
+  }
+}
+
+@media (min-width: 1920px) {
+  body.page-learn-path .beego-sidebar--learn-compact {
+    --beego-sidebar-w: 228px;
+    flex-basis: 228px;
+  }
 }
 
 /* Big CTA */

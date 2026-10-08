@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { notifyAuthChanged } from "@/hooks/useAuthLoggedIn";
+import { notifyAuthChanged } from "@/hooks/useAuthMe";
+import { authFetch } from "@/lib/beego/native-bridge";
 import "./auth.css";
 
 function safeNextDestination(raw) {
@@ -130,7 +131,7 @@ export default function AuthPage() {
   }, []);
 
   const fetchMe = async () => {
-    const response = await fetch("/api/auth/me", { cache: "no-store", credentials: "same-origin" });
+    const response = await authFetch("/api/auth/me", { cache: "no-store" });
     const result = await response.json();
     return response.ok && result.success ? result.data : null;
   };
@@ -483,7 +484,21 @@ export default function AuthPage() {
     }
   }
 
-  const googleHref = `/api/auth/google?next=${encodeURIComponent(nextDest)}`;
+  const googleHref = (() => {
+    const q = new URLSearchParams();
+    q.set("next", nextDest);
+    if (typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.()) {
+      q.set("platform", "android");
+      try {
+        const id = window.localStorage.getItem("beego_device_id") || crypto.randomUUID();
+        window.localStorage.setItem("beego_device_id", id);
+        q.set("device_id", id);
+      } catch {
+        /* ignore */
+      }
+    }
+    return `/api/auth/google?${q.toString()}`;
+  })();
 
   return (
     <main className="auth-route">

@@ -18,10 +18,14 @@ const LearnHeader = forwardRef(function LearnHeader(
       <div className="beego-learn-header__brand" aria-hidden />
       <div className="beego-learn-header__inner">
         <p className="beego-learn-header__greeting beego-learn-header__greeting--desk">
-          {firstName ? `Xin chào, ${firstName}! 👋` : "Lộ trình học Beego"}
+          {firstName ? `Xin chào, ${firstName}!` : "Lộ trình học Beego"}
         </p>
         <div className="beego-learn-header__row">
-          <Link href="/progress" className="beego-learn-header__back beego-learn-header__back--mobile" aria-label="Quay lại">
+          <Link
+            href="/progress"
+            className="beego-learn-header__back beego-learn-header__back--mobile"
+            aria-label="Quay lại"
+          >
             ‹
           </Link>
           <div className="beego-learn-header__center">
@@ -35,7 +39,9 @@ const LearnHeader = forwardRef(function LearnHeader(
             Hướng dẫn
           </button>
         </div>
-        {description ? <p className="beego-learn-header__desc">{description}</p> : null}
+        {description ? (
+          <p className="beego-learn-header__desc beego-learn-header__desc--mobile-only">{description}</p>
+        ) : null}
       </div>
     </header>
   );

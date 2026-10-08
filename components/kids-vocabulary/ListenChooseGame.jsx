@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { playKidWordAudio } from "@/lib/kids-vocabulary/browser-tts";
+import { playBeegoAudio } from "@/lib/beego/audio-player";
 import { shuffle } from "@/lib/kids-vocabulary/utils";
 import styles from "./KidsVocabulary.module.css";
 
@@ -37,7 +37,7 @@ export default function ListenChooseGame({ words, onComplete, onCorrectWord, max
   }, [round]);
 
   function playAudio() {
-    void playKidWordAudio({ word: target.word, audioUrl: target.audioUrl });
+    void playBeegoAudio({ url: target.audioUrl, text: target.word, lang: "en" });
   }
 
   function choose(opt) {

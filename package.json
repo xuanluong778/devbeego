@@ -14,7 +14,9 @@
     "seed:test-user": "node scripts/seed-test-user.mjs",
     "check-vocab": "node scripts/check-vocab-count.mjs",
     "build": "node ./node_modules/next/dist/bin/next build",
+    "build:isolated": "NEXT_DIST_DIR=.next-isolated node ./node_modules/next/dist/bin/next build",
     "start": "node ./node_modules/next/dist/bin/next start",
+    "start:isolated": "NEXT_DIST_DIR=.next-isolated node ./node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3099",
     "lint": "node ./node_modules/next/dist/bin/next lint",
     "build:stories": "python scripts/build-docx-stories.py",
     "build:docx-stories-vi": "node scripts/build-docx-stories-vi.mjs",
@@ -35,9 +37,23 @@
     "voice-tts-worker": "node scripts/voice-tts-worker.mjs",
     "voice-tts-worker:dev": "node --env-file=.env.local scripts/voice-tts-worker.mjs",
     "voice-usage-worker": "node scripts/voice-usage-worker.mjs",
-    "voice-usage-worker:dev": "node --env-file=.env.local scripts/voice-usage-worker.mjs"
+    "voice-usage-worker:dev": "node --env-file=.env.local scripts/voice-usage-worker.mjs",
+    "migrate": "node --env-file=.env.local lib/db/migrate.js",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android",
+    "android:prepare-release": "node scripts/prepare-android-release.mjs",
+    "android:verify-aab": "node scripts/verify-android-aab.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/haptics": "^6.0.3",
+    "@capacitor/keyboard": "^6.0.4",
+    "@capacitor/preferences": "^6.0.4",
+    "@capacitor/push-notifications": "^6.0.5",
+    "@capacitor/splash-screen": "^6.0.4",
+    "@capacitor/status-bar": "^6.0.3",
     "@sendgrid/mail": "^8.1.6",
     "arpabet-to-ipa": "^1.0.0",
     "bullmq": "^5.73.0",
@@ -57,6 +73,7 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.2",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.5.0",
     "@types/react": "19.2.14",

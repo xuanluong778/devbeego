@@ -9,8 +9,18 @@ import { ensureUserStatsTables } from "@/lib/srs/ensure-stats";
 import { getSessionUserIdFromRequest } from "@/lib/http/ai-entitlement";
 import { applySrsRating } from "@/lib/srs/update-srs";
 import { normalizeAnswerType, SRS_ANSWER_TYPES } from "@/lib/srs/srs-types";
+import { assertMutationOrigin } from "@/lib/security/csrf-origin";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { consumeReviewAttempt } from "@/lib/srs/review-attempts";
+import { invalidateLearnDerivedCaches } from "@/lib/beego/learn/invalidate-learn-caches";
 
 export const dynamic = "force-dynamic";
+
+const SERVER_ATTEMPT_RE = /^[a-f0-9]{48}$/;
+
+function isQuizSessionAttempt(attemptId) {
+  return attemptId.includes(":");
+}
 
 const XP_BY_ANSWER = {
   [SRS_ANSWER_TYPES.FORGOT]: 0,
@@ -31,6 +41,19 @@ function isAnswerCorrect(answerType) {
 export async function POST(request) {
   let conn;
   try {
+    const csrf = assertMutationOrigin(request);
+    if (!csrf.ok) {
+      return NextResponse.json({ success: false, message: csrf.message, code: csrf.code }, { status: 403 });
+    }
+
+    const rl = await checkRateLimit(request, { key: "review_result", windowMs: 60_000, max: 180 });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { success: false, message: "Too many requests.", retry_after: rl.retryAfterSec },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSec || 60) } }
+      );
+    }
+
     const userId = await getSessionUserIdFromRequest(request);
     if (!userId) {
       return NextResponse.json({ success: false, message: "Not authenticated." }, { status: 401 });
@@ -38,6 +61,14 @@ export async function POST(request) {
 
     const body = await request.json();
     const wordId = Number(body?.word_id);
+    const isProd = process.env.NODE_ENV === "production";
+    const rawAnswerType = String(body?.answer_type || "").trim();
+    if (isProd && !rawAnswerType && body && "isCorrect" in body) {
+      return NextResponse.json(
+        { success: false, message: "answer_type is required.", code: "INVALID_ANSWER" },
+        { status: 400 }
+      );
+    }
     const answerType = normalizeAnswerType(body?.answer_type, Boolean(body?.isCorrect));
     const pronunciationScore =
       body?.pronunciation_score != null ? Number(body.pronunciation_score) : null;
@@ -47,11 +78,39 @@ export async function POST(request) {
       return NextResponse.json({ success: false, message: "word_id is required." }, { status: 400 });
     }
 
+    if (isProd && !attemptId) {
+      return NextResponse.json(
+        { success: false, message: "attempt_id is required.", code: "ATTEMPT_REQUIRED" },
+        { status: 400 }
+      );
+    }
+    if (isProd && attemptId && !SERVER_ATTEMPT_RE.test(attemptId) && !isQuizSessionAttempt(attemptId)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid attempt_id.", code: "INVALID_ATTEMPT" },
+        { status: 403 }
+      );
+    }
+
     await ensureUserWordProgressTable();
     await ensureUserStatsTables();
 
     conn = await pool.getConnection();
     await conn.beginTransaction();
+
+    if (attemptId && SERVER_ATTEMPT_RE.test(attemptId)) {
+      const consumed = await consumeReviewAttempt(userId, wordId, attemptId, conn);
+      if (consumed !== "ok") {
+        await conn.rollback();
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Review attempt invalid or already used.",
+            code: `ATTEMPT_${consumed.toUpperCase()}`,
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     if (attemptId) {
       const [evtRows] = await conn.query(
@@ -204,6 +263,21 @@ export async function POST(request) {
     }
 
     await conn.commit();
+    let achievementsUnlocked = [];
+    try {
+      const { evaluateAndUnlockAchievements } = await import(
+        "@/lib/beego/learn/achievements-engine"
+      );
+      const ev = await evaluateAndUnlockAchievements(userId);
+      achievementsUnlocked = ev.newlyUnlocked || [];
+    } catch {
+      /* non-blocking */
+    }
+    try {
+      await invalidateLearnDerivedCaches(userId);
+    } catch {
+      /* non-blocking */
+    }
     return NextResponse.json({
       success: true,
       data: {
@@ -216,6 +290,7 @@ export async function POST(request) {
           current_streak: nextStreak,
           level,
         },
+        achievements_unlocked: achievementsUnlocked,
       },
     });
   } catch (error) {

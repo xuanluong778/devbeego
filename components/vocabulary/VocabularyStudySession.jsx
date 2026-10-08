@@ -15,6 +15,7 @@ import {
   checkMeaningChoice,
   createWordResult,
   tallySessionResults,
+  beginReviewAttempt,
   submitWordRating,
   playAudioUrl,
 } from "@/lib/vocabulary/study-session";
@@ -244,11 +245,10 @@ export default function VocabularyStudySession({
     if (!currentWord || submitting) return;
     setSubmitting(true);
     const rating = RATING_OPTIONS.find((r) => r.id === ratingId);
-    const attemptId = `vocab-session-${sessionKey}-${currentWord.id}-${Date.now()}`;
-
     let xpDelta = 0;
     const pronScore = currentResult?.steps?.speak?.score ?? null;
     try {
+      const attemptId = await beginReviewAttempt(currentWord.id);
       const data = await submitWordRating(currentWord.id, ratingId, attemptId, {
         pronunciationScore: pronScore,
       });

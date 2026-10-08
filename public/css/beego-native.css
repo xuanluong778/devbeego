@@ -1,0 +1,58 @@
+/* Native-feel mobile shell for Capacitor / narrow phones 320–430px */
+@media (max-width: 430px) {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    overscroll-behavior-y: contain;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .beego-learn {
+    min-height: 100dvh;
+  }
+
+  .beego-learn__layout {
+    gap: 0;
+  }
+
+  /* Larger touch targets for path nodes */
+  .beego-lesson-node,
+  .beego-learn [data-lesson-id] {
+    min-width: 52px;
+    min-height: 52px;
+  }
+
+  /* Bottom sheet feel */
+  .beego-lesson-sheet,
+  .lesson-start-sheet {
+    border-radius: 20px 20px 0 0;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  /* Hide desktop chrome on native-width */
+  .beego-learn__aside,
+  .beego-learn-right-panel {
+    display: none !important;
+  }
+}
+
+/* Capacitor class injected via JS */
+html.beego-native body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html.beego-native a,
+html.beego-native button {
+  touch-action: manipulation;
+}
+
+html.beego-native .vocab-session-playBtn,
+html.beego-native .vocab-dash-iconBtn {
+  min-height: 44px;
+  min-width: 44px;
+}

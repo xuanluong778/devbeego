@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { isAdminSessionUser, shouldHideBillingUi } from "@/lib/auth/admin-user-client";
+import { authFetch } from "@/lib/beego/native-bridge";
 
 export const AUTH_EVENT = "apptienganh-auth";
 
@@ -21,7 +22,7 @@ export function useAuthMe() {
 
   const recheck = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" });
+      const res = await authFetch("/api/auth/me", { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
       if (res.ok && json.success && json.data) {
         setUser(json.data);

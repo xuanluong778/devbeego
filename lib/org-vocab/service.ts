@@ -155,7 +155,11 @@ export async function createClassroom(
   }
   const name = String(input.name || "").trim();
   if (name.length < 2) throw new Error("INVALID_NAME");
-  const teacherId = num(input.teacher_user_id) || auth.userId;
+  const requestedTeacher = num(input.teacher_user_id);
+  const teacherId =
+    requestedTeacher && (auth.isSystemAdmin || requestedTeacher === auth.userId)
+      ? requestedTeacher
+      : auth.userId;
 
   const [result] = await pool.query(
     `INSERT INTO classrooms (organization_id, name, description, teacher_user_id)

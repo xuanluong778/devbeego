@@ -7,8 +7,8 @@ import { useEffect, useState } from "react";
  * @param {Array<{ sectionId: string }>} sections
  * @param {React.MutableRefObject<Map<string, HTMLElement>>} sectionRefs
  */
-export function useActiveLearnSection(sections, sectionRefs) {
-  const fallbackId = sections[0]?.sectionId ?? "";
+export function useActiveLearnSection(sections, sectionRefs, preferredSectionId = "") {
+  const fallbackId = preferredSectionId || sections[0]?.sectionId || "";
   const [activeSectionId, setActiveSectionId] = useState(fallbackId);
 
   useEffect(() => {

@@ -41,7 +41,8 @@ function tryLoadEnvLocal() {
 
 tryLoadEnvLocal();
 
-const PORT = Number(process.env.VOICE_WS_PORT || 3001);
+const PORT = Number(process.env.VOICE_WS_PORT || 3031);
+const HOST = process.env.VOICE_WS_HOST || "127.0.0.1";
 const REDIS_URL = String(process.env.REDIS_URL || "").trim();
 const JWT_SECRET = String(process.env.VOICE_JWT_SECRET || "").trim();
 
@@ -561,7 +562,7 @@ async function startAzureStt(ws, requestId) {
   );
 }
 
-const wss = new WebSocketServer({ port: PORT, host: "0.0.0.0" });
+const wss = new WebSocketServer({ port: PORT, host: HOST });
 
 wss.on("connection", async (ws, req) => {
   const u = new URL(req.url || "/", "http://localhost");
@@ -759,6 +760,6 @@ wss.on("connection", async (ws, req) => {
 
 wss.on("listening", () => {
   // eslint-disable-next-line no-console
-  console.log(`[voice-gateway] ws://0.0.0.0:${PORT} | azure=${USE_AZURE ? "on" : "off"} | redis=on | jwt=on`);
+  console.log(`[voice-gateway] ws://${HOST}:${PORT} | azure=${USE_AZURE ? "on" : "off"} | redis=on | jwt=on`);
 });
 
