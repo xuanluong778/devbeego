@@ -8,8 +8,10 @@ import { checkAnswer, hasAnswerSelected } from "../lib/beego/learn/exercise-chec
 import {
   clearWordBank,
   createWordBank,
+  displayWordBank,
   gradeWordOrder,
   placeToken,
+  reorderWordBank,
   returnToken,
   tokenizeLessonWords,
   undoWordBank,
@@ -41,6 +43,13 @@ state = undoWordBank(state);
 assert(state.placed.length === 1, "undo removes only the last tile");
 state = clearWordBank(state);
 assert(state.placed.length === 0, "clear removes the sentence");
+
+let order = createWordBank(["I", "am", "Hello"]);
+order = placeToken(order, order.tokens[0].id);
+order = placeToken(order, order.tokens[1].id);
+order = placeToken(order, order.tokens[2].id);
+order = reorderWordBank(order, order.tokens[2].id, order.tokens[0].id);
+assert(wordBankAnswerTexts(order).join(" ") === "Hello I am", "a placed tile can move to another position");
 
 let rapid = createWordBank(["the", "the"]);
 rapid = placeToken(rapid, rapid.tokens[0].id);
@@ -78,6 +87,15 @@ assert(checkAnswer(longOrder, longOrder.correctAnswer) === true, "the original o
 assert(checkAnswer(longOrder, [...longOrder.correctAnswer].reverse()) === false, "a reversed sentence is not correct");
 assert(wordOrderModel(longOrder).includes("floor"), "the model sentence is available after grading");
 assert(wordOrderMeaning(longOrder).length > 0, "the Vietnamese meaning is available after grading");
+
+const shown = displayWordBank(
+  ["Hello", "I", "am", "Beego", "goodbye", "thanks"],
+  "p1-g1-n01-a05",
+  ["Hello", "I", "am", "Beego"]
+);
+assert(shown.join(" ") !== "Hello I am Beego goodbye thanks", "tiles are not left in answer order");
+assert(!shown.join("|").includes("Hello|I|am|Beego"), "the answer is not a visible run");
+assert(shown.slice().sort().join("|") === ["Hello", "I", "am", "Beego", "goodbye", "thanks"].sort().join("|"), "shuffle keeps every tile");
 
 const generated = generateLessonQuestions({
   lessonId: "p6-g1-n01",

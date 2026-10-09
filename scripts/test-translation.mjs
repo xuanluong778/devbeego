@@ -62,6 +62,16 @@ assert(fine.inputMode === "tiles" && fine.wordBank.some((token) => token === "I'
 assert(gradeTranslation({ acceptedAnswers: fine.accepted, correctAnswer: fine.correctAnswer }, ["I'm", "fine"]) === true, "tile mode accepts I'm fine");
 assert(gradeTranslation({ acceptedAnswers: fine.accepted, correctAnswer: fine.correctAnswer }, ["I", "am", "fine"]) === true, "tile mode accepts I am fine");
 assert(gradeTranslation({ acceptedAnswers: fine.accepted, correctAnswer: fine.correctAnswer }, ["I", "am", "not", "fine"]) === false, "negation is still rejected");
+const morning = buildTranslationExercise(
+  { en: "Good morning.", vi: "Chào buổi sáng." },
+  "en-to-vi",
+  { partNumber: 1, distractors: ["hello", "goodbye", "thanks", "Tạm biệt", "Cảm ơn"] }
+);
+assert(
+  morning.wordBank.every((token) => !["hello", "goodbye", "thanks"].includes(token.toLowerCase())),
+  "a Vietnamese tile bank does not include English distractors"
+);
+assert(morning.wordBank.includes("Chào") && morning.wordBank.includes("Tạm"), "Vietnamese distractors stay on the Vietnamese bank");
 const typedFine = buildTranslationExercise({ en: "I am fine.", vi: "Tôi khỏe." }, "en-to-vi", { partNumber: 6 });
 assert(typedFine.inputMode === "text", "later translation uses free text");
 assert(gradeTranslation({ acceptedAnswers: typedFine.accepted, correctAnswer: typedFine.correctAnswer }, "Mình khỏe.") === true, "a compiled Vietnamese equivalent is accepted");

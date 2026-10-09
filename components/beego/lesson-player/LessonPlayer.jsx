@@ -20,8 +20,9 @@ import {
 import { fetchLessonForPlayer } from "@/lib/beego/learn/fetch-lesson-for-player";
 import { postLearnExerciseResult } from "@/lib/beego/learn/post-exercise-result-client";
 import { stopLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
+import { playLessonSfx, stopLessonSfx } from "@/lib/beego/learn/lesson-sfx";
 
-export default function LessonPlayer({ lessonId }) {
+export default function LessonPlayer({ lessonId, replay = false }) {
   const router = useRouter();
 
   const [loadState, setLoadState] = useState("loading");
@@ -57,6 +58,8 @@ export default function LessonPlayer({ lessonId }) {
   const correctAtFinishRef = useRef(0);
   const correctRef = useRef(0);
   const canPersistCompleteRef = useRef(false);
+  const [celebrate, setCelebrate] = useState(false);
+  const fanfarePlayedRef = useRef(false);
 
   const total = lesson?.questions?.length ?? 0;
   const question = lesson?.questions?.[index];
@@ -96,7 +99,12 @@ export default function LessonPlayer({ lessonId }) {
       const resume = result.lesson.resume;
       const questionCount = result.lesson.questions?.length || 0;
       const resumeCorrect = Number(resume?.correctCount) || 0;
-      if (resume?.completed) {
+      if (replay) {
+        canPersistCompleteRef.current = false;
+        setAlreadyCompleted(Boolean(resume?.completed));
+        setIndex(0);
+        setPhase("playing");
+      } else if (resume?.completed) {
         canPersistCompleteRef.current = false;
         correctRef.current = resumeCorrect;
         setCorrectCount(resumeCorrect);
@@ -122,14 +130,18 @@ export default function LessonPlayer({ lessonId }) {
     return () => {
       cancelled = true;
     };
-  }, [lessonId]);
+  }, [lessonId, replay]);
 
   const goToCompletePhase = useCallback(
     (finalCorrect) => {
-      if (!canPersistCompleteRef.current) return;
       const n = total > 0 ? finalCorrect : 0;
       correctAtFinishRef.current = n;
       scoreAtFinishRef.current = total > 0 ? Math.round((n / total) * 100) : 0;
+      if (!fanfarePlayedRef.current) {
+        fanfarePlayedRef.current = true;
+        setCelebrate(true);
+        playLessonSfx("fanfare");
+      }
       setPhase("complete");
     },
     [total]
@@ -174,6 +186,7 @@ export default function LessonPlayer({ lessonId }) {
           activityStage: question?.activityMeta?.stage || "",
           difficulty: question?.activityMeta?.difficulty || "",
           answer,
+          replay,
         });
 
         if (!result.ok) {
@@ -200,11 +213,12 @@ export default function LessonPlayer({ lessonId }) {
         } else if (lives > 0) {
           setLives((l) => l - 1);
         }
+        if (question?.type !== "matching_pairs") playLessonSfx(ok ? "ding" : "soft");
       }
     } finally {
       setChecking(false);
     }
-  }, [canCheck, checking, question, answer, lives, lessonId, lesson?.type, index]);
+  }, [canCheck, checking, question, answer, lives, lessonId, lesson?.type, index, replay]);
 
   const handleContinue = useCallback(() => {
     if (index >= total - 1) {
@@ -232,14 +246,19 @@ export default function LessonPlayer({ lessonId }) {
   }, [feedback, checking, index, total, goToCompletePhase, question?.required]);
 
   const handleExit = useCallback(() => {
-    if (window.confirm("Bạn muốn thoát bài học? Các câu đã nộp vẫn được giữ.")) {
+    const message = replay
+      ? "Thoát bài học lại? Tiến độ và phần thưởng của bài này không đổi."
+      : "Bạn muốn thoát bài học? Các câu đã nộp vẫn được giữ.";
+    if (window.confirm(message)) {
       stopLessonTts();
+      stopLessonSfx();
       router.push("/");
     }
-  }, [router]);
+  }, [router, replay]);
 
   useEffect(() => {
     stopLessonTts();
+    if (phase !== "complete") stopLessonSfx();
   }, [index, phase]);
 
   useEffect(() => {
@@ -353,7 +372,9 @@ export default function LessonPlayer({ lessonId }) {
           xpAwarded={xpAwarded}
           honeyAwarded={honeyAwarded}
           streak={streak}
-          alreadyCompleted={alreadyCompleted}
+          alreadyCompleted={alreadyCompleted || replay}
+          celebrate={celebrate}
+          replay={replay}
           showAiPractice={aiPracticeOn}
           onAiPractice={() => setAiPanelOpen(true)}
         />
@@ -370,6 +391,7 @@ export default function LessonPlayer({ lessonId }) {
 
       <main className="beego-lesson-player__main">
         <ExerciseRenderer
+          key={question?.id || index}
           exercise={question}
           activityType={lesson?.type}
           answer={answer}

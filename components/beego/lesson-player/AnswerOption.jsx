@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { playLessonSfx } from "@/lib/beego/learn/lesson-sfx";
 
 export default function AnswerOption({
   option,
@@ -37,7 +38,10 @@ export default function AnswerOption({
       aria-label={ariaLabel}
       aria-checked={role === "radio" ? selected : undefined}
       onKeyDown={onKeyDown}
-      onClick={() => onSelect(option.id)}
+      onClick={() => {
+        if (!state) playLessonSfx("pop");
+        onSelect(option.id);
+      }}
       disabled={!!state}
     >
       {showVisual && option.imageUrl ? (

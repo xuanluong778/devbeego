@@ -87,7 +87,7 @@ function SheetBody({ node, sheetKind }) {
       {node.goal ? <p className="beego-learn-sheet__goal">{node.goal}</p> : null}
       <SheetMeta node={node} />
       {node.status === "completed" ? (
-        <p className="beego-learn-sheet__done">Bài đã hoàn thành</p>
+        <p className="beego-learn-sheet__done">Bài đã hoàn thành. Học lại không cộng thêm Honey hay XP.</p>
       ) : null}
     </>
   );
@@ -158,13 +158,21 @@ export default function LessonStartSheet({ open, node, sheetKind, anchor, onClos
 
   const isDesktopFloat = desktop;
   let floatStyle;
-  if (isDesktopFloat && anchor && typeof window !== "undefined") {
+  if (isDesktopFloat && typeof window !== "undefined") {
+    const margin = 16;
+    const maxHeight = Math.min(560, Math.max(160, window.innerHeight - margin * 2));
+    const preferredTop = anchor ? anchor.top - 24 : margin;
+    const top = Math.min(
+      Math.max(preferredTop, margin),
+      Math.max(margin, window.innerHeight - maxHeight - margin)
+    );
     floatStyle = {
       position: "fixed",
-      top: Math.min(Math.max(anchor.top - 24, 72), window.innerHeight - 420),
+      top,
       left: "50%",
       transform: "translateX(-50%)",
-      maxHeight: "min(70vh, 520px)",
+      maxHeight,
+      width: "min(420px, calc(100vw - 32px))",
     };
   }
 

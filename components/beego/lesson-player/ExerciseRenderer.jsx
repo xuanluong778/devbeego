@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AnswerOption from "./AnswerOption";
 import MatchPairsExercise from "./MatchPairsExercise";
 import ListenDictationExercise from "./ListenDictationExercise";
 import TranslationAnswer from "./TranslationAnswer";
 import WordBankAnswer from "./WordBankAnswer";
-import { playLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
+import { playLessonTts, stopLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
 import {
   isSpeechRecognitionSupported,
   startLessonSpeechCapture,
@@ -202,11 +202,24 @@ function ListeningControls({ exercise, allowSlow = false, showModel = false, sho
 function SpeakingExercise({ exercise, onAnswerChange, feedback }) {
   const [recording, setRecording] = useState(false);
   const [status, setStatus] = useState("");
+  const [revealed, setRevealed] = useState(false);
   const ctrlRef = useRef(null);
   const target =
     exercise.speakTarget ||
     exercise.extensions?.speakTarget ||
     "Hello";
+  const showWord = revealed || Boolean(feedback);
+
+  useEffect(() => {
+    return () => {
+      try {
+        ctrlRef.current?.stop?.();
+      } catch {
+        /* ignore */
+      }
+      stopLessonTts();
+    };
+  }, []);
 
   const playModel = () => {
     void playLessonTts({ text: target, lang: "en" });
@@ -214,6 +227,7 @@ function SpeakingExercise({ exercise, onAnswerChange, feedback }) {
 
   const startRecord = () => {
     if (feedback) return;
+    stopLessonTts();
     setStatus("");
     setRecording(true);
     try {
@@ -225,11 +239,7 @@ function SpeakingExercise({ exercise, onAnswerChange, feedback }) {
       onResult: (transcript) => {
         setRecording(false);
         const scored = scoreSpeakingAttempt(exercise, transcript);
-        setStatus(
-          scored.passed
-            ? `Tốt! (${scored.score}%)`
-            : `Thử lại (${scored.score}%). Mẫu: "${target}"`
-        );
+        setStatus(scored.passed ? `Tốt! (${scored.score}%)` : `Thử lại (${scored.score}%).`);
         onAnswerChange({
           submitted: true,
           passed: scored.passed,
@@ -253,12 +263,23 @@ function SpeakingExercise({ exercise, onAnswerChange, feedback }) {
 
   return (
     <div className="beego-lesson-speaking">
-      <button type="button" className="beego-lesson-listen-btn" onClick={playModel}>
-        <span aria-hidden>🎧</span> Nghe mẫu
-      </button>
-      <p className="beego-lesson-question__hint">
-        Nói: <strong>{target}</strong>
-      </p>
+      <div className="beego-lesson-speaking__prompt">
+        <button type="button" className="beego-lesson-listen-word__bubble" onClick={playModel} aria-label="Nghe">
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <path fill="currentColor" d="M4 9.2v5.6h3.6L12 19V5L7.6 9.2H4z" />
+            <path fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M15.2 9.3a3.4 3.4 0 0 1 0 5.4" />
+          </svg>
+          <span className="beego-lesson-listen-word__said">
+            {showWord ? target : <span className="beego-lesson-speaking__blank">Từ đang ẩn</span>}
+            <span className="beego-lesson-listen-word__dots" />
+          </span>
+        </button>
+        {showWord ? null : (
+          <button type="button" className="beego-lesson-speaking__reveal" onClick={() => setRevealed(true)}>
+            Hiện
+          </button>
+        )}
+      </div>
       {isSpeechRecognitionSupported() ? (
         <button
           type="button"
@@ -411,19 +432,23 @@ export default function ExerciseRenderer({
   const supported = SUPPORTED_EXERCISE_TYPES.has(type) && type !== "unknown";
   const visualPolicy = resolveLessonOptionVisualPolicy(exercise);
   const pictureChoice = Boolean(visualPolicy.pictureChoice && isPictureListeningExercise(exercise));
+  const listenWordTiles = type === "translation" && exercise.extensions?.inputMode !== "text";
 
   return (
     <div
       className={[
         "beego-lesson-question",
         visualPolicy.compactDecorMascot ? "beego-lesson-question--compact-visual" : "",
+        listenWordTiles ? "beego-lesson-question--listen-word" : "",
       ]
         .filter(Boolean)
         .join(" ")}
     >
       <ActivityBadge activityType={activityType} />
       <p className="beego-lesson-question__skill">{exercise.skillLabel}</p>
-      <h2 className="beego-lesson-question__prompt">{exercise.prompt}</h2>
+      <h2 className="beego-lesson-question__prompt">
+        {type === "speaking" || type === "pronunciation" ? "Nghe và nhắc lại." : exercise.prompt}
+      </h2>
 
       {exercise.imageEmoji ? (
         <div className="beego-lesson-question__visual" aria-hidden>
@@ -495,6 +520,8 @@ export default function ExerciseRenderer({
               selected={Array.isArray(answer) ? answer : []}
               onChange={onAnswerChange}
               state={feedback}
+              speakOnPlace={exercise.extensions?.translationDirection === "vi-to-en"}
+              lined
             />
           ) : null}
         </>

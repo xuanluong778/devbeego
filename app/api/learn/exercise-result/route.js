@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import pool from "@/lib/db";
 import { getSessionUserFromRequest } from "@/lib/auth/get-session-user";
 import { assertMutationOrigin } from "@/lib/security/csrf-origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
@@ -257,6 +258,25 @@ export async function POST(request) {
           guest: true,
         },
       });
+    }
+
+    const replayRequested = body.replay === true || body.replay === 1 || body.replay === "1";
+    if (replayRequested) {
+      const [progress] = await pool.query(
+        `SELECT status FROM user_lesson_progress WHERE user_id = ? AND lesson_id = ? LIMIT 1`,
+        [user.id, lessonId]
+      );
+      if (String(progress[0]?.status || "") === "completed") {
+        return NextResponse.json({
+          success: true,
+          data: {
+            ...reveal,
+            recorded: false,
+            duplicate: false,
+            replay: true,
+          },
+        });
+      }
     }
 
     if (!attemptKey) {

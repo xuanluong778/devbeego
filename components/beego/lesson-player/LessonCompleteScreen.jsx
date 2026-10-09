@@ -16,7 +16,9 @@ import styles from "./LessonAiConversation.module.css";
  * @param {number} props.honeyAwarded
  * @param {number|null} [props.streak]
  * @param {boolean} props.alreadyCompleted
+ * @param {boolean} [props.replay]
  * @param {boolean} [props.showAiPractice]
+ * @param {boolean} [props.celebrate]
  * @param {() => void} [props.onAiPractice]
  */
 export default function LessonCompleteScreen({
@@ -31,18 +33,20 @@ export default function LessonCompleteScreen({
   honeyAwarded = 0,
   streak = null,
   alreadyCompleted = false,
+  replay = false,
   showAiPractice = false,
+  celebrate = false,
   onAiPractice,
 }) {
   const title = lesson?.title || "Bài học Beego";
 
   return (
-    <div className="beego-lesson-complete">
+    <div className={`beego-lesson-complete${celebrate ? " beego-lesson-complete--celebrate" : ""}`}>
       <div className="beego-lesson-complete__card">
         <span className="beego-lesson-complete__bee" aria-hidden>
           🐝
         </span>
-        <h1>{saving ? "Đang lưu tiến độ…" : "Hoàn thành bài học!"}</h1>
+        <h1>{saving ? "Đang lưu tiến độ…" : replay ? "Đã học lại bài này" : "Hoàn thành bài học!"}</h1>
         <p className="beego-lesson-complete__title">{title}</p>
         <ul className="beego-lesson-complete__stats">
           <li>
@@ -57,11 +61,13 @@ export default function LessonCompleteScreen({
           ) : (
             <>
               <li>
-                🍯 +{honeyAwarded} Honey{alreadyCompleted ? " (đã hoàn thành trước đó)" : ""}
+                🍯 {replay ? "Không cộng thêm Honey" : `+${honeyAwarded} Honey${alreadyCompleted ? " (đã hoàn thành trước đó)" : ""}`}
               </li>
-              <li>
-                ⭐ +{xpAwarded} XP{alreadyCompleted ? "" : ""}
-              </li>
+              {replay ? null : (
+                <li>
+                  ⭐ +{xpAwarded} XP
+                </li>
+              )}
               {streak != null ? <li>🔥 Streak: {streak} ngày</li> : null}
             </>
           )}
@@ -74,7 +80,9 @@ export default function LessonCompleteScreen({
               ? "Bạn vẫn có thể xem lại bài; tiến độ lưu khi đã đăng nhập."
               : errorMessage
                 ? "Thử quay lại lộ trình hoặc học lại sau."
-                : "Beego tự hào về bạn! Học tiếp nào."}
+                : replay
+                  ? "Bài vẫn được tính là đã hoàn thành."
+                  : "Beego tự hào về bạn! Học tiếp nào."}
         </p>
         <Link
           href="/"
