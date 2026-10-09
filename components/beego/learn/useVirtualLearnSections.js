@@ -26,7 +26,7 @@ export function useVirtualLearnSections(sections, activeSectionId) {
 
   const estimateHeight = useCallback((section) => {
     const n = section?.nodes?.length || 16;
-    return BANNER_PX + n * NODE_STEP_PX + 40;
+    return BANNER_PX + n * NODE_STEP_PX + NODE_STEP_PX + 40;
   }, []);
 
   const visible = useMemo(() => {

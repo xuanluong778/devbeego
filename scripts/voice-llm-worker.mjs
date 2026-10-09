@@ -156,9 +156,9 @@ function pubJson(sessionId, obj) {
 }
 
 const worker = new Worker(
-  "voice-llm",
+  process.env.VOICE_LLM_QUEUE || "voice-llm",
   async (job) => {
-    const { kind, sessionId, requestId, text, memory } = job.data || {};
+    const { kind, sessionId, requestId, text, memory, skipSharedUsage } = job.data || {};
     const rid = Number(requestId);
     const sid = String(sessionId || "").trim();
     const userText = String(text || "").trim();
@@ -178,11 +178,11 @@ const worker = new Worker(
     const plan = await lookupPlan(sid);
     const ymd = utcYmd();
     const ym = utcYm();
-    if (userId) {
+    if (userId && skipSharedUsage !== true) {
       const okQuota = await quotaCheckAndSignal({ sessionId: sid, requestId: rid, userId, plan });
       if (!okQuota) return;
     }
-    if (userId) {
+    if (userId && skipSharedUsage !== true) {
       // Rough token estimate (chars/4) for cost control; can be replaced with real token accounting later.
       const estIn = Math.max(1, Math.round(userText.length / 4));
       redis.hincrby(keyUsageDaily(userId, ymd), "llm_tokens_in", estIn).catch(() => {});
@@ -199,7 +199,7 @@ const worker = new Worker(
           pubJson(sid, { type: "interrupt_ack", requestId: rid, reason: "cancelled" });
           return;
         }
-        if (userId) {
+        if (userId && skipSharedUsage !== true) {
           const okQuota = await quotaCheckAndSignal({ sessionId: sid, requestId: rid, userId, plan });
           if (!okQuota) {
             ac.abort();
@@ -216,7 +216,7 @@ const worker = new Worker(
       return;
     }
 
-    if (userId) {
+    if (userId && skipSharedUsage !== true) {
       const estOut = Math.max(1, Math.round(acc.length / 4));
       redis.hincrby(keyUsageDaily(userId, ymd), "llm_tokens_out", estOut).catch(() => {});
       redis.expire(keyUsageDaily(userId, ymd), 60 * 60 * 24 * 7).catch(() => {});

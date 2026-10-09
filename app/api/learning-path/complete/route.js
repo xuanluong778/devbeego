@@ -90,7 +90,7 @@ export async function POST(request) {
     if (code === "UNKNOWN_LESSON") {
       return NextResponse.json({ success: false, message: "Unknown lesson_id.", code }, { status: 404 });
     }
-    if (code === "LESSON_LOCKED") {
+    if (code === "LESSON_LOCKED" || code === "REQUIRED_QUESTIONS_SKIPPED") {
       return NextResponse.json({ success: false, message: error.message, code }, { status: 403 });
     }
     const detail =

@@ -2504,3 +2504,186 @@ body.page-learn-path .beego-shell-main {
     font-size: 0.85rem;
   }
 }
+
+/* 3D path nodes — light map, banana green like the reference */
+.beego-shell-main:has(.beego-learn),
+.beego-learn {
+  background: #fff;
+}
+
+.beego-learn-path {
+  background: #fff;
+  border-radius: 0;
+  margin-top: 8px;
+  padding-bottom: 36px;
+}
+
+.beego-learn-path .beego-learn-section__path::before,
+.beego-learn-path .beego-learn-section__connector {
+  background: #e5e5e5;
+}
+
+.beego-learn-path .beego-unit-banner__inner {
+  background: linear-gradient(180deg, #7ee03a 0%, #58cc02 70%);
+  color: #fff;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.45),
+    0 6px 0 #46a302;
+}
+
+.beego-learn-path .beego-unit-banner__gate,
+.beego-learn-path .beego-unit-banner__title,
+.beego-learn-path .beego-unit-banner__desc,
+.beego-learn-path .beego-unit-banner__part,
+.beego-learn-path .beego-unit-banner__level {
+  color: #fff;
+}
+
+.beego-learn-path .beego-unit-banner__level {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.beego-learn-path .beego-learn-node {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.beego-learn-path .beego-learn-node__circle {
+  border: 0;
+  color: #fff;
+  background: linear-gradient(180deg, #89e219 0%, #58cc02 62%, #58cc02 100%);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.45),
+    0 7px 0 #46a302,
+    0 10px 14px rgba(88, 204, 2, 0.18);
+  transition: transform 0.14s ease, box-shadow 0.14s ease;
+}
+
+.beego-learn-path .beego-learn-node--completed .beego-learn-node__circle,
+.beego-learn-path .beego-learn-gate-call:not(.beego-learn-node--locked) .beego-learn-node__circle {
+  background: linear-gradient(180deg, #89e219 0%, #58cc02 62%, #58cc02 100%);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.45),
+    0 7px 0 #46a302,
+    0 10px 14px rgba(88, 204, 2, 0.18);
+}
+
+.beego-learn-path .beego-learn-node--locked .beego-learn-node__circle {
+  background: linear-gradient(180deg, #e5e5e5 0%, #d1d5db 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.8),
+    0 7px 0 #afafaf;
+  color: #9ca3af;
+  opacity: 1;
+}
+
+.beego-learn-path .beego-learn-node--active .beego-learn-node__circle,
+.beego-learn-path .beego-learn-node--current .beego-learn-node__circle {
+  background: linear-gradient(180deg, #89e219 0%, #58cc02 62%, #58cc02 100%);
+  color: #fff;
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.5),
+    0 7px 0 #46a302,
+    0 0 0 8px #d7ffb8;
+  animation: beego-learn-glow 2.8s ease-in-out infinite;
+}
+
+.beego-learn-path .beego-learn-node--completed .beego-learn-node-icon,
+.beego-learn-path .beego-learn-gate-call:not(.beego-learn-node--locked) .beego-learn-node-icon {
+  color: #fff;
+}
+
+.beego-learn-path .beego-learn-node--active .beego-learn-node-icon,
+.beego-learn-path .beego-learn-node--completed .beego-learn-node__check {
+  color: #fff;
+}
+
+.beego-learn-path .beego-learn-node--locked .beego-learn-node-icon {
+  color: #9ca3af;
+}
+
+.beego-learn-path .beego-learn-node__title,
+.beego-learn-path .beego-learn-node__title--done,
+.beego-learn-path .beego-learn-node__title--active {
+  color: #4b4b4b;
+}
+
+.beego-learn-path .beego-learn-node:hover:not(.beego-learn-node--locked) .beego-learn-node__circle,
+.beego-learn-path .beego-learn-node:focus-visible .beego-learn-node__circle {
+  transform: translateY(-3px);
+}
+
+.beego-learn-path .beego-learn-node:active:not(.beego-learn-node--locked) .beego-learn-node__circle {
+  transform: translateY(4px);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.4),
+    0 3px 0 #46a302;
+}
+
+.beego-learn-path .beego-learn-node--active:active .beego-learn-node__circle {
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.45),
+    0 3px 0 #46a302,
+    0 0 0 8px #d7ffb8;
+}
+
+.beego-learn-path .beego-learn-node:focus-visible {
+  outline: 3px solid #58cc02;
+  outline-offset: 3px;
+  border-radius: 16px;
+}
+
+.beego-learn-path .beego-learn-node--just-done .beego-learn-node__circle {
+  animation: beego-learn-node-pop 0.55s ease 1;
+}
+
+@keyframes beego-learn-glow {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 3px 0 rgba(255, 255, 255, 0.5),
+      0 7px 0 #46a302,
+      0 0 0 6px #d7ffb8;
+  }
+  50% {
+    box-shadow:
+      inset 0 3px 0 rgba(255, 255, 255, 0.5),
+      0 7px 0 #46a302,
+      0 0 0 12px rgba(215, 255, 184, 0.35);
+  }
+}
+
+.beego-learn-call-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(8, 12, 24, 0.55);
+}
+
+.beego-learn-call-layer .beego-lesson-call {
+  width: min(440px, 100%);
+  margin-bottom: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beego-learn-path .beego-learn-node__circle,
+  .beego-learn-path .beego-learn-node--active .beego-learn-node__circle,
+  .beego-learn-path .beego-learn-node--just-done .beego-learn-node__circle {
+    animation: none;
+    transition: none;
+  }
+
+  .beego-learn-path .beego-learn-node:hover .beego-learn-node__circle,
+  .beego-learn-path .beego-learn-node:focus-visible .beego-learn-node__circle,
+  .beego-learn-path .beego-learn-node:active .beego-learn-node__circle {
+    transform: none;
+  }
+}

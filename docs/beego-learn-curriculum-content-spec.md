@@ -3,6 +3,8 @@
 > **Tệp tài liệu:** `docs/beego-learn-curriculum-content-spec.md`  
 > **Dự án:** Beego.vn (Nền tảng học tiếng Anh)  
 > **Mục tiêu:** Cung cấp tài liệu tra cứu toàn diện về kiến trúc công nghệ, giao diện, tính năng và **đặc tả chi tiết nội dung 128 bài học phân cấp theo chuẩn CEFR (A0 → B1+)**, làm cơ sở chuẩn mực để biên soạn, nâng cấp và mở rộng nội dung bài học.
+>
+> **Khảo sát 112 bài thường:** mục 5 và 6 bên dưới mô tả nhãn lộ trình và ngân hàng chủ đề. Ma trận mục tiêu, tiên quyết, từ mới, nội dung ôn và bằng chứng đạt của 112 bài `n01`–`n14` nằm ở [`beego-learn-112-matrix.md`](beego-learn-112-matrix.md). Khảo sát đó không sửa nội dung đang chạy.
 
 ---
 

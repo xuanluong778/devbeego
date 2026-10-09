@@ -86,7 +86,8 @@ export async function GET(request, { params }) {
 
     if (user?.id && data.type !== "review") {
       try {
-        const rows = await listLessonAttemptRows(user.id, lessonId);
+        const contentRevision = (data.questions || []).find((question) => question?.extensions?.contentRevision)?.extensions?.contentRevision;
+        const rows = await listLessonAttemptRows(user.id, lessonId, contentRevision || undefined);
         const [progress] = await pool.query(
           `SELECT status FROM user_lesson_progress WHERE user_id = ? AND lesson_id = ? LIMIT 1`,
           [user.id, lessonId]

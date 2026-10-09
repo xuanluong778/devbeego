@@ -6,7 +6,7 @@ import { isTestNode } from "@/lib/beego/learning-path-build";
 import LearningNodeIcon from "./LearningNodeIcon";
 import LearnNodeTooltip from "./LearnNodeTooltip";
 
-export default function LessonNode({ node, align, onClick }) {
+export default function LessonNode({ node, align, onClick, justCompleted = false }) {
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const nodeType = getNodeType(node);
   const isActive = node.status === "active";
@@ -30,7 +30,7 @@ export default function LessonNode({ node, align, onClick }) {
             `beego-learn-node--${node.status}`,
             isTest ? "beego-learn-node--test" : "",
             isActive ? "beego-learn-node--current" : "",
-            isCompleted ? "beego-learn-node--done-anim" : "",
+            justCompleted ? "beego-learn-node--just-done" : "",
           ]
             .filter(Boolean)
             .join(" ")}

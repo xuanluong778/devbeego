@@ -1,6 +1,12 @@
 "use client";
 
-export default function LessonFeedbackBar({ correct, correctAnswerText, explanation, onContinue }) {
+export default function LessonFeedbackBar({
+  correct,
+  correctAnswerText,
+  explanation,
+  onContinue,
+  continueDisabled = false,
+}) {
   return (
     <footer
       className={`beego-lesson-feedback${correct ? " beego-lesson-feedback--correct" : " beego-lesson-feedback--wrong"}`}
@@ -24,8 +30,13 @@ export default function LessonFeedbackBar({ correct, correctAnswerText, explanat
           </>
         )}
       </div>
-      <button type="button" className="beego-lesson-feedback__continue" onClick={onContinue}>
-        Tiếp tục
+      <button
+        type="button"
+        className="beego-lesson-feedback__continue"
+        onClick={onContinue}
+        disabled={continueDisabled}
+      >
+        {continueDisabled ? "Đang lưu..." : "Tiếp tục"}
       </button>
     </footer>
   );

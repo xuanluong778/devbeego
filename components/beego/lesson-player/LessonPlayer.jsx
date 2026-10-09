@@ -8,6 +8,7 @@ import ExerciseRenderer from "./ExerciseRenderer";
 import LessonBottomBar from "./LessonBottomBar";
 import LessonFeedbackBar from "./LessonFeedbackBar";
 import LessonCompleteScreen from "./LessonCompleteScreen";
+import LearnLessonCall from "./LearnLessonCall";
 import LessonAiConversation from "./LessonAiConversation";
 import { isLessonSuitableForAiPractice } from "@/lib/beego/learn/learn-ai-practice-eligibility";
 import {
@@ -21,6 +22,58 @@ import { fetchLessonForPlayer } from "@/lib/beego/learn/fetch-lesson-for-player"
 import { postLearnExerciseResult } from "@/lib/beego/learn/post-exercise-result-client";
 import { stopLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
 import { playLessonSfx, stopLessonSfx } from "@/lib/beego/learn/lesson-sfx";
+import { assessP1MasteryEvidence } from "@/lib/beego/learn/p1-g1-plan";
+import { gradeListenDictation } from "@/lib/beego/learn/listen-dictation";
+
+function masteryEvidenceForSession(lesson, attempts) {
+  const rubric = lesson?.masteryRubric;
+  if (!rubric) return null;
+  if (!attempts?.length) {
+    return {
+      status: "absent",
+      text: "Kết quả luyện tập trong phiên: lượt này chưa có câu luyện. Trạng thái hoàn thành không đổi.",
+    };
+  }
+  const result = assessP1MasteryEvidence(attempts);
+  const expected = { recognition: 0, application: 0 };
+  for (const question of lesson.questions || []) {
+    const role = question?.extensions?.evidenceRole;
+    if (role === "recognition" || role === "application") expected[role] += 1;
+  }
+  const complete =
+    result.recognitionCount === expected.recognition &&
+    result.applicationCount === expected.application;
+  const met = result.mastered && complete;
+  return {
+    status: met ? "met" : "not_met",
+    text: met
+      ? "Kết quả luyện tập trong phiên: phần nhận biết và phần vận dụng đều đúng. Đây không phải kết luận thành thạo, và transcript không chứng minh phát âm đạt."
+      : "Kết quả luyện tập trong phiên: phần nhận biết hoặc phần vận dụng còn câu chưa đúng. Đây không phải kết luận thành thạo.",
+  };
+}
+
+function previewDictation(question, answer) {
+  if (question?.type !== "listening_dictation") return null;
+  const transcript = String(question.extensions?.transcript || question.ttsText || "").trim();
+  if (!transcript) return null;
+  const typed = answer && typeof answer === "object" ? answer.text ?? answer.value : answer;
+  return {
+    ok: gradeListenDictation(transcript, typed),
+    transcript,
+  };
+}
+
+function LessonAim({ rubric }) {
+  return (
+    <section className="beego-lesson-aim" aria-label="Mục tiêu bài">
+      <p>
+        <strong>{rubric.roleLabel}.</strong> {rubric.goal}
+      </p>
+      {rubric.newItems?.length ? <p>Mới: {rubric.newItems.join(", ")}</p> : <p>Bài này không thêm mục mới.</p>}
+      {rubric.reviewItems?.length ? <p>Ôn: {rubric.reviewItems.join(", ")}</p> : null}
+    </section>
+  );
+}
 
 export default function LessonPlayer({ lessonId, replay = false }) {
   const router = useRouter();
@@ -60,6 +113,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   const canPersistCompleteRef = useRef(false);
   const [celebrate, setCelebrate] = useState(false);
   const fanfarePlayedRef = useRef(false);
+  const evidenceAttemptsRef = useRef([]);
 
   const total = lesson?.questions?.length ?? 0;
   const question = lesson?.questions?.[index];
@@ -150,6 +204,16 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   const handleCheck = useCallback(async () => {
     if (!canCheck || checking) return;
     setChecking(true);
+    const localDictation = previewDictation(question, answer);
+    if (localDictation) {
+      setFeedback(localDictation.ok ? "correct" : "wrong");
+      setReveal({
+        correctAnswerText: localDictation.transcript,
+        explanation: null,
+        correctAnswerId: null,
+        storyVi: "",
+      });
+    }
 
     if (!exerciseAttemptKeyRef.current) {
       exerciseAttemptKeyRef.current =
@@ -206,6 +270,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           correctAnswerText: result.data?.correct_answer_display || "—",
           explanation: result.data?.explanation || null,
           correctAnswerId: result.data?.correct_answer_id ?? null,
+          storyVi: result.data?.story_vi || "",
         });
         if (ok) {
           correctRef.current += 1;
@@ -213,6 +278,8 @@ export default function LessonPlayer({ lessonId, replay = false }) {
         } else if (lives > 0) {
           setLives((l) => l - 1);
         }
+        const activity = Number(question?.extensions?.activity);
+        if (activity) evidenceAttemptsRef.current.push({ activity, correct: ok });
         if (question?.type !== "matching_pairs") playLessonSfx(ok ? "ding" : "soft");
       }
     } finally {
@@ -236,6 +303,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   const handleSkip = useCallback(() => {
     if (feedback || checking) return;
     if (question?.required) return;
+    // Câu nói tùy chọn: bỏ qua không nộp, không trừ tim, không ghi sai.
     if (index >= total - 1) {
       goToCompletePhase(correctRef.current);
       return;
@@ -373,10 +441,14 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           honeyAwarded={honeyAwarded}
           streak={streak}
           alreadyCompleted={alreadyCompleted || replay}
+          masteryEvidence={masteryEvidenceForSession(lesson, evidenceAttemptsRef.current)}
           celebrate={celebrate}
           replay={replay}
           showAiPractice={aiPracticeOn}
           onAiPractice={() => setAiPanelOpen(true)}
+          callSlot={
+            <LearnLessonCall lessonId={lesson.lessonId} lessonType={lesson.type} />
+          }
         />
         {aiPanelOpen ? (
           <LessonAiConversation lessonId={lessonId} onClose={() => setAiPanelOpen(false)} />
@@ -390,6 +462,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
       <LessonTopBar progress={progress} lives={lives} onExit={handleExit} />
 
       <main className="beego-lesson-player__main">
+        {lesson.masteryRubric ? <LessonAim rubric={lesson.masteryRubric} /> : null}
         <ExerciseRenderer
           key={question?.id || index}
           exercise={question}
@@ -397,6 +470,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           answer={answer}
           onAnswerChange={setAnswer}
           feedback={feedback}
+          storySupportVi={reveal?.storyVi || ""}
           revealCorrectId={reveal?.correctAnswerId ?? null}
           onCheck={handleCheck}
         />
@@ -418,15 +492,18 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           correctAnswerText={reveal?.correctAnswerText || "—"}
           explanation={reveal?.explanation}
           onContinue={handleContinue}
+          continueDisabled={checking}
         />
       ) : (
         <LessonBottomBar
           canCheck={canCheck}
+          busy={checking}
           onSkip={handleSkip}
           onCheck={handleCheck}
           keyboardMode={keyboardMode}
           onToggleKeyboard={() => setKeyboardMode((v) => !v)}
           skipDisabled={skipDisabled}
+          skipLabel={Number(question?.extensions?.activity) === 11 ? "Bỏ qua câu nói" : "Bỏ qua"}
         />
       )}
     </div>

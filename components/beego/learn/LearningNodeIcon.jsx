@@ -102,6 +102,14 @@ function IconSvg({ iconType }) {
           <path d="M10 16h4v4H10z" fill="currentColor" />
         </svg>
       );
+    case "camera":
+      return (
+        <svg {...common}>
+          <path d="M4 8h11a2 2 0 0 1 2 2v8H4V8z" fill="currentColor" stroke="currentColor" />
+          <path d="M17 11l4-2v8l-4-2" fill="currentColor" stroke="currentColor" />
+          <circle cx="9.5" cy="12" r="2" fill="#fff" stroke="none" />
+        </svg>
+      );
     case "lock":
       return (
         <svg {...common}>

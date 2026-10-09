@@ -14,7 +14,8 @@ import {
   getCorrectAnswerDisplay,
   scoreSpeakingAttempt,
 } from "@/lib/beego/learn/exercise-check";
-import { matchSummary } from "@/lib/beego/learn/match-pairs";
+import { gradeMatchAnswer, matchSummary } from "@/lib/beego/learn/match-pairs";
+import { findServedMixExercise } from "@/lib/beego/learn/lesson-mix-session-store";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ function assertListeningAligned(ex) {
   return { ok: true };
 }
 
-function gradeExerciseServerSide({ lessonId, questionId, answer, sourceLessonId, sourceQuestionId }) {
+async function gradeExerciseServerSide({ lessonId, questionId, answer, sourceLessonId, sourceQuestionId, userId }) {
   const lid = String(sourceLessonId || lessonId || "").trim();
   const qid = String(sourceQuestionId || questionId || "").trim();
   if (!lid || !qid) {
@@ -139,6 +140,12 @@ function gradeExerciseServerSide({ lessonId, questionId, answer, sourceLessonId,
     }
     // Never trust client is_correct / passed flags
     isCorrect = Boolean(checkAnswer(ex, answer));
+    if (!isCorrect && type === "matching_pairs" && userId) {
+      const served = await findServedMixExercise(userId, lessonId, ex.id);
+      if (served && gradeMatchAnswer(served, answer).accurate) {
+        isCorrect = true;
+      }
+    }
   }
 
   const correctAnswerId =
@@ -153,7 +160,9 @@ function gradeExerciseServerSide({ lessonId, questionId, answer, sourceLessonId,
       : ex.correctAnswer ?? null;
   const matchText =
     type === "matching_pairs"
-      ? matchSummary(Array.isArray(ex.pairs) ? ex.pairs.length : 0, Number(answer?.mistakeCount) || 0)
+      ? isCorrect
+        ? matchSummary(Array.isArray(ex.pairs) ? ex.pairs.length : 0, Number(answer?.mistakeCount) || 0)
+        : (ex.pairs || []).map((pair) => `${pair.en} = ${pair.vi}`).join("; ")
       : "";
 
   return {
@@ -162,8 +171,10 @@ function gradeExerciseServerSide({ lessonId, questionId, answer, sourceLessonId,
     correctAnswerDisplay: matchText || getCorrectAnswerDisplay(ex),
     correctAnswerId,
     explanation: matchText || (ex.explanation ? String(ex.explanation) : null),
+    storyVi: type === "story_comprehension" ? String(ex.storyVi || ex.extensions?.storyVi || "") : "",
     gradedLessonId: loaded.sourceLessonId,
     gradedQuestionId: ex.id,
+    contentRevision: ex.extensions?.contentRevision || null,
   };
 }
 
@@ -225,12 +236,13 @@ export async function POST(request) {
       body.source_question_id || body.sourceQuestionId || ""
     ).trim();
 
-    const graded = gradeExerciseServerSide({
+    const graded = await gradeExerciseServerSide({
       lessonId,
       questionId,
       answer,
       sourceLessonId,
       sourceQuestionId,
+      userId: user?.id,
     });
     if (!graded.ok) {
       return NextResponse.json(
@@ -244,6 +256,7 @@ export async function POST(request) {
       correct_answer_display: graded.correctAnswerDisplay,
       correct_answer_id: graded.correctAnswerId,
       explanation: graded.explanation,
+      story_vi: graded.storyVi || "",
       graded_server: true,
     };
 
@@ -296,6 +309,7 @@ export async function POST(request) {
       isCorrect: graded.isCorrect,
       activityStage,
       difficulty,
+      contentRevision: graded.contentRevision,
     });
 
     try {
@@ -315,7 +329,7 @@ export async function POST(request) {
         mastery_phase: result.mastery_phase,
         accuracy_pct: result.accuracy_pct,
         ...reveal,
-        is_correct: result.is_correct,
+        is_correct: graded.isCorrect,
       },
     });
   } catch (error) {

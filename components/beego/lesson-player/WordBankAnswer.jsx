@@ -150,7 +150,7 @@ export default function WordBankAnswer({ question, onChange, state, lined = fals
         {placedTokens.length === 0 ? (
           <span className="beego-lesson-wordbank__placeholder">Chạm các từ bên dưới để ghép câu</span>
         ) : (
-          placedTokens.map((token) => (
+          placedTokens.map((token, index) => (
             <button
               key={token.id}
               type="button"
@@ -158,7 +158,8 @@ export default function WordBankAnswer({ question, onChange, state, lined = fals
               data-placed-token={token.id}
               className={`beego-lesson-wordbank__chip beego-lesson-wordbank__chip--placed${
                 draggingId === token.id ? " is-dragging" : ""
-              }${freshIds.has(token.id) ? " is-fresh" : ""}`}
+              }${freshIds.has(token.id) ? " is-fresh" : ""}${state === "correct" ? " is-wave" : ""}`}
+              style={state === "correct" ? { animationDelay: `${index * 70}ms` } : undefined}
               disabled={locked}
               onPointerDown={(event) => onPlacedPointerDown(event, token.id)}
               onPointerMove={onPlacedPointerMove}

@@ -47,9 +47,9 @@ async function main() {
     (d1?.questions?.length || 0) >= 10 &&
     (d2?.questions?.length || 0) >= 10 &&
     (d3?.questions?.length || 0) >= 10 &&
-    ["catalog_generated_v3", "catalog_generated_v2", "catalog_generated", "enriched"].includes(d1?.contentSource) &&
-    ["catalog_generated_v3", "catalog_generated_v2", "catalog_generated", "enriched"].includes(d2?.contentSource) &&
-    ["catalog_generated_v3", "catalog_generated_v2", "catalog_generated", "enriched"].includes(d3?.contentSource);
+    ["catalog_generated_v4", "catalog_generated_v3", "catalog_generated_v2", "catalog_generated", "enriched"].includes(d1?.contentSource) &&
+    ["catalog_generated_v4", "catalog_generated_v3", "catalog_generated_v2", "catalog_generated", "enriched"].includes(d2?.contentSource) &&
+    ["catalog_generated_v4", "catalog_generated_v3", "catalog_generated_v2", "catalog_generated", "enriched"].includes(d3?.contentSource);
 
   const reloadOk =
     reload.status === 200 &&
@@ -58,7 +58,7 @@ async function main() {
   const invalidOk = bad.status === 404;
   const catalogOk =
     n04.status === 200 &&
-    ["catalog_generated_v3", "catalog_generated_v2", "catalog_generated", "enriched"].includes(n04.json?.data?.contentSource) &&
+    ["catalog_generated_v4", "catalog_generated_v3", "catalog_generated_v2", "catalog_generated", "enriched"].includes(n04.json?.data?.contentSource) &&
     (n04.json?.data?.questions?.length || 0) >= 10 &&
     last.status === 200;
 

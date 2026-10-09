@@ -151,9 +151,9 @@ async function streamOpenAITtsPcm({ text, onChunk, signal }) {
 }
 
 const worker = new Worker(
-  "voice-tts",
+  process.env.VOICE_TTS_QUEUE || "voice-tts",
   async (job) => {
-    const { sessionId, requestId, text } = job.data || {};
+    const { sessionId, requestId, text, skipSharedUsage } = job.data || {};
     const rid = Number(requestId);
     const sid = String(sessionId || "").trim();
     const t = String(text || "").trim();
@@ -162,7 +162,7 @@ const worker = new Worker(
     const plan = await lookupPlan(sid);
     const ymd = utcYmd();
     const ym = utcYm();
-    if (userId) {
+    if (userId && skipSharedUsage !== true) {
       const okQuota = await quotaCheckAndSignal({ sessionId: sid, requestId: rid, userId, plan });
       if (!okQuota) return;
     }
@@ -177,14 +177,14 @@ const worker = new Worker(
           pubJson(sid, { type: "interrupt_ack", requestId: rid, reason: "cancelled" });
           return;
         }
-        if (userId) {
+        if (userId && skipSharedUsage !== true) {
           const okQuota = await quotaCheckAndSignal({ sessionId: sid, requestId: rid, userId, plan });
           if (!okQuota) {
             ac.abort();
             return;
           }
         }
-        if (userId) {
+        if (userId && skipSharedUsage !== true) {
           redis.hincrby(keyUsageDaily(userId, ymd), "tts_bytes", chunkU8.length).catch(() => {});
           redis.expire(keyUsageDaily(userId, ymd), 60 * 60 * 24 * 7).catch(() => {});
           redis.hincrby(keyUsageMonth(userId, ym), "tts_bytes", chunkU8.length).catch(() => {});

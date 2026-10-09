@@ -299,6 +299,22 @@ function SpeakingExercise({ exercise, onAnswerChange, feedback }) {
   );
 }
 
+function StoryPassage({ exercise, feedback, storySupportVi }) {
+  const story = exercise.storyText || exercise.extensions?.storyText || "";
+  const vi = storySupportVi || "";
+  const graded = feedback === "correct" || feedback === "wrong";
+  if (!story && !vi) return null;
+  return (
+    <div className="beego-lesson-story">
+      <p className="beego-lesson-story__label">
+        {graded ? "Bản dịch hỗ trợ sau khi chấm" : "Lượt đánh giá đọc hiểu. Chưa hiện bản dịch."}
+      </p>
+      {graded && vi ? <p className="beego-lesson-story__vi">{vi}</p> : null}
+      {story ? <p className="beego-lesson-story__en">{story}</p> : null}
+    </div>
+  );
+}
+
 function StoryExercise({
   exercise,
   answer,
@@ -308,14 +324,8 @@ function StoryExercise({
   showOptionVisuals,
   choiceLayout,
 }) {
-  const story = exercise.storyText || exercise.extensions?.storyText || "";
   return (
     <>
-      {story ? (
-        <div className="beego-lesson-story">
-          <p>{story}</p>
-        </div>
-      ) : null}
       <ChoiceExercise
         exercise={exercise}
         answer={answer}
@@ -423,6 +433,7 @@ export default function ExerciseRenderer({
   answer,
   onAnswerChange,
   feedback,
+  storySupportVi = "",
   revealCorrectId = null,
   onCheck,
 }) {
@@ -446,11 +457,19 @@ export default function ExerciseRenderer({
     >
       <ActivityBadge activityType={activityType} />
       <p className="beego-lesson-question__skill">{exercise.skillLabel}</p>
+      {exercise.extensions?.evaluationTurn ? (
+        <p className="beego-lesson-story__label">Lượt đánh giá đọc hiểu</p>
+      ) : exercise.extensions?.evidenceRole ? (
+        <p className="beego-lesson-story__label">Lượt có hỗ trợ</p>
+      ) : null}
+      {type === "story_comprehension" ? (
+        <StoryPassage exercise={exercise} feedback={feedback} storySupportVi={storySupportVi} />
+      ) : null}
       <h2 className="beego-lesson-question__prompt">
         {type === "speaking" || type === "pronunciation" ? "Nghe và nhắc lại." : exercise.prompt}
       </h2>
 
-      {exercise.imageEmoji ? (
+      {type === "story_comprehension" ? null : exercise.imageEmoji ? (
         <div className="beego-lesson-question__visual" aria-hidden>
           <span>{exercise.imageEmoji}</span>
         </div>

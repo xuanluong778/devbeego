@@ -3,12 +3,13 @@
 import { forwardRef, useEffect, useRef } from "react";
 import UnitBanner from "./UnitBanner";
 import LessonNode from "./LessonNode";
+import GateCallButton from "./GateCallButton";
 
 /** Zig-zag lane: left → center → right → center → … (Duolingo-like) */
 const ZIGZAG = ["left", "center", "right", "center"];
 
 const LearningSection = forwardRef(function LearningSection(
-  { section, onNodeClick, isFirst, mounted = true, estimatedHeight = 0, onBecomeVisible },
+  { section, onNodeClick, onGateCall, callEnabled = false, justCompletedId = "", isFirst, mounted = true, estimatedHeight = 0, onBecomeVisible },
   ref
 ) {
   const localRef = useRef(null);
@@ -59,23 +60,41 @@ const LearningSection = forwardRef(function LearningSection(
       <div className="beego-learn-section__path" role="list">
         {section.nodes.map((node, i) => {
           const align = ZIGZAG[i % ZIGZAG.length];
+          const showCall = callEnabled && i === 3;
           return (
-            <div
-              key={node.lessonId}
-              className={`beego-learn-section__step beego-learn-section__step--${align}`}
-              role="listitem"
-              style={{ "--zigzag-i": i }}
-            >
-              {i > 0 ? (
-                <span
-                  className={`beego-learn-section__connector beego-learn-section__connector--${align}`}
-                  aria-hidden
+            <div key={node.lessonId}>
+              <div
+                className={`beego-learn-section__step beego-learn-section__step--${align}`}
+                role="listitem"
+                style={{ "--zigzag-i": i }}
+              >
+                {i > 0 ? (
+                  <span
+                    className={`beego-learn-section__connector beego-learn-section__connector--${align}`}
+                    aria-hidden
+                  />
+                ) : null}
+                <LessonNode
+                  node={node}
+                  align={align}
+                  onClick={onNodeClick}
+                  justCompleted={justCompletedId === node.lessonId}
                 />
+              </div>
+              {showCall ? (
+                <div className="beego-learn-section__step beego-learn-section__step--center" role="listitem">
+                  <span className="beego-learn-section__connector beego-learn-section__connector--center" aria-hidden />
+                  <GateCallButton section={section} onOpen={onGateCall} />
+                </div>
               ) : null}
-              <LessonNode node={node} align={align} onClick={onNodeClick} />
             </div>
           );
         })}
+        {callEnabled && section.nodes.length < 4 ? (
+          <div className="beego-learn-section__step beego-learn-section__step--center" role="listitem">
+            <GateCallButton section={section} onOpen={onGateCall} />
+          </div>
+        ) : null}
       </div>
     </section>
   );

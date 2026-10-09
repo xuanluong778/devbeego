@@ -4,6 +4,11 @@ import { getSettingSync } from "@/lib/runtime-settings/cache";
 export type VoiceJwtPayload = {
   sub: string; // userId
   plan?: string;
+  /** Set only for Learn-tab Call. Existing speaking tokens omit this. */
+  purpose?: string;
+  sid?: string;
+  /** Present only after the server allowlist check. Speaking tokens omit it. */
+  learnAllow?: number;
   iat?: number;
   exp?: number;
 };

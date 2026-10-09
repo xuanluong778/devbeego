@@ -24,6 +24,7 @@ import AchievementsCard from "./AchievementsCard";
 import InstallAppOffer from "@/components/beego/InstallAppOffer";
 import { LEARNING_PATH_UPDATED_EVENT } from "@/lib/beego/learn/complete-lesson-client";
 import LessonAiConversation from "@/components/beego/lesson-player/LessonAiConversation";
+import LearnLessonCall from "@/components/beego/lesson-player/LearnLessonCall";
 
 function resolveSheetKind(node) {
   if (node.status === "locked") return "locked";
@@ -39,11 +40,16 @@ export default function LearnPage() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [sheet, setSheet] = useState({ open: false, node: null, kind: "lesson", anchor: null });
   const [resumeAiLessonId, setResumeAiLessonId] = useState("");
+  const [callEnabled, setCallEnabled] = useState(false);
+  const [gateCall, setGateCall] = useState(null);
+  const [justCompletedId, setJustCompletedId] = useState("");
 
   const [goalCelebrate, setGoalCelebrate] = useState(false);
   const [achievementToast, setAchievementToast] = useState(null);
 
   const learnRootRef = useRef(null);
+  const mapScrollRef = useRef(0);
+  const seenCompletedRef = useRef(null);
   const headerRef = useRef(null);
   const sectionRefs = useRef(new Map());
 
@@ -77,6 +83,51 @@ export default function LearnPage() {
   }, []);
 
   useScrollToActiveNode(pathData.sections, true);
+
+  useEffect(() => {
+    let cancel = false;
+    fetch("/api/learn/ai-call/status", { cache: "no-store", credentials: "same-origin" })
+      .then((res) => res.json())
+      .then((json) => {
+        if (!cancel) setCallEnabled(Boolean(json?.data?.enabled));
+      })
+      .catch(() => {
+        if (!cancel) setCallEnabled(false);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const ids = [];
+    for (const section of pathData.sections || []) {
+      for (const node of section.nodes || []) {
+        if (node.status === "completed") ids.push(node.lessonId);
+      }
+    }
+    if (!seenCompletedRef.current) {
+      seenCompletedRef.current = new Set(ids);
+      return;
+    }
+    const fresh = ids.find((id) => !seenCompletedRef.current.has(id));
+    seenCompletedRef.current = new Set(ids);
+    if (!fresh) return;
+    setJustCompletedId(fresh);
+    const timer = window.setTimeout(() => setJustCompletedId(""), 700);
+    return () => window.clearTimeout(timer);
+  }, [pathData]);
+
+  const openGateCall = useCallback((target) => {
+    mapScrollRef.current = window.scrollY;
+    setGateCall(target);
+  }, []);
+
+  const closeGateCall = useCallback(() => {
+    setGateCall(null);
+    const top = mapScrollRef.current;
+    window.requestAnimationFrame(() => window.scrollTo(0, top));
+  }, []);
 
   useEffect(() => {
     const load = () => setProfile(readOnboardingProfile());
@@ -313,6 +364,9 @@ export default function LearnPage() {
               sections={pathData.sections}
               activeSectionId={activeSectionId || pathData.currentSectionId}
               onNodeClick={handleNodeClick}
+              onGateCall={openGateCall}
+              callEnabled={callEnabled}
+              justCompletedId={justCompletedId}
               onSectionRef={registerSectionRef}
             />
           </div>
@@ -343,6 +397,18 @@ export default function LearnPage() {
           setResumeAiLessonId(lessonId);
         }}
       />
+      {gateCall ? (
+        <div className="beego-learn-call-layer" role="dialog" aria-label="Gọi gia sư AI">
+          <LearnLessonCall
+            lessonId={gateCall.lessonId}
+            lessonType={gateCall.lessonType}
+            sectionId={gateCall.sectionId}
+            autoCheck
+            returnLabel="Quay lại bản đồ"
+            onDismiss={closeGateCall}
+          />
+        </div>
+      ) : null}
       {resumeAiLessonId ? (
         <LessonAiConversation
           lessonId={resumeAiLessonId}

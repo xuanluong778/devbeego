@@ -2,11 +2,13 @@
 
 export default function LessonBottomBar({
   canCheck,
+  busy = false,
   onSkip,
   onCheck,
   keyboardMode,
   onToggleKeyboard,
   skipDisabled = false,
+  skipLabel = "Bỏ qua",
 }) {
   return (
     <footer className="beego-lesson-bottombar">
@@ -18,7 +20,7 @@ export default function LessonBottomBar({
         aria-disabled={skipDisabled}
         title={skipDisabled ? "Bài bắt buộc — không bỏ qua" : undefined}
       >
-        Bỏ qua
+        {skipLabel}
       </button>
       <button type="button" className="beego-lesson-bottombar__link" onClick={onToggleKeyboard}>
         {keyboardMode ? "Ẩn bàn phím" : "Sử dụng bàn phím"}
@@ -29,7 +31,7 @@ export default function LessonBottomBar({
         onClick={onCheck}
         disabled={!canCheck}
       >
-        Kiểm tra
+        {busy ? "Đang chấm..." : "Kiểm tra"}
       </button>
     </footer>
   );

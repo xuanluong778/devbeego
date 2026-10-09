@@ -19,7 +19,8 @@ import styles from "./LessonAiConversation.module.css";
  * @param {boolean} [props.replay]
  * @param {boolean} [props.showAiPractice]
  * @param {boolean} [props.celebrate]
- * @param {() => void} [props.onAiPractice]
+ * @param {import("react").ReactNode} [props.callSlot]
+ * @param {{ status: "absent" | "met" | "not_met", text: string } | null} [props.masteryEvidence]
  */
 export default function LessonCompleteScreen({
   lesson,
@@ -36,6 +37,8 @@ export default function LessonCompleteScreen({
   replay = false,
   showAiPractice = false,
   celebrate = false,
+  callSlot = null,
+  masteryEvidence = null,
   onAiPractice,
 }) {
   const title = lesson?.title || "Bài học Beego";
@@ -73,6 +76,11 @@ export default function LessonCompleteScreen({
           )}
           {livesLeft > 0 ? <li>❤️ Còn {livesLeft} tim</li> : null}
         </ul>
+        {masteryEvidence ? (
+          <p className={`beego-lesson-evidence beego-lesson-evidence--${masteryEvidence.status}`}>
+            {masteryEvidence.text}
+          </p>
+        ) : null}
         <p className="beego-lesson-complete__msg">
           {saving
             ? "Vui lòng đợi trong giây lát."
@@ -94,6 +102,7 @@ export default function LessonCompleteScreen({
         >
           Về lộ trình học
         </Link>
+        {callSlot || null}
         {showAiPractice ? (
           <button type="button" className={styles.secondaryCta} onClick={onAiPractice}>
             Thực hành với AI

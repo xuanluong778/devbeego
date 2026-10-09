@@ -24,21 +24,24 @@ export default function TranslationAnswer({ exercise, answer, onAnswerChange, fe
   const context = exercise?.extensions?.context || "";
   const textMode = exercise?.extensions?.inputMode === "text";
   const toVietnamese = exercise?.extensions?.translationDirection === "en-to-vi";
-  const speak = exercise?.extensions?.speakText || source;
+  const speak = exercise?.extensions?.speakText || "";
   const value = typeof answer === "string" ? answer : "";
+  const promptSpeech = toVietnamese
+    ? { text: String(source || speak).trim(), lang: "en" }
+    : { text: String(source || "").trim(), lang: "vi" };
 
   useEffect(() => {
     if (textMode || !toVietnamese || feedback) return undefined;
-    const text = String(source || speak || "").trim();
+    const text = promptSpeech.text;
     if (!text) return undefined;
     const timer = window.setTimeout(() => {
-      playLessonTts({ text, lang: "en" });
+      playLessonTts({ text, lang: promptSpeech.lang });
     }, 80);
     return () => {
       window.clearTimeout(timer);
       stopLessonTts();
     };
-  }, [exercise?.id, textMode, toVietnamese, source, speak, feedback]);
+  }, [exercise?.id, textMode, toVietnamese, promptSpeech.text, promptSpeech.lang, feedback]);
 
   const onKeyDown = (event) => {
     if (event.key !== "Enter") return;
@@ -56,7 +59,11 @@ export default function TranslationAnswer({ exercise, answer, onAnswerChange, fe
           <button
             type="button"
             className="beego-lesson-listen-word__bubble"
-            onClick={() => playLessonTts({ text: speak, lang: "en" })}
+            aria-label={toVietnamese ? "Nghe tiếng Anh" : "Nghe tiếng Việt"}
+            onClick={() => {
+              if (!promptSpeech.text) return;
+              playLessonTts(promptSpeech);
+            }}
           >
             <svg viewBox="0 0 24 24" aria-hidden>
               <path fill="currentColor" d="M4 9.2v5.6h3.6L12 19V5L7.6 9.2H4z" />
