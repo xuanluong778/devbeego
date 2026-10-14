@@ -2,28 +2,21 @@
  * Summary check on the preview gateway. Ends a real greeting after TTS.
  * Does not send a client transcript and does not print secrets.
  */
-import fs from "node:fs";
 import jwt from "jsonwebtoken";
 import Redis from "ioredis";
 import WebSocket from "ws";
+import { loadLearnCallTestEnv } from "./learn-call-test-env.mjs";
 import { learnAiCallContextKey, learnAiCallSessionKey } from "../lib/beego/learn/ai-call-access.js";
 
-const env = {};
-for (const line of fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8").split(/\n/)) {
-  const t = line.trim();
-  if (!t || t.startsWith("#") || !t.includes("=")) continue;
-  const i = t.indexOf("=");
-  const key = t.slice(0, i).trim();
-  if (!env[key]) env[key] = t.slice(i + 1).trim();
-}
+const env = loadLearnCallTestEnv();
 const userId = "900000001";
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
 function tokenFor(sid) {
-  return jwt.sign({ sub: userId, plan: "pro", purpose: "learn_ai_call", sid }, env.VOICE_JWT_SECRET, { expiresIn: 120 });
+  return jwt.sign({ sub: userId, plan: "pro", purpose: "learn_ai_call", sid, learnAllow: 1 }, env.VOICE_JWT_SECRET, { expiresIn: 120 });
 }
 function open(sid) {
-  const ws = new WebSocket(`ws://127.0.0.1:3032/?token=${encodeURIComponent(tokenFor(sid))}&sessionId=${encodeURIComponent(sid)}`);
+  const ws = new WebSocket(`ws://127.0.0.1:${env.wsPort}/?token=${encodeURIComponent(tokenFor(sid))}&sessionId=${encodeURIComponent(sid)}`);
   const messages = [];
   ws.on("message", (data, isBinary) => {
     if (!isBinary) {
@@ -89,10 +82,11 @@ console.log(JSON.stringify({
   heardPronunciation: a.pronunciation,
   heardCorrection: a.correctionNote,
   heardDuration: a.durationSeconds,
-  heardTutorCount: Array.isArray(a.heardTutorQuotes) ? a.heardTutorQuotes.length : null,
+  // No playback_ack is sent, so the played greeting must stay unconfirmed, never complete.
+  heardTutorPlayback: a.tutorPlayback || null,
   heardLearnerCount: Array.isArray(a.learnerQuotes) ? a.learnerQuotes.length : null,
   heardLesson: a.lessonTitle,
-  cutTutorCount: Array.isArray(b.heardTutorQuotes) ? b.heardTutorQuotes.length : null,
+  cutTutorPlayback: b.tutorPlayback || null,
   cutScore: b.score,
   sessionReleased: member === 0,
 }));

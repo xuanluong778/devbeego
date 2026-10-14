@@ -2,29 +2,22 @@
  * Preview gateway: playback labels, reconnect clock, one usage mark, other user rejected.
  * Does not send a client transcript and does not print secrets.
  */
-import fs from "node:fs";
 import jwt from "jsonwebtoken";
 import Redis from "ioredis";
 import WebSocket from "ws";
+import { loadLearnCallTestEnv } from "./learn-call-test-env.mjs";
 import { learnAiCallClockKey, learnAiCallContextKey, learnAiCallSessionKey, learnAiCallUsageKey } from "../lib/beego/learn/ai-call-access.js";
 
-const env = {};
-for (const line of fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8").split(/\n/)) {
-  const t = line.trim();
-  if (!t || t.startsWith("#") || !t.includes("=")) continue;
-  const i = t.indexOf("=");
-  const key = t.slice(0, i).trim();
-  if (!env[key]) env[key] = t.slice(i + 1).trim();
-}
+const env = loadLearnCallTestEnv();
 const userId = "900000001";
 const otherId = "900000002";
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
 function tokenFor(sub, sid) {
-  return jwt.sign({ sub, plan: "pro", purpose: "learn_ai_call", sid }, env.VOICE_JWT_SECRET, { expiresIn: 120 });
+  return jwt.sign({ sub, plan: "pro", purpose: "learn_ai_call", sid, learnAllow: 1 }, env.VOICE_JWT_SECRET, { expiresIn: 120 });
 }
 function open(sub, sid) {
-  const ws = new WebSocket(`ws://127.0.0.1:3032/?token=${encodeURIComponent(tokenFor(sub, sid))}&sessionId=${encodeURIComponent(sid)}`);
+  const ws = new WebSocket(`ws://127.0.0.1:${env.wsPort}/?token=${encodeURIComponent(tokenFor(sub, sid))}&sessionId=${encodeURIComponent(sid)}`);
   const messages = [];
   ws.on("message", (data, isBinary) => {
     if (!isBinary) {
@@ -70,7 +63,7 @@ await new Promise((r) => setTimeout(r, 300));
 const second = await open(userId, sid);
 const hello2 = await waitFor(second.messages, (item) => item.type === "hello", 4000);
 const stranger = new WebSocket(
-  `ws://127.0.0.1:3032/?token=${encodeURIComponent(tokenFor(otherId, sid))}&sessionId=${encodeURIComponent(sid)}`
+  `ws://127.0.0.1:${env.wsPort}/?token=${encodeURIComponent(tokenFor(otherId, sid))}&sessionId=${encodeURIComponent(sid)}`
 );
 const strangerCode = await new Promise((resolve) => stranger.once("close", (code) => resolve(code)));
 await waitFor(second.messages, (item) => item.type === "ai_done" && item.requestId === 1, 20000);

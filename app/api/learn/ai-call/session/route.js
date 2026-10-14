@@ -9,20 +9,24 @@ import {
   LEARN_AI_CALL_PURPOSE,
   decideLearnAiCallAccess,
   isOrdinaryLessonCall,
+  claimLearnCallOpenLock,
+  finalizeLearnCallSession,
   learnAiCallContextKey,
   learnAiCallEmailAllowed,
   learnAiCallGateOpen,
   learnAiCallEnabled,
   learnAiCallLevelOneHints,
   learnAiCallLevelOneLimits,
-  learnAiCallOpenUserKey,
   learnAiCallPackageAllowanceMs,
   learnAiCallSessionKey,
   learnAiCallWsUrl,
+  learnCallOpenLockTtlSeconds,
+  releaseLearnCallOpenLock,
   readLearnCallPackage,
   resolveUnlockedGateCall,
 } from "@/lib/beego/learn/ai-call-access";
 import { getLessonContentById } from "@/lib/beego/learn/get-lesson-content";
+import { learnCallContextFromLesson } from "@/lib/beego/learn/learn-call-tutor";
 import { getLearningPathForUser } from "@/lib/beego/learning-path-progress";
 
 export const dynamic = "force-dynamic";
@@ -144,9 +148,10 @@ export async function POST(request) {
         );
       }
     }
-    const openKey = learnAiCallOpenUserKey(userId);
-    const openSession = await redis.get(openKey);
-    if (openSession) {
+    const sessionId = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `${userId}-${Date.now()}`;
+    const lockTtl = learnCallOpenLockTtlSeconds(limits.maxMinutes);
+    const claim = await claimLearnCallOpenLock(redis, { userId, sessionId, ttlSeconds: lockTtl });
+    if (!claim.granted) {
       return NextResponse.json(
         {
           success: false,
@@ -156,10 +161,8 @@ export async function POST(request) {
         { status: 409, headers: { "Cache-Control": "no-store" } }
       );
     }
-    const sessionId = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `${userId}-${Date.now()}`;
     try {
-      await redis.set(openKey, sessionId, "EX", 150);
-      await redis.set(learnAiCallSessionKey(sessionId), String(userId), "EX", TOKEN_TTL_SECONDS);
+      await redis.set(learnAiCallSessionKey(sessionId), String(userId), "EX", lockTtl);
       await redis.set(
         learnAiCallContextKey(sessionId),
         JSON.stringify({
@@ -168,16 +171,17 @@ export async function POST(request) {
           sectionId: gate.sectionId,
           title: gate.topicTitle || lesson.title,
           objective: lesson.objective,
+          ...learnCallContextFromLesson(lesson, { topicTitle: gate.topicTitle }),
           level: limits.level,
           maxMinutes: limits.maxMinutes,
         }),
         "EX",
-        TOKEN_TTL_SECONDS
+        60 * 60
       );
     } catch {
       try {
         await redis.del(learnAiCallSessionKey(sessionId));
-        if ((await redis.get(openKey)) === sessionId) await redis.del(openKey);
+        await releaseLearnCallOpenLock(redis, { userId, sessionId });
       } catch {
         /* ignore */
       }
@@ -233,8 +237,7 @@ export async function DELETE(request) {
     const sessionId = String(body?.sessionId || "");
     const redis = getVoiceRedis();
     if (redis && sessionId) {
-      const openKey = learnAiCallOpenUserKey(userId);
-      if ((await redis.get(openKey)) === sessionId) await redis.del(openKey);
+      await finalizeLearnCallSession(redis, { userId, sessionId });
     }
     return NextResponse.json(
       { success: true },

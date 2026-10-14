@@ -2,20 +2,13 @@
  * Azure STT check for the preview gateway. Audio goes in; no client transcript is sent.
  * Does not print secrets.
  */
-import fs from "node:fs";
 import jwt from "jsonwebtoken";
 import Redis from "ioredis";
 import WebSocket from "ws";
+import { loadLearnCallTestEnv } from "./learn-call-test-env.mjs";
 import { learnAiCallContextKey, learnAiCallSessionKey } from "../lib/beego/learn/ai-call-access.js";
 
-const env = {};
-for (const line of fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8").split(/\n/)) {
-  const t = line.trim();
-  if (!t || t.startsWith("#") || !t.includes("=")) continue;
-  const i = t.indexOf("=");
-  const key = t.slice(0, i).trim();
-  if (!env[key]) env[key] = t.slice(i + 1).trim();
-}
+const env = loadLearnCallTestEnv();
 
 const userId = "900000001";
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
@@ -36,7 +29,7 @@ await redis.set(
 );
 
 function tokenFor(sub, sid) {
-  return jwt.sign({ sub, plan: "pro", purpose: "learn_ai_call", sid }, env.VOICE_JWT_SECRET, { expiresIn: 180 });
+  return jwt.sign({ sub, plan: "pro", purpose: "learn_ai_call", sid, learnAllow: 1 }, env.VOICE_JWT_SECRET, { expiresIn: 180 });
 }
 
 async function speakPcm(text) {
@@ -57,7 +50,7 @@ async function speakPcm(text) {
 
 function connect(sid) {
   const token = tokenFor(userId, sid);
-  const ws = new WebSocket(`ws://127.0.0.1:3032/?token=${encodeURIComponent(token)}&sessionId=${encodeURIComponent(sid)}`);
+  const ws = new WebSocket(`ws://127.0.0.1:${env.wsPort}/?token=${encodeURIComponent(token)}&sessionId=${encodeURIComponent(sid)}`);
   const messages = [];
   ws.on("message", (data, isBinary) => {
     if (isBinary) messages.push({ type: "binary", bytes: data.length });
@@ -99,13 +92,14 @@ async function sendAudio(ws, pcm) {
       await new Promise((r) => setTimeout(r, 20));
     }
   }
+  ws.send(JSON.stringify({ type: "recognition_end" }));
 }
 
 const conn = await connect(sessionId);
 const hello = await waitFor(conn.messages, (item) => item.type === "hello", 4000);
 if (hello.useAzure !== true) throw new Error("preview gateway did not enable Azure");
 if (hello.lesson?.title !== "Chào một người mới") throw new Error("lesson context missing");
-await waitFor(conn.messages, (item) => item.type === "ai_done" && item.requestId === 1, 25000);
+await waitFor(conn.messages, (item) => item.type === "tts_end" && item.requestId === 1, 25000);
 conn.ws.send(JSON.stringify({ type: "repeat_last" }));
 const repeated = await waitFor(conn.messages, (item) => item.type === "repeat_started" || (item.type === "binary" && item.bytes > 0), 15000);
 

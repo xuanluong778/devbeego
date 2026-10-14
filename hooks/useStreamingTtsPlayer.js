@@ -22,7 +22,7 @@ function resampleFloat32(input, inRate, outRate) {
  * Schedule PCM s16le chunks on AudioContext (playback-optimized).
  * Keeps odd trailing byte between chunks to avoid misaligned samples (crackling/static).
  */
-export function useStreamingTtsPlayer({ inputSampleRate = 24000 } = {}) {
+export function useStreamingTtsPlayer({ inputSampleRate = 24000, onDrained, onStopped } = {}) {
   const ctxRef = useRef(null);
   const nextTimeRef = useRef(0);
   const sourcesRef = useRef(new Set());
@@ -32,6 +32,11 @@ export function useStreamingTtsPlayer({ inputSampleRate = 24000 } = {}) {
   const coalesceTimerRef = useRef(null);
   const pendingOddByteRef = useRef(null);
   const minAheadRef = useRef(0.12);
+  const playbackTokenRef = useRef(0);
+  const onDrainedRef = useRef(onDrained);
+  const onStoppedRef = useRef(onStopped);
+  onDrainedRef.current = onDrained;
+  onStoppedRef.current = onStopped;
   const COALESCE_MS = 50;
   const COALESCE_MIN_BYTES = 4800;
 
@@ -64,10 +69,21 @@ export function useStreamingTtsPlayer({ inputSampleRate = 24000 } = {}) {
     coalescePartsRef.current = [];
   }, []);
 
+  const hasPendingAudio = useCallback(() => {
+    return sourcesRef.current.size > 0 || coalescePartsRef.current.length > 0 || coalesceTimerRef.current != null;
+  }, []);
+
+  const noteDrained = useCallback((token) => {
+    if (token !== playbackTokenRef.current) return;
+    if (sourcesRef.current.size > 0 || coalescePartsRef.current.length > 0 || coalesceTimerRef.current != null) return;
+    onDrainedRef.current?.({ token });
+  }, []);
+
   const scheduleAlignedPcm = useCallback(
-    (u8, fromRate = inputSampleRate) => {
+    (u8, fromRate = inputSampleRate, token = playbackTokenRef.current) => {
       const ctx = ensureCtx();
       if (!ctx || !u8?.byteLength) return;
+      if (token !== playbackTokenRef.current) return;
 
       let bytes = u8;
       if (pendingOddByteRef.current !== null) {
@@ -108,10 +124,12 @@ export function useStreamingTtsPlayer({ inputSampleRate = 24000 } = {}) {
       sourcesRef.current.add(src);
       src.onended = () => {
         sourcesRef.current.delete(src);
+        if (token !== playbackTokenRef.current) return;
+        noteDrained(token);
       };
       firstChunkRef.current = false;
     },
-    [ensureCtx, inputSampleRate]
+    [ensureCtx, inputSampleRate, noteDrained]
   );
 
   const flushCoalesce = useCallback(() => {
@@ -126,10 +144,13 @@ export function useStreamingTtsPlayer({ inputSampleRate = 24000 } = {}) {
       merged.set(part, offset);
       offset += part.length;
     }
-    scheduleAlignedPcm(merged);
-  }, [scheduleAlignedPcm]);
+    scheduleAlignedPcm(merged, inputSampleRate, playbackTokenRef.current);
+    noteDrained(playbackTokenRef.current);
+  }, [inputSampleRate, noteDrained, scheduleAlignedPcm]);
 
   const interrupt = useCallback(() => {
+    const previous = playbackTokenRef.current;
+    playbackTokenRef.current += 1;
     clearCoalesce();
     pendingOddByteRef.current = null;
     for (const src of sourcesRef.current) {
@@ -146,10 +167,27 @@ export function useStreamingTtsPlayer({ inputSampleRate = 24000 } = {}) {
       nextTimeRef.current = ctx.currentTime;
     }
     firstChunkRef.current = true;
+    onStoppedRef.current?.({ token: previous });
   }, [clearCoalesce]);
 
+  const armPlayback = useCallback((token) => {
+    playbackTokenRef.current = Number(token) || 0;
+  }, []);
+
+  const resumeFromGesture = useCallback(async () => {
+    const ctx = ensureCtx();
+    if (!ctx) return { running: false, state: "none" };
+    if (ctx.state === "suspended") {
+      try {
+        await ctx.resume();
+      } catch (_e) {}
+    }
+    return { running: ctx.state === "running", state: ctx.state };
+  }, [ensureCtx]);
+
   const enqueuePcmS16le = useCallback(
-    (u8) => {
+    (u8, _fromRate, token = null) => {
+      if (token != null && Number(token) !== playbackTokenRef.current) return;
       if (!u8?.byteLength) return;
       const chunk =
         u8 instanceof Uint8Array ? u8 : new Uint8Array(u8.buffer, u8.byteOffset, u8.byteLength);
@@ -195,7 +233,7 @@ export function useStreamingTtsPlayer({ inputSampleRate = 24000 } = {}) {
   }, [interrupt]);
 
   return useMemo(
-    () => ({ enqueuePcmS16le, interrupt, flushPending, close, ensureCtx, setVolume }),
-    [enqueuePcmS16le, interrupt, flushPending, close, ensureCtx, setVolume]
+    () => ({ enqueuePcmS16le, interrupt, flushPending, close, ensureCtx, setVolume, armPlayback, hasPendingAudio, resumeFromGesture }),
+    [enqueuePcmS16le, interrupt, flushPending, close, ensureCtx, setVolume, armPlayback, hasPendingAudio, resumeFromGesture]
   );
 }

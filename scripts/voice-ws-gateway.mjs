@@ -13,8 +13,10 @@ import Redis from "ioredis";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  finalizeLearnCallSession,
   learnAiCallBindingMatches,
   learnAiCallClockKey,
+  learnAiCallControlChannel,
   learnAiCallGateOpen,
   learnAiCallContextKey,
   learnAiCallLevelOnePrompt,
@@ -22,10 +24,22 @@ import {
   learnAiCallSocketAllowed,
   learnAiCallSummary,
   learnAiCallUsageKey,
+  learnCallSessionEnded,
+  refreshLearnCallBinding,
   reserveLearnCallPackage,
   resolveLearnCallClock,
   settleLearnCallHold,
 } from "../lib/beego/learn/ai-call-access.js";
+import { applyLearnPlaybackAck, createLearnAudioCache } from "../lib/beego/learn/learn-call-playback.js";
+import {
+  LEARN_CALL_MEMORY_MAX_ENTRIES,
+  learnCallHasClosing,
+  learnCallShapeReply,
+  learnCallTurnDirective,
+  learnCallTurnPlan,
+} from "../lib/beego/learn/learn-call-tutor.js";
+import { LEARN_TALK_FINAL_WAIT_MS, LEARN_TALK_SEGMENT_FLUSH_MS, createLearnUtterance } from "../lib/beego/learn/learn-call-talk.js";
+import { learnTranscriptSnapshot } from "../lib/beego/learn/learn-call-transcript.js";
 
 const require = createRequire(import.meta.url);
 const sdk = require("microsoft-cognitiveservices-speech-sdk");
@@ -146,16 +160,32 @@ function normalizeRequestId(value) {
   return Math.floor(n);
 }
 
+function writeUint32(out, offset, value) {
+  const n = Number(value) >>> 0;
+  out[offset] = n & 0xff;
+  out[offset + 1] = (n >>> 8) & 0xff;
+  out[offset + 2] = (n >>> 16) & 0xff;
+  out[offset + 3] = (n >>> 24) & 0xff;
+}
+
 function sendBinaryTts(ws, requestId, chunkU8) {
   if (ws.readyState !== 1) return;
   const rid = normalizeRequestId(requestId);
   const out = new Uint8Array(1 + 4 + chunkU8.length);
   out[0] = 0x02;
-  out[1] = rid & 0xff;
-  out[2] = (rid >>> 8) & 0xff;
-  out[3] = (rid >>> 16) & 0xff;
-  out[4] = (rid >>> 24) & 0xff;
+  writeUint32(out, 1, rid);
   out.set(chunkU8, 5);
+  ws.send(out);
+}
+
+/** Learn-only replay frame. Old speaking clients accept 0x02 and ignore 0x03. */
+function sendBinaryReplay(ws, playbackId, requestId, chunkU8) {
+  if (ws.readyState !== 1) return;
+  const out = new Uint8Array(9 + chunkU8.length);
+  out[0] = 0x03;
+  writeUint32(out, 1, playbackId);
+  writeUint32(out, 5, requestId);
+  out.set(chunkU8, 9);
   ws.send(out);
 }
 
@@ -397,64 +427,127 @@ function withLearnMemory(ws, memory) {
   return [{ role: "system", content: ws.learnPrompt }, ...base];
 }
 
-async function pushTurn(sessionId, role, content, extra = null) {
+async function pushTurn(sessionId, role, content, extra = null, maxEntries = 20) {
   const item = JSON.stringify(extra ? { role, content, ...extra } : { role, content });
   await redis.lpush(kMem(sessionId), item);
-  await redis.ltrim(kMem(sessionId), 0, 19); // 10 turns = 20 messages
+  await redis.ltrim(kMem(sessionId), 0, maxEntries - 1); // old speaking: 10 turns = 20 messages
   await redis.expire(kMem(sessionId), 60 * 60);
 }
 
-async function updateMemory(sessionId, mutator) {
-  const key = kMem(sessionId);
-  const raw = await redis.lrange(key, 0, 19);
-  let changed = false;
-  const next = [];
-  for (const entry of raw) {
-    try {
-      const parsed = JSON.parse(entry);
-      const result = mutator(parsed);
-      if (result === null) {
-        changed = true;
-        continue;
-      }
-      if (result !== parsed) {
-        changed = true;
-        next.push(JSON.stringify(result));
-        continue;
-      }
-    } catch (_e) {
-      /* keep the original entry */
-    }
-    next.push(entry);
-  }
-  if (!changed) return;
-  await redis.del(key);
-  for (let i = next.length - 1; i >= 0; i -= 1) await redis.lpush(key, next[i]);
-  await redis.expire(key, 60 * 60);
+function getLearnMemory(sessionId) {
+  return getMemory(sessionId, LEARN_CALL_MEMORY_MAX_ENTRIES / 2);
 }
 
+function pushLearnTurn(sessionId, role, content, extra) {
+  return pushTurn(sessionId, role, content, extra, LEARN_CALL_MEMORY_MAX_ENTRIES);
+}
+
+// Atomic so concurrent acks and memory pushes cannot duplicate or drop entries.
+const MARK_PLAYBACK_LUA = `
+local items = redis.call('LRANGE', KEYS[1], 0, tonumber(ARGV[3]) - 1)
+for i, raw in ipairs(items) do
+  local ok, item = pcall(cjson.decode, raw)
+  if ok and type(item) == 'table' and item.role == 'assistant' and tonumber(item.requestId) == tonumber(ARGV[1]) and item.playback == 'pending' then
+    item.playback = ARGV[2]
+    redis.call('LSET', KEYS[1], i - 1, cjson.encode(item))
+    return 1
+  end
+end
+return 0`;
+
+/** First settled state wins: only a pending turn changes. */
 async function markAssistantPlayback(sessionId, requestId, playback) {
   const rid = normalizeRequestId(requestId);
-  if (!rid || (playback !== "complete" && playback !== "interrupted")) return;
-  let done = false;
-  await updateMemory(sessionId, (item) => {
-    if (done) return item;
-    if (item?.role !== "assistant" || Number(item.requestId) !== rid) return item;
-    if (item.playback === "complete" || item.playback === "interrupted") return item;
-    done = true;
-    return { ...item, playback };
-  });
+  if (!rid || !["complete", "interrupted", "cancelled"].includes(playback)) return false;
+  const changed = await redis.eval(MARK_PLAYBACK_LUA, 1, kMem(sessionId), String(rid), playback, String(LEARN_CALL_MEMORY_MAX_ENTRIES));
+  return Number(changed) === 1;
+}
+
+function kLearnReply(sessionId, requestId) {
+  return `voice:learn-call-reply:${sessionId}:${requestId}`;
+}
+function kLearnHeard(sessionId) {
+  return `voice:learn-call-heard:${sessionId}`;
+}
+
+/** Audio for this turn went out on an earlier socket, so "cancelled before playing" is not provable here. */
+async function learnAudioSentEarlier(ws, sessionId, requestId) {
+  const rid = normalizeRequestId(requestId);
+  if (!rid || learnAudioFor(ws, rid).bytes > 0) return false;
+  return (await redis.sismember(kLearnHeard(sessionId), String(rid))) === 1;
+}
+
+/**
+ * Settle pending tutor turns when a Learn socket goes away.
+ * Audio cut before tts_end -> interrupted. On the final end, a turn that never sent audio -> cancelled.
+ * Audio that reached tts_end without an ack stays pending (shown as unconfirmed), never complete.
+ */
+async function settleLearnPlayback(ws, { final }) {
+  if (!ws?.learnPrompt || !ws.sessionId) return;
+  const sid = ws.sessionId;
+  const memory = await getLearnMemory(sid);
+  const heard = final ? new Set(await redis.smembers(kLearnHeard(sid))) : null;
+  for (const item of memory) {
+    if (item?.role !== "assistant" || item.playback !== "pending") continue;
+    const rid = normalizeRequestId(item.requestId);
+    if (!rid) continue;
+    const audio = ws.learnAudio?.get(rid);
+    if (audio?.bytes > 0 && !audio.ended) {
+      await setCancelled(sid, rid);
+      await markAssistantPlayback(sid, rid, "interrupted");
+    } else if (final && !(audio?.bytes > 0) && !heard.has(String(rid))) {
+      await markAssistantPlayback(sid, rid, "cancelled");
+    }
+  }
+}
+
+function learnAudioFor(ws, requestId) {
+  const rid = normalizeRequestId(requestId);
+  if (!ws.learnAudio) ws.learnAudio = new Map();
+  let audio = ws.learnAudio.get(rid);
+  if (!audio) {
+    audio = { bytes: 0, ended: false, cancelled: false };
+    ws.learnAudio.set(rid, audio);
+  }
+  return audio;
+}
+
+function learnRemainingMs(ws) {
+  const deadlineAt = Number(ws.learnClock?.deadlineAt);
+  return Number.isFinite(deadlineAt) ? deadlineAt - Date.now() : Number.POSITIVE_INFINITY;
+}
+
+/** Queue one tutor turn. Returns the plan; mode "none"/"closed" queues nothing. */
+async function queueLearnTutorTurn(ws, { sessionId, requestId, text, memory }) {
+  const plan = learnCallTurnPlan({ memory, remainingMs: learnRemainingMs(ws) });
+  if (plan.mode === "none" || plan.mode === "closed") return plan;
+  if (plan.mode === "closing") ws.learnClosingRid = requestId;
+  await llmQueue.add(
+    `${plan.mode === "greet" ? "greet" : "final"}-${sessionId}-${requestId}`,
+    {
+      kind: "final",
+      sessionId,
+      requestId,
+      text,
+      memory: withLearnMemory(ws, memory),
+      learn: { system: ws.learnPrompt, memory, directive: learnCallTurnDirective(plan) },
+      skipSharedUsage: true,
+    },
+    { removeOnComplete: 1000, removeOnFail: 500 }
+  );
+  return plan;
 }
 
 async function emitLearnSummary(ws, reason) {
   if (!ws?.learnPrompt || ws.summarySent) return null;
   ws.summarySent = true;
   const startedRaw = await redis.hget(kSess(ws.sessionId), "connectedAt");
-  const memory = await getMemory(ws.sessionId, 10);
+  const memory = await getLearnMemory(ws.sessionId);
   const summary = learnAiCallSummary({
     memory,
     startedAt: startedRaw == null || startedRaw === "" ? null : Number(startedRaw),
     endedAt: Date.now(),
+    deadlineAt: ws.learnClock?.deadlineAt,
     lesson: ws.learnLesson,
   });
   safeSend(ws, { type: "call_summary", reason, summary });
@@ -569,6 +662,10 @@ async function startAzureStt(ws, requestId) {
 
   recognizer.canceled = (_s, e) => {
     if (requestId !== ws.currentRequestId) return;
+    if (ws.learnPrompt && session.draining && e?.reason === sdk.CancellationReason.EndOfStream) {
+      session.onDrained?.();
+      return;
+    }
     const details = e?.errorDetails ? String(e.errorDetails) : "";
     const reason = e?.reason != null ? String(e.reason) : "canceled";
     const code = e?.errorCode != null ? String(e.errorCode) : "";
@@ -592,6 +689,10 @@ async function startAzureStt(ws, requestId) {
 
   recognizer.sessionStopped = () => {
     if (requestId !== ws.currentRequestId) return;
+    if (ws.learnPrompt && session.draining) {
+      session.onDrained?.();
+      return;
+    }
     safeSend(ws, { type: "interrupt", requestId, reason: "stt_session_stopped" });
   };
 
@@ -603,7 +704,7 @@ async function startAzureStt(ws, requestId) {
     lastPartial = text;
     if (debounce) clearTimeout(debounce);
     debounce = setTimeout(async () => {
-      if (requestId !== ws.currentRequestId) return;
+      if (requestId !== ws.currentRequestId || ws.learnPrompt) return;
       const t = String(lastPartial).trim();
       if (t.length < 4) return;
       const memory = await getMemory(sid, 10);
@@ -618,6 +719,14 @@ async function startAzureStt(ws, requestId) {
   recognizer.recognized = async (_s, e) => {
     const text = e.result?.text ? String(e.result.text) : "";
     if (requestId !== ws.currentRequestId) return;
+    if (ws.learnPrompt) {
+      if (!ws.learnUtterance || ws.learnUtterance.requestId !== requestId) {
+        ws.learnUtterance = createLearnUtterance(requestId);
+      }
+      const added = ws.learnUtterance.addSegment(text);
+      if (added.text) safeSend(ws, { type: "partial_transcript", requestId, text: added.text });
+      return;
+    }
     safeSend(ws, { type: "final_transcript", requestId, text });
     if (debounce) clearTimeout(debounce);
     debounce = null;
@@ -646,17 +755,81 @@ async function startAzureStt(ws, requestId) {
 }
 
 const learnLiveSockets = new Set();
+const learnAudioCaches = new Map();
+
+function learnCacheFor(sessionId) {
+  const sid = String(sessionId || "");
+  let cache = learnAudioCaches.get(sid);
+  if (!cache) {
+    cache = createLearnAudioCache();
+    learnAudioCaches.set(sid, cache);
+  }
+  return cache;
+}
+
+function releaseLearnAudioCache(sessionId) {
+  const cache = learnAudioCaches.get(String(sessionId || ""));
+  cache?.clear();
+  learnAudioCaches.delete(String(sessionId || ""));
+}
+
+async function endLearnSocket(ws, reason) {
+  if (!ws?.learnPrompt || ws.learnEnding) return;
+  ws.learnEnding = true;
+  if (ws.learnTimer) {
+    clearTimeout(ws.learnTimer);
+    ws.learnTimer = null;
+  }
+  learnLiveSockets.delete(ws);
+  if (ws.learnFlush) {
+    clearTimeout(ws.learnFlush);
+    ws.learnFlush = null;
+  }
+  ws.learnUtterance?.abandon?.();
+  releaseLearnAudioCache(ws.sessionId);
+  try {
+    await settleLearnPlayback(ws, { final: true });
+  } catch (_e) {}
+  try {
+    await emitLearnSummary(ws, reason);
+  } catch (_e) {}
+  try {
+    await finalizeLearnCallSession(redis, { userId: ws.userId, sessionId: ws.sessionId });
+  } catch (_e) {}
+  try {
+    await setCancelled(ws.sessionId, ws.currentRequestId);
+  } catch (_e) {}
+  disposeSession(ws);
+  safeSend(ws, { type: "call_ended", reason, packageQuota: ws.learnPackage || null });
+  try {
+    ws.close(1000, String(reason || "client_end"));
+  } catch (_e) {}
+}
+
 const wss = new WebSocketServer({ port: PORT, host: HOST });
 if (process.env.LEARN_AI_CALL_RUNTIME_GATE === "1") {
+  const controlSub = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
+  controlSub.subscribe(learnAiCallControlChannel()).catch(() => {});
+  controlSub.on("message", (_channel, raw) => {
+    let msg;
+    try {
+      msg = JSON.parse(String(raw));
+    } catch (_e) {
+      return;
+    }
+    const sid = String(msg?.sessionId || "");
+    if (!sid) return;
+    for (const socket of learnLiveSockets) {
+      if (String(socket.sessionId) !== sid) continue;
+      endLearnSocket(socket, "client_end").catch(() => {});
+    }
+  });
   setInterval(() => {
     learnAiCallGateOpen(redis)
       .then((open) => {
         if (open) return;
-        for (const socket of learnLiveSockets) {
-          safeSend(socket, { type: "call_ended", reason: "feature_disabled" });
-          try {
-            socket.close(1000, "feature_disabled");
-          } catch (_e) {}
+        for (const socket of [...learnLiveSockets]) {
+          endLearnSocket(socket, "feature_disabled").catch(() => {});
         }
       })
       .catch(() => {});
@@ -701,6 +874,12 @@ wss.on("connection", async (ws, req) => {
     if (!learnCtx || String(learnCtx.userId || "") !== String(auth.userId)) {
       try {
         ws.close(1008, "unauthorized");
+      } catch (_e) {}
+      return;
+    }
+    if (await learnCallSessionEnded(redis, sessionId)) {
+      try {
+        ws.close(1000, "session_ended");
       } catch (_e) {}
       return;
     }
@@ -767,9 +946,22 @@ wss.on("connection", async (ws, req) => {
       }
     }
     ws.learnClock = clock;
+    if (clock.remainingMs > 0) {
+      try {
+        await refreshLearnCallBinding(redis, {
+          userId: auth.userId,
+          sessionId,
+          deadlineAt: clock.deadlineAt,
+          now: Date.now(),
+        });
+      } catch (_e) {}
+    }
     if (clock.remainingMs <= 0) {
       ws.userId = auth.userId;
       ws.sessionId = sessionId;
+      try {
+        await finalizeLearnCallSession(redis, { userId: auth.userId, sessionId });
+      } catch (_e) {}
       try {
         await settleLearnCallHold(redis, { userId: auth.userId, sessionId, startedAt: clock.startedAt });
       } catch (_e) {}
@@ -815,9 +1007,24 @@ wss.on("connection", async (ws, req) => {
   });
   await redis.expire(kSess(sessionId), 60 * 60);
 
-  if (ws.learnPrompt) learnLiveSockets.add(ws);
+  let learnTranscript = null;
+  let learnMemory = [];
+  let learnResumeRid = 0;
+  if (ws.learnPrompt) {
+    learnLiveSockets.add(ws);
+    try {
+      learnMemory = await getLearnMemory(sessionId);
+    } catch (_e) {
+      learnMemory = [];
+    }
+    learnTranscript = learnTranscriptSnapshot(learnMemory);
+    const closingTurn = learnTranscript.find((turn) => turn.closing);
+    if (closingTurn) ws.learnClosingRid = closingTurn.requestId;
+    learnResumeRid = learnTranscript.reduce((max, turn) => Math.max(max, turn.requestId), 0);
+  }
   safeSend(ws, {
     type: "hello",
+    ...(ws.learnPrompt ? { transcript: learnTranscript, currentRequestId: Math.max(1, learnResumeRid) } : {}),
     useAzure: USE_AZURE,
     pcmHz: 16000,
     channels: 1,
@@ -848,29 +1055,18 @@ wss.on("connection", async (ws, req) => {
   const sub = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
   await sub.subscribe(kChan(sessionId));
   if (ws.learnPrompt) {
-    ws.currentRequestId = 1;
-    await redis.hset(kSess(sessionId), { currentRequestId: "1" });
-    await llmQueue.add(
-      `greet-${sessionId}`,
-      {
-        kind: "final",
+    ws.currentRequestId = Math.max(1, learnResumeRid);
+    await redis.hset(kSess(sessionId), { currentRequestId: String(ws.currentRequestId) });
+    if (!learnResumeRid) {
+      await queueLearnTutorTurn(ws, {
         sessionId,
         requestId: 1,
         text: "The learner just joined. Greet them and ask one simple question about the lesson.",
-        memory: withLearnMemory(ws, []),
-        skipSharedUsage: true,
-      },
-      { removeOnComplete: 1000, removeOnFail: 500 }
-    );
+        memory: [],
+      });
+    }
     ws.learnTimer = setTimeout(() => {
-      (async () => {
-        const reason = ws.learnStopReason || "time_limit";
-        await emitLearnSummary(ws, reason);
-        safeSend(ws, { type: "call_ended", reason, packageQuota: ws.learnPackage || null });
-        try {
-          ws.close(1000, reason);
-        } catch (_e) {}
-      })().catch(() => {});
+      endLearnSocket(ws, ws.learnStopReason || "time_limit").catch(() => {});
     }, Math.max(0, ws.learnClock?.remainingMs ?? ws.learnMaxMs));
   }
   sub.on("message", async (_ch, raw) => {
@@ -881,31 +1077,70 @@ wss.on("connection", async (ws, req) => {
       return;
     }
     const rid = normalizeRequestId(msg?.requestId);
+    if (ws.learnPrompt && msg.type === "llm_done_for_tts" && rid) {
+      if (msg.learn !== 1) {
+        // eslint-disable-next-line no-console
+        console.error("[voice-gateway] Learn reply from an LLM worker without Learn support", { sessionId, requestId: rid });
+        await endLearnSocket(ws, "worker_outdated");
+        return;
+      }
+      const closing = rid === ws.learnClosingRid;
+      const text = learnCallShapeReply(msg.text, { closing });
+      if (!text) return;
+      if ((await redis.set(kLearnReply(sessionId, rid), "1", "EX", 60 * 60, "NX")) !== "OK") return;
+      const cancelled =
+        rid !== ws.currentRequestId || learnAudioFor(ws, rid).cancelled || (await redis.get(kCancel(sessionId, rid))) === "1";
+      await pushLearnTurn(sessionId, "assistant", text, {
+        requestId: rid,
+        playback: cancelled ? "cancelled" : "pending",
+        ...(closing ? { closing: true } : {}),
+      });
+      if (cancelled) return;
+      await ttsQueue.add(
+        `tts-${sessionId}-${rid}`,
+        { sessionId, requestId: rid, text, skipSharedUsage: true },
+        { removeOnComplete: 1000, removeOnFail: 500 }
+      );
+      return;
+    }
     if (rid && rid !== ws.currentRequestId) return;
+    if (ws.learnPrompt) {
+      if (msg.type === "ai_stream") return;
+      if (msg.type === "ai_done") {
+        if (msg.learn !== 1) return;
+        const closing = rid === ws.learnClosingRid;
+        const text = learnCallShapeReply(msg.text, { closing });
+        if (text) safeSend(ws, { ...msg, text, ...(closing ? { closing: true } : {}) });
+        return;
+      }
+      if (msg.type === "interrupt_ack" && msg.reason === "cancelled" && rid) learnAudioFor(ws, rid).cancelled = true;
+      if (msg.type === "tts_end" && rid) learnAudioFor(ws, rid).ended = true;
+    }
     if (msg.type === "tts_chunk") {
       const b64 = String(msg.data_b64 || "");
       if (!b64) return;
       const u8 = Buffer.from(b64, "base64");
+      if (ws.learnPrompt) {
+        learnCacheFor(sessionId).append(rid, u8);
+        const audio = learnAudioFor(ws, rid);
+        if (audio.bytes === 0 && rid) {
+          redis.sadd(kLearnHeard(sessionId), String(rid)).then(() => redis.expire(kLearnHeard(sessionId), 60 * 60)).catch(() => {});
+        }
+        audio.bytes += u8.length;
+      }
       sendBinaryTts(ws, rid, u8);
       return;
     }
     if (msg.type === "llm_done_for_tts") {
       const text = String(msg.text || "").trim();
       if (!text) return;
-      if (ws.learnPrompt) {
-        await pushTurn(sessionId, "assistant", text, { requestId: rid, playback: "pending" });
-      } else {
-        await pushTurn(sessionId, "assistant", text);
-      }
+      await pushTurn(sessionId, "assistant", text);
       await ttsQueue.add(
         `tts-${sessionId}-${rid}`,
         { sessionId, requestId: rid, text, skipSharedUsage: Boolean(ws.learnPrompt) },
         { removeOnComplete: 1000, removeOnFail: 500 }
       );
       return;
-    }
-    if (msg.type === "tts_end" && ws.learnPrompt) {
-      await markAssistantPlayback(sessionId, rid, "complete");
     }
     safeSend(ws, msg);
   });
@@ -925,35 +1160,61 @@ wss.on("connection", async (ws, req) => {
     if (t === "interrupt") {
       const rid = normalizeRequestId(msg?.requestId) || ws.currentRequestId;
       await setCancelled(sessionId, rid);
-      if (ws.learnPrompt) await markAssistantPlayback(sessionId, rid, "interrupted");
+      if (ws.learnPrompt) {
+        if (ws.learnFlush) {
+          clearTimeout(ws.learnFlush);
+          ws.learnFlush = null;
+        }
+        ws.learnUtterance?.abandon?.();
+        const audio = learnAudioFor(ws, rid);
+        const sentEarlier = await learnAudioSentEarlier(ws, sessionId, rid);
+        audio.cancelled = true;
+        if (audio.bytes <= 0 && !sentEarlier) await markAssistantPlayback(sessionId, rid, "cancelled");
+      }
       pub.publish(kChan(sessionId), JSON.stringify({ type: "interrupt", requestId: rid, reason: String(msg.reason || "client") })).catch(() => {});
       safeSend(ws, { type: "interrupt_ack", requestId: rid, reason: String(msg.reason || "client") });
       return;
     }
     if (t === "end_call" && ws.learnPrompt) {
-      await emitLearnSummary(ws, "client_end");
-      safeSend(ws, { type: "call_ended", reason: "client_end" });
+      await endLearnSocket(ws, "client_end");
+      return;
+    }
+    if (t === "playback_ack" && ws.learnPrompt) {
+      const playback = ["complete", "interrupted", "cancelled"].includes(msg.playback) ? msg.playback : "";
+      const rid = normalizeRequestId(msg.requestId);
+      const playbackId = normalizeRequestId(msg.playbackId);
+      if (!playback || !rid || String(ws.sessionId) !== String(sessionId)) return;
+      const kind = msg.kind === "replay" || (playbackId && playbackId !== rid) ? "replay" : "turn";
+      if (kind === "replay") return;
+      if (playback === "cancelled" && (await learnAudioSentEarlier(ws, sessionId, rid))) return;
+      const memory = await getLearnMemory(sessionId);
+      const applied = applyLearnPlaybackAck(memory, { kind, playback, requestId: rid, playbackId }, learnAudioFor(ws, rid));
+      if (applied.changed) await markAssistantPlayback(sessionId, rid, playback);
+      const settledClosing = (applied.changed ? applied.turns : memory).some(
+        (item) => item?.role === "assistant" && item.closing === true && Number(item.requestId) === rid && item.playback !== "pending"
+      );
+      if (settledClosing) await endLearnSocket(ws, "lesson_complete");
       return;
     }
     if (t === "repeat_last" && ws.learnPrompt) {
-      const memory = await getMemory(sessionId, 10);
-      const last = [...memory].reverse().find((item) => item?.role === "assistant" && String(item.content || "").trim());
-      if (!last) {
-        safeSend(ws, { type: "error", message: "Chưa có câu để nghe lại." });
+      const rid = normalizeRequestId(msg.requestId) || ws.currentRequestId || 1;
+      const cached = learnCacheFor(sessionId).replay(rid);
+      if (!cached) {
+        safeSend(ws, { type: "error", message: "Không còn đủ audio để nghe lại câu này." });
         return;
       }
-      const rid = ws.currentRequestId || 1;
-      await ttsQueue.add(
-        `repeat-${sessionId}-${rid}-${Date.now()}`,
-        { sessionId, requestId: rid, text: String(last.content).slice(0, 500), skipSharedUsage: true },
-        { removeOnComplete: 1000, removeOnFail: 500 }
-      );
-      safeSend(ws, { type: "repeat_started", requestId: rid });
+      safeSend(ws, { type: "repeat_started", requestId: cached.requestId, playbackId: cached.playbackId, kind: "replay" });
+      for (const chunk of cached.chunks) sendBinaryReplay(ws, cached.playbackId, cached.requestId, chunk);
+      safeSend(ws, { type: "tts_end", requestId: cached.requestId, playbackId: cached.playbackId, kind: "replay" });
       return;
     }
     if (t === "recognition_start") {
       const rid = normalizeRequestId(msg?.requestId);
       if (!rid) return;
+      if (ws.learnPrompt && ws.learnClosingRid) {
+        await endLearnSocket(ws, "lesson_complete");
+        return;
+      }
 
       const okRate = await enforceRateLimit({ userId: ws.userId, plan: ws.userPlan });
       if (!okRate) {
@@ -978,16 +1239,41 @@ wss.on("connection", async (ws, req) => {
     if (t === "recognition_end") {
       // stop STT accepting audio (Azure will finalize soon)
       const s = ws.session;
+      if (s && ws.learnPrompt) s.draining = true;
       if (s) {
         s.accepting = false;
         try {
           s.pushStream?.close?.();
         } catch (_e) {}
       }
+      if (ws.learnPrompt) {
+        const rid = ws.currentRequestId;
+        if (ws.learnFlush) clearTimeout(ws.learnFlush);
+        const flush = () => {
+          if (ws.learnFlush) clearTimeout(ws.learnFlush);
+          ws.learnFlush = null;
+          if (s) s.onDrained = null;
+          if (String(ws.sessionId) !== String(sessionId) || rid !== ws.currentRequestId) return;
+          const utterance = ws.learnUtterance && ws.learnUtterance.requestId === rid ? ws.learnUtterance : createLearnUtterance(rid);
+          ws.learnUtterance = utterance;
+          const result = utterance.finish();
+          if (result.duplicate) return;
+          safeSend(ws, { type: "final_transcript", requestId: rid, text: result.text });
+          if (!result.text) return;
+          pushLearnTurn(sessionId, "user", result.text, { requestId: rid })
+            .then(() => getLearnMemory(sessionId))
+            .then((memory) => queueLearnTutorTurn(ws, { sessionId, requestId: rid, text: result.text, memory }))
+            .catch(() => {});
+        };
+        // Azure reports EndOfStream after its last recognized segment; the timer only covers a silent failure.
+        if (s?.recognizer) s.onDrained = () => setImmediate(flush);
+        ws.learnFlush = setTimeout(flush, s?.recognizer ? LEARN_TALK_FINAL_WAIT_MS : LEARN_TALK_SEGMENT_FLUSH_MS);
+      }
       return;
     }
 
     // Fallback path: client-side STT (Web Speech API) sends transcripts directly.
+    if ((t === "client_partial_transcript" || t === "client_final_transcript") && ws.learnPrompt) return;
     if (t === "client_partial_transcript") {
       const rid = normalizeRequestId(msg?.requestId) || ws.currentRequestId;
       const text = String(msg?.text || "").trim();
@@ -1034,6 +1320,7 @@ wss.on("connection", async (ws, req) => {
   ws.on("close", () => {
     learnLiveSockets.delete(ws);
     if (ws.learnTimer) clearTimeout(ws.learnTimer);
+    if (ws.learnPrompt && !ws.learnEnding) settleLearnPlayback(ws, { final: false }).catch(() => {});
     try {
       redis.srem(keyUserSessions(ws.userId), sessionId);
     } catch (_e) {}
@@ -1066,6 +1353,10 @@ wss.on("connection", async (ws, req) => {
     } catch (_e) {}
     disposeSession(ws);
   });
+
+  if (ws.learnPrompt && learnCallHasClosing(learnMemory)) {
+    await endLearnSocket(ws, "lesson_complete");
+  }
 });
 
 wss.on("listening", () => {

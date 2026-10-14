@@ -239,7 +239,7 @@ export default function LearnLessonCall({
           sessionId={call.sessionId}
           wsUrl={call.wsUrl}
           offer={offer}
-          hints={offer?.hints}
+          returnLabel={returnLabel}
           onClose={() => {
             const sessionId = call?.sessionId;
             void releaseSession(sessionId);
