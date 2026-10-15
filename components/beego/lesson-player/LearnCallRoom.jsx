@@ -667,7 +667,11 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
   };
 
   return (
-    <div className="beego-call-stage" role="region" aria-label="Cuộc gọi AI mức 1">
+    <div
+      className="beego-call-stage"
+      role="region"
+      aria-label={offer?.limits?.difficultyLabel ? `Cuộc gọi AI mức ${offer.limits.difficultyLabel}` : "Cuộc gọi AI"}
+    >
       <div className="beego-call-stage__phone">
         <section className={`beego-call-stage__scene ${sceneClass}`}>
           <div className="beego-call-stage__window" aria-hidden="true" />
@@ -689,7 +693,10 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
             </div>
           </header>
           <div className="beego-call-stage__meta">
-            <span className="beego-call-stage__topic">Gia sư Beego · {topic}</span>
+            <span className="beego-call-stage__topic">
+              Gia sư Beego · {topic}
+              {offer?.limits?.difficultyLabel ? ` · Mức ${offer.limits.difficultyLabel}` : ""}
+            </span>
             <time dateTime={clockView.known ? new Date(clockView.deadlineAt).toISOString() : undefined}>{clockView.label}</time>
           </div>
           <div className="beego-call-stage__halo" aria-hidden="true" />

@@ -48,10 +48,10 @@ const login = await fetch(`${BASE}/api/auth/login`, {
 const cookie = /session_token=([^;]+)/.exec(login.headers.get("set-cookie") || "")?.[1] || "";
 check("login on the preview database", login.ok && Boolean(cookie), login.status);
 const headers = { "content-type": "application/json", cookie: `session_token=${cookie}` };
-const body = JSON.stringify({ lessonId: "p1-g1-n01", sectionId: "p1-g1" });
+const body = JSON.stringify({ lessonId: "p1-g1-n01", sectionId: "p1-g1", difficulty: "easy" });
 
-async function post() {
-  const res = await fetch(`${BASE}/api/learn/ai-call/session`, { method: "POST", headers, body });
+async function post(payload = body) {
+  const res = await fetch(`${BASE}/api/learn/ai-call/session`, { method: "POST", headers, body: payload });
   return { status: res.status, json: await res.json().catch(() => ({})) };
 }
 async function del(sessionId) {
@@ -85,6 +85,12 @@ async function waitFor(c, pred, ms) {
   }
   return null;
 }
+
+for (const difficulty of [undefined, "", "expert", "EASY", "__proto__"]) {
+  const bad = await post(JSON.stringify({ lessonId: "p1-g1-n01", sectionId: "p1-g1", difficulty }));
+  check(`difficulty ${String(difficulty)} -> 400 INVALID_DIFFICULTY`, bad.status === 400 && bad.json.code === "INVALID_DIFFICULTY", bad.status);
+}
+check("rejected difficulty opens no session", !(await redis.exists(learnAiCallOpenUserKey(user.id))));
 
 const [a, b] = await Promise.all([post(), post()]);
 const ok = [a, b].filter((r) => r.status === 200);

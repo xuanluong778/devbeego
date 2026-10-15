@@ -2,15 +2,21 @@
  * Learn Call level 1 tutor and summary rules. No OpenAI, gateway, or production Redis.
  */
 import assert from "node:assert/strict";
-import { learnAiCallLevelOnePrompt, learnAiCallSummary } from "../lib/beego/learn/ai-call-access.js";
+import { learnAiCallLevelOneLimits, learnAiCallLevelOnePrompt, learnAiCallSummary } from "../lib/beego/learn/ai-call-access.js";
 import {
   LEARN_CALL_CLOSING_LEAD_MS,
+  LEARN_CALL_DEFAULT_DIFFICULTY,
+  LEARN_CALL_DIFFICULTIES,
+  LEARN_CALL_DIFFICULTY_KEYS,
+  LEARN_CALL_MAX_REPLY_TOKENS,
   LEARN_CALL_MEMORY_MAX_ENTRIES,
   LEARN_CALL_MIN_REPLY_MS,
   buildLearnCallMessages,
   learnCallContextFromLesson,
+  learnCallDifficulty,
   learnCallHasClosing,
   learnCallLessonFocus,
+  learnCallMaxReplyTokens,
   learnCallShapeReply,
   learnCallTurnDirective,
   learnCallTurnPlan,
@@ -40,11 +46,71 @@ assert.ok(!focus.words.includes("is") && !focus.words.some((w) => /[^a-z']/.test
 const ctx = { userId: "1", title: "Chào hỏi", ...learnCallContextFromLesson(lesson, { topicTitle: "Chào hỏi" }) };
 assert.equal(ctx.objective, "Hỏi tên một người");
 const prompt = learnCallTutorPrompt(ctx);
-for (const part of ["Chào hỏi", "Hỏi tên một người", "What is your name", "name", "level 1", "one question", "two simple choices", "Never ask the learner to read aloud", "Remember what the learner told you"]) {
+for (const part of ["Chào hỏi", "Hỏi tên một người", "What is your name", "name", "level 1", "Difficulty: Easy", "exactly one simple question", "two simple choices", "Never ask the learner to read aloud", "Remember what the learner told you"]) {
   assert.ok(prompt.includes(part), `prompt has ${part}`);
 }
 assert.equal(learnAiCallLevelOnePrompt(ctx), prompt, "gateway prompt is the tutor prompt");
 assert.ok(!/score|grade/i.test(prompt.replace("Do not give scores", "")), "no grading in prompt");
+
+assert.deepEqual([...LEARN_CALL_DIFFICULTY_KEYS], ["easy", "medium", "hard"]);
+assert.equal(LEARN_CALL_DEFAULT_DIFFICULTY, "easy");
+assert.deepEqual(LEARN_CALL_DIFFICULTY_KEYS.map((k) => LEARN_CALL_DIFFICULTIES[k].label), ["Dễ", "Vừa", "Khó"]);
+for (const bad of [undefined, null, "", "Easy", "EASY", "expert", "toString", "__proto__", "constructor", 1, {}, ["easy"]]) {
+  assert.equal(learnCallDifficulty(bad), null, `rejects ${String(bad)}`);
+}
+for (const key of LEARN_CALL_DIFFICULTY_KEYS) assert.equal(learnCallDifficulty(key), key);
+assert.equal(learnCallTutorPrompt({ ...ctx, difficulty: "easy" }), prompt, "easy is the default prompt");
+assert.equal(learnCallTutorPrompt({ ...ctx, difficulty: "bogus" }), prompt, "unknown difficulty falls back to easy");
+const levelPrompts = Object.fromEntries(LEARN_CALL_DIFFICULTY_KEYS.map((k) => [k, learnCallTutorPrompt({ ...ctx, difficulty: k })]));
+const levelMarkers = {
+  easy: ["Difficulty: Easy", "basic words", "two simple choices"],
+  medium: ["Difficulty: Medium", "open question", "Give fewer hints"],
+  hard: ["Difficulty: Hard", "explain, give a reason", "Do not offer answer choices"],
+};
+for (const key of LEARN_CALL_DIFFICULTY_KEYS) {
+  const p = levelPrompts[key];
+  for (const part of ["Chào hỏi", "Hỏi tên một người", "What is your name", "level 1", "Keep every question about this lesson's topic and goal", "Never ask the learner to read aloud"]) {
+    assert.ok(p.includes(part), `${key} prompt keeps ${part}`);
+  }
+  for (const part of levelMarkers[key]) assert.ok(p.includes(part), `${key} prompt has ${part}`);
+  for (const other of LEARN_CALL_DIFFICULTY_KEYS.filter((k) => k !== key)) {
+    assert.ok(!p.includes(levelMarkers[other][0]), `${key} prompt has no ${other} rules`);
+  }
+  assert.ok(!/score|grade/i.test(p.replace("Do not give scores", "")), `${key}: no grading`);
+}
+assert.ok(levelPrompts.hard.includes("Do not offer answer choices") && !levelPrompts.hard.includes("two simple choices"));
+
+assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1 }, "medium").includes("one new open question"));
+assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1 }, "hard").includes("explain, give a reason or an example"));
+assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1 }, "hard").includes("do not offer choices"));
+assert.ok(learnCallTurnDirective({ mode: "greet" }, "hard").includes("more than a one-word answer"));
+for (const key of LEARN_CALL_DIFFICULTY_KEYS) {
+  assert.ok(learnCallTurnDirective({ mode: "closing" }, key).includes("Do not ask any question"), `${key} closing has no question`);
+}
+
+assert.deepEqual(LEARN_CALL_DIFFICULTY_KEYS.map((k) => LEARN_CALL_DIFFICULTIES[k].maxReplyTokens), [LEARN_CALL_MAX_REPLY_TOKENS, 160, 200]);
+assert.equal(learnCallMaxReplyTokens(undefined), LEARN_CALL_MAX_REPLY_TOKENS);
+assert.equal(learnCallMaxReplyTokens("abc"), LEARN_CALL_MAX_REPLY_TOKENS);
+assert.equal(learnCallMaxReplyTokens(160), 160);
+assert.equal(learnCallMaxReplyTokens(5000), 200, "job data cannot raise tokens past hard");
+assert.equal(learnCallMaxReplyTokens(1), 60);
+const longReply = "That is a really interesting answer about greeting people at school and at home with your family every single day. ".repeat(4).trim();
+assert.ok(learnCallShapeReply(longReply).length <= LEARN_CALL_DIFFICULTIES.easy.maxReplyChars);
+assert.ok(learnCallShapeReply(longReply, { difficulty: "hard" }).length > LEARN_CALL_DIFFICULTIES.easy.maxReplyChars);
+assert.ok(learnCallShapeReply(longReply, { difficulty: "hard" }).length <= LEARN_CALL_DIFFICULTIES.hard.maxReplyChars);
+assert.equal(
+  learnCallShapeReply("Good point. Why do you think so? And what else?", { difficulty: "hard" }),
+  "Good point. Why do you think so?",
+  "hard still asks one question per turn",
+);
+
+for (const key of LEARN_CALL_DIFFICULTY_KEYS) {
+  const limits = learnAiCallLevelOneLimits(key);
+  assert.equal(limits.difficulty, key);
+  assert.equal(limits.maxMinutes, 2, `${key} keeps the 2 minute limit`);
+  assert.equal(limits.difficultyLabel, LEARN_CALL_DIFFICULTIES[key].label);
+}
+assert.equal(learnAiCallLevelOneLimits().difficulty, "easy");
 
 const greetPlan = learnCallTurnPlan({ memory: [], remainingMs: 118_000 });
 assert.equal(greetPlan.mode, "greet");

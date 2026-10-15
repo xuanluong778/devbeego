@@ -26,7 +26,11 @@ import {
   resolveUnlockedGateCall,
 } from "@/lib/beego/learn/ai-call-access";
 import { getLessonContentById } from "@/lib/beego/learn/get-lesson-content";
-import { learnCallContextFromLesson } from "@/lib/beego/learn/learn-call-tutor";
+import {
+  LEARN_CALL_DIFFICULTY_KEYS,
+  learnCallContextFromLesson,
+  learnCallDifficulty,
+} from "@/lib/beego/learn/learn-call-tutor";
 import { getLearningPathForUser } from "@/lib/beego/learning-path-progress";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +97,18 @@ export async function POST(request) {
     }
 
     const body = await request.json().catch(() => ({}));
+    const difficulty = learnCallDifficulty(body?.difficulty);
+    if (!difficulty) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: "INVALID_DIFFICULTY",
+          message: "Chọn mức độ Dễ, Vừa hoặc Khó trước khi bắt đầu.",
+          data: { accepted: LEARN_CALL_DIFFICULTY_KEYS },
+        },
+        { status: 400, headers: { "Cache-Control": "no-store" } }
+      );
+    }
     const path = await getLearningPathForUser(userId);
     const gate = resolveUnlockedGateCall(path, {
       sectionId: body?.sectionId,
@@ -121,7 +137,7 @@ export async function POST(request) {
     }
 
     const plan = decision.plan;
-    const limits = { ...learnAiCallLevelOneLimits() };
+    const limits = { ...learnAiCallLevelOneLimits(difficulty) };
     if (learnAiCallPackageAllowanceMs(plan) != null) {
       try {
         const quote = await readLearnCallPackage(redis, { userId, plan });
@@ -173,6 +189,7 @@ export async function POST(request) {
           objective: lesson.objective,
           ...learnCallContextFromLesson(lesson, { topicTitle: gate.topicTitle }),
           level: limits.level,
+          difficulty,
           maxMinutes: limits.maxMinutes,
         }),
         "EX",

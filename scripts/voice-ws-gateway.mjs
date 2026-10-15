@@ -32,7 +32,10 @@ import {
 } from "../lib/beego/learn/ai-call-access.js";
 import { applyLearnPlaybackAck, createLearnAudioCache } from "../lib/beego/learn/learn-call-playback.js";
 import {
+  LEARN_CALL_DEFAULT_DIFFICULTY,
+  LEARN_CALL_DIFFICULTIES,
   LEARN_CALL_MEMORY_MAX_ENTRIES,
+  learnCallDifficulty,
   learnCallHasClosing,
   learnCallShapeReply,
   learnCallTurnDirective,
@@ -530,7 +533,12 @@ async function queueLearnTutorTurn(ws, { sessionId, requestId, text, memory }) {
       requestId,
       text,
       memory: withLearnMemory(ws, memory),
-      learn: { system: ws.learnPrompt, memory, directive: learnCallTurnDirective(plan) },
+      learn: {
+        system: ws.learnPrompt,
+        memory,
+        directive: learnCallTurnDirective(plan, ws.learnDifficulty),
+        maxTokens: LEARN_CALL_DIFFICULTIES[ws.learnDifficulty].maxReplyTokens,
+      },
       skipSharedUsage: true,
     },
     { removeOnComplete: 1000, removeOnFail: 500 }
@@ -890,7 +898,8 @@ wss.on("connection", async (ws, req) => {
       } catch (_e) {}
       return;
     }
-    ws.learnPrompt = learnAiCallLevelOnePrompt(learnCtx);
+    ws.learnDifficulty = learnCallDifficulty(learnCtx.difficulty) || LEARN_CALL_DEFAULT_DIFFICULTY;
+    ws.learnPrompt = learnAiCallLevelOnePrompt({ ...learnCtx, difficulty: ws.learnDifficulty });
     ws.learnLesson = {
       lessonId: String(learnCtx.lessonId || ""),
       title: String(learnCtx.title || ""),
@@ -1038,6 +1047,7 @@ wss.on("connection", async (ws, req) => {
           title: String(learnCtx.title || ""),
           objective: String(learnCtx.objective || ""),
           level: Number(learnCtx.level) || 1,
+          difficulty: ws.learnDifficulty,
           maxMinutes: Number(learnCtx.maxMinutes) || 2,
         }
       : null,
@@ -1085,7 +1095,7 @@ wss.on("connection", async (ws, req) => {
         return;
       }
       const closing = rid === ws.learnClosingRid;
-      const text = learnCallShapeReply(msg.text, { closing });
+      const text = learnCallShapeReply(msg.text, { closing, difficulty: ws.learnDifficulty });
       if (!text) return;
       if ((await redis.set(kLearnReply(sessionId, rid), "1", "EX", 60 * 60, "NX")) !== "OK") return;
       const cancelled =
@@ -1109,7 +1119,7 @@ wss.on("connection", async (ws, req) => {
       if (msg.type === "ai_done") {
         if (msg.learn !== 1) return;
         const closing = rid === ws.learnClosingRid;
-        const text = learnCallShapeReply(msg.text, { closing });
+        const text = learnCallShapeReply(msg.text, { closing, difficulty: ws.learnDifficulty });
         if (text) safeSend(ws, { ...msg, text, ...(closing ? { closing: true } : {}) });
         return;
       }

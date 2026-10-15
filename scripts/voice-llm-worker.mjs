@@ -6,7 +6,7 @@
 
 import { Worker } from "bullmq";
 import Redis from "ioredis";
-import { LEARN_CALL_MAX_REPLY_TOKENS, buildLearnCallMessages } from "../lib/beego/learn/learn-call-tutor.js";
+import { LEARN_CALL_MAX_REPLY_TOKENS, buildLearnCallMessages, learnCallMaxReplyTokens } from "../lib/beego/learn/learn-call-tutor.js";
 
 const REDIS_URL = String(process.env.REDIS_URL || "").trim();
 const OPENAI_KEY = String(process.env.OPENAI_API_KEY || "").trim();
@@ -198,7 +198,7 @@ const worker = new Worker(
     await streamOpenAIChat({
       messages,
       signal: ac.signal,
-      maxTokens: learnJob ? LEARN_CALL_MAX_REPLY_TOKENS : 512,
+      maxTokens: learnJob ? learnCallMaxReplyTokens(learn.maxTokens ?? LEARN_CALL_MAX_REPLY_TOKENS) : 512,
       onToken: async (tok) => {
         if (await isCancelled(sid, rid)) {
           ac.abort();
