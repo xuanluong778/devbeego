@@ -307,7 +307,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
             : msg.reason === "package_quota"
             ? "Hết hạn mức gói thử nghiệm. Micro và tiếng đã dừng."
             : msg.reason === "time_limit"
-              ? "Hết thời lượng mức 1. Micro và tiếng đã dừng."
+              ? "Hết 2 phút của cuộc gọi. Micro và tiếng đã dừng."
               : "Đã dừng micro và tiếng. Kết quả bài học không đổi.";
         if (Number.isFinite(Number(msg.packageQuota?.remainingMs))) setPackageLeft(Number(msg.packageQuota.remainingMs));
         finish("ended", reason);
@@ -629,6 +629,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
     phase === "ended" ||
     phase === "error";
   const topic = offer?.title || "Bài học";
+  const difficultyLabel = offer?.limits?.difficultyLabel || "";
   const ended = phase === "ended" || phase === "error";
   const serverSummary = summary && Array.isArray(summary.transcript) ? summary : null;
   const summaryTurns = serverSummary
@@ -670,7 +671,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
     <div
       className="beego-call-stage"
       role="region"
-      aria-label={offer?.limits?.difficultyLabel ? `Cuộc gọi AI mức ${offer.limits.difficultyLabel}` : "Cuộc gọi AI"}
+      aria-label={difficultyLabel ? `Cuộc gọi AI mức ${difficultyLabel}` : "Cuộc gọi AI"}
     >
       <div className="beego-call-stage__phone">
         <section className={`beego-call-stage__scene ${sceneClass}`}>
@@ -695,7 +696,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
           <div className="beego-call-stage__meta">
             <span className="beego-call-stage__topic">
               Gia sư Beego · {topic}
-              {offer?.limits?.difficultyLabel ? ` · Mức ${offer.limits.difficultyLabel}` : ""}
+              {difficultyLabel ? ` · Mức ${difficultyLabel}` : ""}
             </span>
             <time dateTime={clockView.known ? new Date(clockView.deadlineAt).toISOString() : undefined}>{clockView.label}</time>
           </div>
@@ -776,7 +777,9 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
         </nav>
         {ended ? (
           <section className="beego-call-stage__summary" aria-label="Tổng kết phiên">
-            <p className="beego-call-stage__kicker">BEEGO · GIA SƯ AI · MỨC 1</p>
+            <p className="beego-call-stage__kicker">
+              BEEGO · GIA SƯ AI{difficultyLabel ? ` · MỨC ${difficultyLabel.toUpperCase()}` : ""}
+            </p>
             <h1>
               {phase === "error"
                 ? "Cuộc gọi dừng vì lỗi"
