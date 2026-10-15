@@ -139,13 +139,14 @@ async function streamOpenAITtsPcm({ text, onChunk, signal }) {
     if (done) break;
     if (!value?.length) continue;
     const u8 = value;
+    // Await each chunk so the caller's tts_end is published after the last tts_chunk.
     if (!firstSent && u8.length > 2048) {
-      onChunk(u8.subarray(0, 2048));
-      onChunk(u8.subarray(2048));
+      await onChunk(u8.subarray(0, 2048));
+      await onChunk(u8.subarray(2048));
       firstSent = true;
       continue;
     }
-    onChunk(u8);
+    await onChunk(u8);
     firstSent = true;
   }
 }

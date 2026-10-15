@@ -123,6 +123,11 @@ export function useVoiceRecorder({ onPcmChunk } = {}) {
     silent.connect(audioCtx.destination);
   }, [ensureStream, stopPipeline]);
 
+  const audioState = useCallback(() => {
+    const state = audioCtxRef.current?.state;
+    return state === "running" || state === "suspended" || state === "closed" ? state : "none";
+  }, []);
+
   return {
     TARGET_RATE,
     micError,
@@ -133,5 +138,6 @@ export function useVoiceRecorder({ onPcmChunk } = {}) {
     stopPcmCapture: stopPipeline,
     stopMic,
     setMicEnabled,
+    audioState,
   };
 }

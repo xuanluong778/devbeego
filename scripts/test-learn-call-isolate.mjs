@@ -1,10 +1,10 @@
 /**
- * Isolated Call gateway on 127.0.0.1:3033. Does not use the production usage queue.
+ * Isolated Call gateway on 127.0.0.1:VOICE_WS_PORT. Does not use the production usage queue.
  */
-import fs from "node:fs";
 import jwt from "jsonwebtoken";
 import Redis from "ioredis";
 import WebSocket from "ws";
+import { loadLearnCallTestEnv } from "./learn-call-test-env.mjs";
 import {
   learnAiCallClockKey,
   learnAiCallContextKey,
@@ -12,14 +12,7 @@ import {
   learnAiCallSessionKey,
 } from "../lib/beego/learn/ai-call-access.js";
 
-const env = {};
-for (const line of fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8").split(/\n/)) {
-  const t = line.trim();
-  if (!t || t.startsWith("#") || !t.includes("=")) continue;
-  const i = t.indexOf("=");
-  const key = t.slice(0, i).trim();
-  if (!env[key]) env[key] = t.slice(i + 1).trim();
-}
+const env = loadLearnCallTestEnv();
 const userId = "900000001";
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -27,7 +20,7 @@ const usageKey = `voice:usage:daily:${userId}:${ymd}`;
 const beforeUsage = await redis.hgetall(usageKey);
 
 function open(token, sid) {
-  const ws = new WebSocket(`ws://127.0.0.1:3033/?token=${encodeURIComponent(token)}&sessionId=${encodeURIComponent(sid)}`);
+  const ws = new WebSocket(`ws://127.0.0.1:${env.wsPort}/?token=${encodeURIComponent(token)}&sessionId=${encodeURIComponent(sid)}`);
   const messages = [];
   let code = 0;
   ws.on("message", (data, isBinary) => {
@@ -69,6 +62,8 @@ old.ws.send(JSON.stringify({ type: "client_final_transcript", requestId: 1, text
 const oldAi = await waitFor(old.messages, (item) => item.type === "ai_done" || item.type === "error", 25000);
 old.ws.close();
 
+await new Promise((r) => setTimeout(r, 5000)); // old-page TTS may still be counting bytes
+const beforeLearnUsage = await redis.hgetall(usageKey);
 const learnSid = `learn-iso-${Date.now()}`;
 await redis.set(learnAiCallSessionKey(learnSid), userId, "EX", 90);
 await redis.set(
@@ -101,5 +96,5 @@ console.log(JSON.stringify({
   learnBlocked: blockedEnd.type === "call_ended" && blockedEnd.reason === "feature_disabled",
   learnHello: liveHello.type === "hello" && liveHello.lesson?.title === "Chào một người mới",
   cutOpenCall: cut.reason === "feature_disabled",
-  usageUnchanged: JSON.stringify(beforeUsage) === JSON.stringify(afterUsage),
+  learnUsageUnchanged: JSON.stringify(beforeLearnUsage) === JSON.stringify(afterUsage),
 }));

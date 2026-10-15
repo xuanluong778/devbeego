@@ -3,24 +3,18 @@
  * Uses a synthetic user id that must not exist in the database.
  * Does not update any account row.
  */
-import fs from "node:fs";
 import jwt from "jsonwebtoken";
 import Redis from "ioredis";
 import mysql from "mysql2/promise";
 import WebSocket from "ws";
+import { loadLearnCallTestEnv } from "./learn-call-test-env.mjs";
 import { learnAiCallContextKey, learnAiCallSessionKey } from "../lib/beego/learn/ai-call-access.js";
 
-const env = {};
-for (const line of fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8").split(/\n/)) {
-  const t = line.trim();
-  if (!t || t.startsWith("#") || !t.includes("=")) continue;
-  const i = t.indexOf("=");
-  env[t.slice(0, i).trim()] = t.slice(i + 1).trim();
-}
+const env = loadLearnCallTestEnv();
 
 const userId = "900000001";
 const otherId = "900000002";
-const port = Number(process.env.VOICE_WS_PORT || 3032);
+const port = env.wsPort;
 const conn = await mysql.createConnection({
   host: env.DB_HOST,
   port: Number(env.DB_PORT || 3306),
@@ -54,7 +48,7 @@ await redis.set(
 );
 
 function tokenFor(sub, sid, extra = {}) {
-  return jwt.sign({ sub, plan: "pro", purpose: "learn_ai_call", sid, ...extra }, env.VOICE_JWT_SECRET, { expiresIn: 120 });
+  return jwt.sign({ sub, plan: "pro", purpose: "learn_ai_call", sid, learnAllow: 1, ...extra }, env.VOICE_JWT_SECRET, { expiresIn: 120 });
 }
 
 function connect(url) {
@@ -84,9 +78,10 @@ const greeting = await waitFor(good.messages, (m) => m.type === "ai_done" && m.r
 if (!String(greeting.text || "").trim()) throw new Error("greeting was empty");
 good.ws.send(JSON.stringify({ type: "interrupt", requestId: 1, reason: "barge_in" }));
 await waitFor(good.messages, (m) => m.type === "interrupt_ack", 4000);
+// Learn accepts only gateway STT; a browser transcript must not produce a reply.
 good.ws.send(JSON.stringify({ type: "client_final_transcript", requestId: 2, text: "My name is Lan." }));
-const reply = await waitFor(good.messages, (m) => m.type === "ai_done" && m.requestId === 2, 25000);
-if (!String(reply.text || "").trim()) throw new Error("reply was empty");
+await new Promise((r) => setTimeout(r, 4000));
+const reply = good.messages.find((m) => m.type === "ai_done" && m.requestId === 2) || null;
 const audio = good.messages.some((m) => m.type === "binary" && m.bytes > 0);
 good.ws.close(1000, "client");
 await new Promise((r) => good.ws.once("close", r));
@@ -128,8 +123,7 @@ console.log(
   JSON.stringify({
     helloTitle: hello.lesson.title,
     greetingChars: String(greeting.text).trim().length,
-    replyChars: String(reply.text).trim().length,
-    replyMentionsTitle: String(reply.text).includes(title) || String(greeting.text).includes(title),
+    clientTranscriptIgnored: reply === null,
     audioChunks: audio,
     otherUserClose: wrongCode,
     legacyHello: legacyHello.type,
