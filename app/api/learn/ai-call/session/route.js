@@ -30,6 +30,7 @@ import {
   LEARN_CALL_DIFFICULTY_KEYS,
   learnCallContextFromLesson,
   learnCallDifficulty,
+  learnCallLearningNotes,
 } from "@/lib/beego/learn/learn-call-tutor";
 import { getLearningPathForUser } from "@/lib/beego/learning-path-progress";
 
@@ -188,6 +189,7 @@ export async function POST(request) {
           title: gate.topicTitle || lesson.title,
           objective: lesson.objective,
           ...learnCallContextFromLesson(lesson, { topicTitle: gate.topicTitle }),
+          learningNotes: learnCallLearningNotes(path, { sectionId: gate.sectionId }),
           level: limits.level,
           difficulty,
           maxMinutes: limits.maxMinutes,

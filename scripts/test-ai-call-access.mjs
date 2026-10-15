@@ -85,7 +85,7 @@ assert(learnCallEntryFromResponse(503, { code: "SUBSCRIPTION_LOAD_FAILED" }).vie
 assert(learnCallEntryFromResponse(403, { code: "FEATURE_DISABLED" }).view === "hidden", "flag off hides the entry");
 
 const prompt = learnAiCallLevelOnePrompt({ title: "Greetings", objective: "Say hello" });
-assert(prompt.includes("Greetings") && prompt.includes("Say hello") && prompt.includes("level 1"), "lesson context is in the level 1 prompt");
+assert(prompt.includes("Greetings") && prompt.includes("Say hello") && prompt.includes("CONTEXT FROM THE SYSTEM"), "lesson context is in the tutor prompt");
 assert(learnAiCallWsUrl({ LEARN_AI_CALL_WS_URL: "https://beego.vn/voice" }) === "", "only websocket urls are accepted");
 assert(learnAiCallWsUrl({ LEARN_AI_CALL_WS_URL: "ws://127.0.0.1:3032" }) === "ws://127.0.0.1:3032", "preview websocket url is kept");
 
