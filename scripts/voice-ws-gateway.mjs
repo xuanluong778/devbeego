@@ -43,6 +43,7 @@ import {
 } from "../lib/beego/learn/learn-call-tutor.js";
 import { LEARN_TALK_FINAL_WAIT_MS, LEARN_TALK_SEGMENT_FLUSH_MS, createLearnUtterance } from "../lib/beego/learn/learn-call-talk.js";
 import { learnTranscriptSnapshot } from "../lib/beego/learn/learn-call-transcript.js";
+import { learnCallTeacher } from "../lib/beego/learn/learn-call-teachers.js";
 
 const require = createRequire(import.meta.url);
 const sdk = require("microsoft-cognitiveservices-speech-sdk");
@@ -899,6 +900,7 @@ wss.on("connection", async (ws, req) => {
       return;
     }
     ws.learnDifficulty = learnCallDifficulty(learnCtx.difficulty) || LEARN_CALL_DEFAULT_DIFFICULTY;
+    ws.learnVoice = learnCallTeacher(learnCtx.teacher).voice;
     ws.learnPrompt = learnAiCallLevelOnePrompt({ ...learnCtx, difficulty: ws.learnDifficulty });
     ws.learnLesson = {
       lessonId: String(learnCtx.lessonId || ""),
@@ -1108,7 +1110,7 @@ wss.on("connection", async (ws, req) => {
       if (cancelled) return;
       await ttsQueue.add(
         `tts-${sessionId}-${rid}`,
-        { sessionId, requestId: rid, text, skipSharedUsage: true },
+        { sessionId, requestId: rid, text, skipSharedUsage: true, voice: ws.learnVoice },
         { removeOnComplete: 1000, removeOnFail: 500 }
       );
       return;

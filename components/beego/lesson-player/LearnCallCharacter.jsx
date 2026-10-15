@@ -1,5 +1,20 @@
 import { useId } from "react";
 
+export function LearnCallRobotFace({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 120 120" aria-hidden="true">
+      <rect x="6" y="44" width="16" height="34" rx="8" fill="#7c5cf0" />
+      <rect x="98" y="44" width="16" height="34" rx="8" fill="#7c5cf0" />
+      <rect x="16" y="14" width="88" height="90" rx="42" fill="#f4f2fc" />
+      <rect x="27" y="35" width="66" height="50" rx="22" fill="#0d1030" />
+      <g stroke="#5ef0ff" strokeLinecap="round" fill="none">
+        <path d="M38 61q7-9 14 0M68 61q7-9 14 0" strokeWidth="4.5" />
+        <path d="M53 71q7 6 14 0" strokeWidth="3.5" />
+      </g>
+    </svg>
+  );
+}
+
 export default function LearnCallCharacter({ talking = false, mood = "idle", label = "Gia sư Beego" }) {
   const uid = useId().replace(/:/g, "");
   const id = (name) => `beegoBot${name}${uid}`;

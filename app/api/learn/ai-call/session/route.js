@@ -32,6 +32,7 @@ import {
   learnCallDifficulty,
   learnCallLearningNotes,
 } from "@/lib/beego/learn/learn-call-tutor";
+import { learnCallTeacher } from "@/lib/beego/learn/learn-call-teachers";
 import { getLearningPathForUser } from "@/lib/beego/learning-path-progress";
 
 export const dynamic = "force-dynamic";
@@ -138,7 +139,8 @@ export async function POST(request) {
     }
 
     const plan = decision.plan;
-    const limits = { ...learnAiCallLevelOneLimits(difficulty) };
+    const teacher = learnCallTeacher(body?.teacher);
+    const limits = { ...learnAiCallLevelOneLimits(difficulty), teacher: teacher.id, teacherName: teacher.name };
     if (learnAiCallPackageAllowanceMs(plan) != null) {
       try {
         const quote = await readLearnCallPackage(redis, { userId, plan });
@@ -192,6 +194,7 @@ export async function POST(request) {
           learningNotes: learnCallLearningNotes(path, { sectionId: gate.sectionId }),
           level: limits.level,
           difficulty,
+          teacher: teacher.id,
           maxMinutes: limits.maxMinutes,
         }),
         "EX",

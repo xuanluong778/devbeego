@@ -27,6 +27,15 @@ import {
   learnCallTutorPrompt,
 } from "../lib/beego/learn/learn-call-tutor.js";
 import { learnTranscriptSnapshot } from "../lib/beego/learn/learn-call-transcript.js";
+import {
+  LEARN_CALL_DEFAULT_TEACHER,
+  LEARN_CALL_TEACHER_KEYS,
+  LEARN_CALL_TEACHERS,
+  LEARN_CALL_TTS_VOICES,
+  learnCallTeacher,
+  learnCallTeacherId,
+  learnCallTtsVoice,
+} from "../lib/beego/learn/learn-call-teachers.js";
 
 const lesson = {
   lessonId: "p1-g1-n02",
@@ -65,6 +74,27 @@ for (const bad of [undefined, null, "", "Easy", "EASY", "expert", "toString", "_
 for (const key of LEARN_CALL_DIFFICULTY_KEYS) assert.equal(learnCallDifficulty(key), key);
 assert.equal(learnCallTutorPrompt({ ...ctx, difficulty: "easy" }), prompt, "easy is the default prompt");
 assert.equal(learnCallTutorPrompt({ ...ctx, difficulty: "bogus" }), prompt, "unknown difficulty falls back to easy");
+
+assert.deepEqual([...LEARN_CALL_TEACHER_KEYS], ["robot", "emma", "james", "mina"], "four tutors, Robot first");
+assert.equal(LEARN_CALL_DEFAULT_TEACHER, "robot");
+for (const missing of [undefined, null, "", "bogus", "__proto__", "toString"]) {
+  assert.equal(learnCallTeacherId(missing), "robot", `no or unknown teacher (${String(missing)}) is Robot`);
+}
+assert.equal(learnCallTeacherId(" Emma "), "emma");
+assert.equal(learnCallTeacher("james").voice, "onyx");
+for (const key of LEARN_CALL_TEACHER_KEYS) {
+  assert.ok(LEARN_CALL_TTS_VOICES.includes(LEARN_CALL_TEACHERS[key].voice), `${key} uses an allowed TTS voice`);
+  assert.equal(Boolean(LEARN_CALL_TEACHERS[key].image), key !== "robot", `${key} photo`);
+}
+assert.equal(new Set(LEARN_CALL_TEACHER_KEYS.map((k) => LEARN_CALL_TEACHERS[k].voice)).size, 4, "each tutor has its own voice");
+assert.equal(learnCallTtsVoice("echo"), "alloy", "unknown voice keeps the original voice");
+assert.equal(learnCallTtsVoice(undefined), "alloy");
+assert.ok(prompt.startsWith("You are Beego, an English tutor for Vietnamese learners: patient"), "Robot keeps the original opening");
+assert.equal(learnCallTutorPrompt({ ...ctx, teacher: "robot" }), prompt, "Robot prompt is unchanged");
+assert.equal(learnCallTutorPrompt({ ...ctx, teacher: "bogus" }), prompt, "unknown teacher falls back to Robot");
+const emmaPrompt = learnCallTutorPrompt({ ...ctx, teacher: "emma" });
+assert.ok(emmaPrompt.startsWith("You are Emma, a Beego English tutor for Vietnamese learners. If the learner asks your name, you are Emma: patient"), "Emma introduces herself by name");
+assert.equal(emmaPrompt.split("\n").slice(1).join("\n"), prompt.split("\n").slice(1).join("\n"), "only the opening line differs");
 const levelPrompts = Object.fromEntries(LEARN_CALL_DIFFICULTY_KEYS.map((k) => [k, learnCallTutorPrompt({ ...ctx, difficulty: k })]));
 const levelMarkers = {
   easy: ["Difficulty: Easy", "basic, familiar words", "usually under 25 words"],

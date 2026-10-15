@@ -21,7 +21,8 @@ const WAVE_BARS = Array.from({ length: 29 }, (_, i) => {
   return { i, h: (0.25 + 0.75 * edge * (0.45 + 0.55 * (((i * 37) % 10) / 9))).toFixed(2) };
 });
 
-export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose, returnLabel = "Quay lại bài" }) {
+export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
+  teacher = null, onClose, returnLabel = "Quay lại bài" }) {
   const { readyState, lastError, closeInfo, connect, disconnect, sendJson, sendBinary, setOnJsonMessage, setOnBinaryMessage } = useVoiceWebSocket("");
   const drainedHandlerRef = useRef(() => {});
   const stoppedHandlerRef = useRef(() => {});
@@ -661,6 +662,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
 
   const mood = phase === "listening" ? "listening" : phase === "thinking" || phase === "transcribing" ? "thinking" : "idle";
   const waveActive = phase === "listening" || mouthOn;
+  const tutorLabel = teacher?.image ? teacher.name.toUpperCase() : "BEEGO AI";
   const toggleMute = () => {
     const next = !muted;
     mutedRef.current = next;
@@ -703,7 +705,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
     >
       <div className="beego-call-stage__phone">
         <div className="beego-call-stage__glow" aria-hidden="true" />
-        <section className={`beego-call-stage__scene ${sceneClass}`}>
+        <section className={`beego-call-stage__scene ${sceneClass}${teacher?.image ? " is-photo" : ""}`}>
           <header className="beego-call-stage__header">
             <button type="button" className="beego-call-stage__close" onClick={endCall} disabled={ended} aria-label="Kết thúc cuộc gọi">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -747,41 +749,66 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
               <time dateTime={clockView.known ? new Date(clockView.deadlineAt).toISOString() : undefined}>{clockView.label}</time>
             </p>
           </div>
-          <div className="beego-call-stage__robot">
-            <div
-              className="beego-call-stage__ring"
-              role="progressbar"
-              aria-label="Thời gian còn lại"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(clockView.ratio * 100)}
-              aria-valuetext={clockView.label}
-              style={{ "--progress": clockView.ratio }}
-            />
-            <span className="beego-call-stage__orb is-a" aria-hidden="true" />
-            <span className="beego-call-stage__orb is-b" aria-hidden="true" />
-            <LearnCallCharacter talking={mouthOn} mood={mood} />
-          </div>
-          <p className={`beego-call-stage__status is-${phase}`} aria-live="polite">
-            <i aria-hidden="true" />
-            <span>{notice || micError || statusLabel}</span>
-          </p>
-          <div className={`beego-call-stage__wave${waveActive ? " is-active" : ""}${phase === "listening" ? " is-mic" : ""}`} aria-hidden="true">
-            {WAVE_BARS.map((bar) => (
-              <i key={bar.i} style={{ "--i": bar.i, "--h": bar.h }} />
-            ))}
-          </div>
-          {captionsOn ? (
-            <div className="beego-call-stage__caption" aria-live="polite">
-              <small>{captionRole === "user" ? "BẠN" : "BEEGO AI"}</small>
-              <span>{captionText}</span>
+          {teacher?.image ? (
+            <div className={`beego-call-stage__robot beego-call-stage__photo${mouthOn ? " is-talking" : ""}`}>
+              <img src={teacher.image} alt={teacher.name} />
+              <div
+                className="beego-call-stage__photo-bar"
+                role="progressbar"
+                aria-label="Thời gian còn lại"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(clockView.ratio * 100)}
+                aria-valuetext={clockView.label}
+              >
+                <i style={{ width: `${clockView.ratio * 100}%` }} />
+              </div>
+              <span className="beego-call-stage__badge">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" />
+                </svg>
+                Gia sư AI
+              </span>
             </div>
           ) : (
-            <div className="beego-call-stage__caption is-off">
-              <small>PHỤ ĐỀ ĐANG TẮT</small>
-              <span>Bấm Phụ đề để xem lời gia sư.</span>
+            <div className="beego-call-stage__robot">
+              <div
+                className="beego-call-stage__ring"
+                role="progressbar"
+                aria-label="Thời gian còn lại"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(clockView.ratio * 100)}
+                aria-valuetext={clockView.label}
+                style={{ "--progress": clockView.ratio }}
+              />
+              <span className="beego-call-stage__orb is-a" aria-hidden="true" />
+              <span className="beego-call-stage__orb is-b" aria-hidden="true" />
+              <LearnCallCharacter talking={mouthOn} mood={mood} />
             </div>
           )}
+          <div className="beego-call-stage__dock">
+            <p className={`beego-call-stage__status is-${phase}`} aria-live="polite">
+              <i aria-hidden="true" />
+              <span>{notice || micError || statusLabel}</span>
+            </p>
+            <div className={`beego-call-stage__wave${waveActive ? " is-active" : ""}${phase === "listening" ? " is-mic" : ""}`} aria-hidden="true">
+              {WAVE_BARS.map((bar) => (
+                <i key={bar.i} style={{ "--i": bar.i, "--h": bar.h }} />
+              ))}
+            </div>
+            {captionsOn ? (
+              <div className="beego-call-stage__caption" aria-live="polite">
+                <small>{captionRole === "user" ? "BẠN" : tutorLabel}</small>
+                <span>{captionText}</span>
+              </div>
+            ) : (
+              <div className="beego-call-stage__caption is-off">
+                <small>PHỤ ĐỀ ĐANG TẮT</small>
+                <span>Bấm Phụ đề để xem lời gia sư.</span>
+              </div>
+            )}
+          </div>
           <nav className="beego-call-stage__controls" aria-label="Điều khiển cuộc gọi">
             <button type="button" className="beego-call-stage__side" onClick={replay} disabled={replayDisabled} aria-label="Nghe lại câu gia sư">
               <span className="beego-call-stage__tile">
