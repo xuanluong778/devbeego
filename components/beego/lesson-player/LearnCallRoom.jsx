@@ -16,6 +16,11 @@ import {
 } from "@/lib/beego/learn/learn-call-transcript";
 import LearnCallCharacter from "./LearnCallCharacter";
 
+const WAVE_BARS = Array.from({ length: 29 }, (_, i) => {
+  const edge = 1 - Math.abs(i - 14) / 15;
+  return { i, h: (0.25 + 0.75 * edge * (0.45 + 0.55 * (((i * 37) % 10) / 9))).toFixed(2) };
+});
+
 export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose, returnLabel = "Quay lại bài" }) {
   const { readyState, lastError, closeInfo, connect, disconnect, sendJson, sendBinary, setOnJsonMessage, setOnBinaryMessage } = useVoiceWebSocket("");
   const drainedHandlerRef = useRef(() => {});
@@ -33,6 +38,9 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
   const [tick, setTick] = useState(() => Date.now());
   const [mouthOn, setMouthOn] = useState(false);
   const [ccOpen, setCcOpen] = useState(false);
+  const [captionsOn, setCaptionsOn] = useState(true);
+  const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
   const [transcript, setTranscript] = useState(createTranscript);
   const [hasNew, setHasNew] = useState(false);
   const transcriptRef = useRef(transcript);
@@ -437,6 +445,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
       talkRef.current.noteSpeaking();
       setPhase("speaking");
       playerRef.current.enqueuePcmS16le(pcm, 24000, playbackRef.current.snapshot().playbackId);
+      if (mutedRef.current) playerRef.current.setVolume(0);
       // Audio that arrives after tts_end is already queued; count it as playing so the next drain completes the turn.
       if (playbackRef.current.snapshot().serverEnded) playbackRef.current.flushBuffer();
     });
@@ -509,6 +518,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
       player.enqueuePcmS16le(chunk, 24000, started.playbackId);
     }
     player.flushPending();
+    if (mutedRef.current) player.setVolume(0);
     playbackRef.current.serverEnd({ playbackId: started.playbackId, generation: started.generation });
     playbackRef.current.flushBuffer();
     ttsPlayingRef.current = true;
@@ -566,7 +576,17 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
     leaveRef.current?.focus();
   }, [phase]);
 
-  const caption = transcriptCaption(transcript, talkRef.current.snapshot().requestId);
+  const captionRid = talkRef.current.snapshot().requestId;
+  const caption = transcriptCaption(transcript, captionRid);
+  let captionRole = "tutor";
+  for (let i = transcript.turns.length - 1; i >= 0; i -= 1) {
+    const turn = transcript.turns[i];
+    if (!Number(captionRid) || turn.requestId === Number(captionRid)) {
+      captionRole = turn.role;
+      break;
+    }
+    if (turn.requestId < Number(captionRid)) break;
+  }
   const canReplay = Boolean(transcriptLastTutor(transcript));
 
   const clockView = learnCallRemainingView({
@@ -592,7 +612,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
     phase === "connecting"
       ? "Đang kết nối…"
       : phase === "listening"
-        ? "Đang nghe bạn nói"
+        ? "Gia sư đang lắng nghe"
         : phase === "transcribing"
           ? "Đang nhận dạng…"
           : phase === "thinking"
@@ -609,7 +629,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
                   ? "Lỗi kết nối"
                   : phase === "ended"
                     ? "Cuộc gọi đã kết thúc"
-                    : "Sẵn sàng";
+                    : "Đến lượt bạn nói";
   const captionText = caption || statusLabel;
   const speakDisabled =
     closing ||
@@ -639,6 +659,14 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
   const tutorCount = (playback) => summaryTurns.filter((turn) => turn.role === "tutor" && (turn.playback || "pending") === playback).length;
   const practiced = learnerTurns > 0;
 
+  const mood = phase === "listening" ? "listening" : phase === "thinking" || phase === "transcribing" ? "thinking" : "idle";
+  const waveActive = phase === "listening" || mouthOn;
+  const toggleMute = () => {
+    const next = !muted;
+    mutedRef.current = next;
+    setMuted(next);
+    player.setVolume(next ? 0 : 1);
+  };
   const closeCc = () => {
     setCcOpen(false);
     ccButtonRef.current?.focus();
@@ -674,40 +702,138 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
       aria-label={difficultyLabel ? `Cuộc gọi AI mức ${difficultyLabel}` : "Cuộc gọi AI"}
     >
       <div className="beego-call-stage__phone">
+        <div className="beego-call-stage__glow" aria-hidden="true" />
         <section className={`beego-call-stage__scene ${sceneClass}`}>
-          <div className="beego-call-stage__window" aria-hidden="true" />
-          <div className="beego-call-stage__curtain" aria-hidden="true" />
           <header className="beego-call-stage__header">
             <button type="button" className="beego-call-stage__close" onClick={endCall} disabled={ended} aria-label="Kết thúc cuộc gọi">
-              ×
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
             </button>
+            <div className="beego-call-stage__brand" aria-hidden="true">
+              <span className="beego-call-stage__logo">
+                beeg<span>o</span>
+                <svg viewBox="0 0 20 14">
+                  <ellipse cx="6" cy="8" rx="5" ry="3.6" transform="rotate(-30 6 8)" />
+                  <ellipse cx="14" cy="6" rx="5" ry="3.6" transform="rotate(-30 14 6)" />
+                </svg>
+              </span>
+              <small>AI TUTOR</small>
+            </div>
+            <button
+              type="button"
+              className="beego-call-stage__sound"
+              aria-pressed={muted}
+              aria-label={muted ? "Bật tiếng gia sư" : "Tắt tiếng gia sư"}
+              onClick={toggleMute}
+              disabled={ended}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path className="is-fill" d="M4 9h4l5-4v14l-5-4H4z" />
+                {muted ? <path d="M16 9l5 6M21 9l-5 6" /> : <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />}
+              </svg>
+            </button>
+          </header>
+          <div className="beego-call-stage__meta">
+            <div className="beego-call-stage__topic">
+              <h2>{topic}</h2>
+              {difficultyLabel ? <span className="beego-call-stage__level">Mức {difficultyLabel}</span> : null}
+            </div>
+            <p className="beego-call-stage__clock">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="M12 7.5V12l3 2" />
+              </svg>
+              <time dateTime={clockView.known ? new Date(clockView.deadlineAt).toISOString() : undefined}>{clockView.label}</time>
+            </p>
+          </div>
+          <div className="beego-call-stage__robot">
             <div
-              className="beego-call-stage__track"
+              className="beego-call-stage__ring"
               role="progressbar"
               aria-label="Thời gian còn lại"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(clockView.ratio * 100)}
               aria-valuetext={clockView.label}
-            >
-              <div className="beego-call-stage__bar" style={{ width: `${clockView.ratio * 100}%` }} />
+              style={{ "--progress": clockView.ratio }}
+            />
+            <span className="beego-call-stage__orb is-a" aria-hidden="true" />
+            <span className="beego-call-stage__orb is-b" aria-hidden="true" />
+            <LearnCallCharacter talking={mouthOn} mood={mood} />
+          </div>
+          <p className={`beego-call-stage__status is-${phase}`} aria-live="polite">
+            <i aria-hidden="true" />
+            <span>{notice || micError || statusLabel}</span>
+          </p>
+          <div className={`beego-call-stage__wave${waveActive ? " is-active" : ""}${phase === "listening" ? " is-mic" : ""}`} aria-hidden="true">
+            {WAVE_BARS.map((bar) => (
+              <i key={bar.i} style={{ "--i": bar.i, "--h": bar.h }} />
+            ))}
+          </div>
+          {captionsOn ? (
+            <div className="beego-call-stage__caption" aria-live="polite">
+              <small>{captionRole === "user" ? "BẠN" : "BEEGO AI"}</small>
+              <span>{captionText}</span>
             </div>
-          </header>
-          <div className="beego-call-stage__meta">
-            <span className="beego-call-stage__topic">
-              Gia sư Beego · {topic}
-              {difficultyLabel ? ` · Mức ${difficultyLabel}` : ""}
-            </span>
-            <time dateTime={clockView.known ? new Date(clockView.deadlineAt).toISOString() : undefined}>{clockView.label}</time>
-          </div>
-          <div className="beego-call-stage__halo" aria-hidden="true" />
-          <LearnCallCharacter talking={mouthOn} />
-          <div className="beego-call-stage__caption" aria-live="polite">
-            <span>{captionText}</span>
-          </div>
-          <aside className="beego-call-stage__sheet" id={sheetId} hidden={!ccOpen} aria-label="Đoạn hội thoại">
+          ) : (
+            <div className="beego-call-stage__caption is-off">
+              <small>PHỤ ĐỀ ĐANG TẮT</small>
+              <span>Bấm Phụ đề để xem lời gia sư.</span>
+            </div>
+          )}
+          <nav className="beego-call-stage__controls" aria-label="Điều khiển cuộc gọi">
+            <button type="button" className="beego-call-stage__side" onClick={replay} disabled={replayDisabled} aria-label="Nghe lại câu gia sư">
+              <span className="beego-call-stage__tile">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" />
+                  <path d="M4 4.5v4h4" />
+                </svg>
+              </span>
+              <span aria-hidden="true">Nghe lại</span>
+            </button>
+            <button type="button" className={`beego-call-stage__speak${phase === "listening" ? " is-listening" : ""}`} onClick={onPrimary} disabled={speakDisabled}>
+              <span className="beego-call-stage__mic" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 15a4 4 0 0 0 4-4V5a4 4 0 0 0-8 0v6a4 4 0 0 0 4 4zm-7-4h2a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.93V21h3v2H8v-2h3v-3.07A7 7 0 0 1 5 11z" />
+                </svg>
+              </span>
+              <span className="beego-call-stage__speak-label">{phase === "mic" ? "CHO PHÉP MICRO" : speakLabel}</span>
+            </button>
+            <button
+              type="button"
+              className="beego-call-stage__side beego-call-stage__cc"
+              aria-pressed={captionsOn}
+              aria-label="Phụ đề"
+              onClick={() => setCaptionsOn((on) => !on)}
+              disabled={ended}
+            >
+              <span className="beego-call-stage__tile">
+                <b>CC</b>
+              </span>
+              <span aria-hidden="true">Phụ đề</span>
+            </button>
+          </nav>
+          <button
+            ref={ccButtonRef}
+            type="button"
+            className="beego-call-stage__history"
+            aria-expanded={ccOpen}
+            aria-controls={sheetId}
+            onClick={() => (ccOpen ? closeCc() : setCcOpen(true))}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 5h14a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 17h-8l-4.5 3.5V17H5a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 5 5z" />
+              <path d="M8 10h8M8 13h5" />
+            </svg>
+            <span>Lịch sử hội thoại</span>
+            <svg className="beego-call-stage__chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </button>
+          <aside className="beego-call-stage__sheet" id={sheetId} hidden={!ccOpen} aria-label="Lịch sử hội thoại">
             <div className="beego-call-stage__sheet-head">
-              <strong>Đoạn hội thoại</strong>
+              <strong>Lịch sử hội thoại</strong>
               <button ref={ccCloseRef} type="button" onClick={closeCc} aria-label="Đóng hội thoại">
                 ×
               </button>
@@ -750,31 +876,6 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer, onClose,
             ) : null}
           </aside>
         </section>
-        <p className="beego-call-stage__status" aria-live="polite">
-          {notice || micError || statusLabel}
-        </p>
-        <nav className="beego-call-stage__controls" aria-label="Điều khiển cuộc gọi">
-          <button type="button" className="beego-call-stage__side" onClick={replay} disabled={replayDisabled} aria-label="Nghe lại câu gia sư">
-            ↺
-          </button>
-          <button type="button" className={`beego-call-stage__speak${phase === "listening" ? " is-listening" : ""}`} onClick={onPrimary} disabled={speakDisabled}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 15a4 4 0 0 0 4-4V5a4 4 0 0 0-8 0v6a4 4 0 0 0 4 4zm-7-4h2a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.93V21h3v2H8v-2h3v-3.07A7 7 0 0 1 5 11z" />
-            </svg>
-            <span>{phase === "mic" ? "CHO PHÉP MICRO" : speakLabel}</span>
-          </button>
-          <button
-            ref={ccButtonRef}
-            type="button"
-            className="beego-call-stage__side beego-call-stage__cc"
-            aria-pressed={ccOpen}
-            aria-controls={sheetId}
-            aria-label="Phụ đề hội thoại"
-            onClick={() => (ccOpen ? closeCc() : setCcOpen(true))}
-          >
-            CC
-          </button>
-        </nav>
         {ended ? (
           <section className="beego-call-stage__summary" aria-label="Tổng kết phiên">
             <p className="beego-call-stage__kicker">

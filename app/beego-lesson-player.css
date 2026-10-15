@@ -1482,14 +1482,36 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage {
+  --call-cyan: #5ef0ff;
+  --call-cyan-deep: #19c6e6;
+  --call-ink: #070820;
+  --call-card: rgb(255 255 255 / 6%);
+  --call-line: rgb(255 255 255 / 11%);
+  --call-muted: #a9a6d4;
   position: fixed;
   inset: 0;
   z-index: 260;
   display: grid;
   place-items: center;
-  background: #10181d;
+  background: #05061a;
   color: #fff;
   font-family: var(--font-body, Nunito, "Segoe UI", sans-serif);
+}
+
+.beego-call-stage *,
+.beego-call-stage *::before,
+.beego-call-stage *::after {
+  box-sizing: border-box;
+}
+
+.beego-call-stage button {
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.beego-call-stage button:focus-visible {
+  outline: 3px solid var(--call-cyan);
+  outline-offset: 3px;
 }
 
 .beego-call-stage__phone {
@@ -1498,9 +1520,13 @@ body.page-lesson-player .page-content {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #151f24;
   position: relative;
   overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(120% 60% at 50% 0%, #2b1f6e 0%, transparent 62%),
+    radial-gradient(90% 45% at 50% 46%, #241a63 0%, transparent 70%),
+    linear-gradient(180deg, #120f3d 0%, #0b0b2c 45%, #070820 100%);
   padding:
     env(safe-area-inset-top)
     env(safe-area-inset-right)
@@ -1508,118 +1534,276 @@ body.page-lesson-player .page-content {
     env(safe-area-inset-left);
 }
 
+.beego-call-stage__glow {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(2px 2px at 12% 22%, #ffffffb0, transparent),
+    radial-gradient(1.5px 1.5px at 84% 16%, #ffffff90, transparent),
+    radial-gradient(2px 2px at 76% 38%, #8fe9ff90, transparent),
+    radial-gradient(1.5px 1.5px at 20% 48%, #c9b8ff90, transparent),
+    radial-gradient(1.5px 1.5px at 90% 56%, #ffffff70, transparent);
+}
+
 .beego-call-stage__scene {
   flex: 1;
   min-height: 0;
-  position: relative;
-  background:
-    radial-gradient(ellipse at 90% 10%, #e6edfa 0, transparent 35%),
-    linear-gradient(135deg, #25356a, #9d77d6 47%, #172743 80%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(150px, 1fr) auto auto auto auto auto;
+  grid-template-areas:
+    "header"
+    "meta"
+    "robot"
+    "status"
+    "wave"
+    "caption"
+    "controls"
+    "history";
+  justify-items: center;
+  gap: 10px;
+  padding: 10px 18px 14px;
   overflow: hidden;
-}
-
-.beego-call-stage__window {
-  position: absolute;
-  inset: 0 55% 38% 0;
-  background: linear-gradient(90deg, #244a88, #0e2957);
-  border: 10px solid #855bc9;
-  box-shadow: 0 0 0 5px #174977;
-}
-
-.beego-call-stage__curtain {
-  position: absolute;
-  top: 0;
-  right: 18%;
-  height: 65%;
-  width: 22%;
-  background: repeating-linear-gradient(90deg, #caa4dcaa 0 18px, #9c79c1aa 18px 35px);
-}
-
-.beego-call-stage__header,
-.beego-call-stage__meta {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  z-index: 3;
-  display: flex;
-  align-items: center;
 }
 
 .beego-call-stage__header {
-  top: 12px;
-  gap: 12px;
+  grid-area: header;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
 }
 
-.beego-call-stage__close {
+.beego-call-stage__close,
+.beego-call-stage__sound {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--call-line);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 7%);
   color: #fff;
-  background: transparent;
-  border: 0;
-  font-size: 38px;
-  line-height: 1;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0;
   cursor: pointer;
+  transition: background 0.2s;
 }
 
-.beego-call-stage__track {
-  height: 15px;
-  background: #17262d80;
-  border-radius: 20px;
-  flex: 1;
-  overflow: hidden;
+.beego-call-stage__close:hover,
+.beego-call-stage__sound:hover {
+  background: rgb(255 255 255 / 14%);
 }
 
-.beego-call-stage__bar {
-  height: 100%;
-  width: 0;
-  background: #83e329;
-  border-radius: 20px;
+.beego-call-stage__close:disabled,
+.beego-call-stage__sound:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.beego-call-stage__close svg,
+.beego-call-stage__sound svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.beego-call-stage__sound svg .is-fill {
+  fill: currentColor;
+  stroke-width: 1.4;
+}
+
+.beego-call-stage__sound[aria-pressed="true"] {
+  color: #ffb4c4;
+  border-color: #ff8fa966;
+}
+
+.beego-call-stage__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.beego-call-stage__logo {
+  position: relative;
+  font-family: var(--font-heading, Nunito, sans-serif);
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+
+.beego-call-stage__logo > span {
+  color: #a98bff;
+}
+
+.beego-call-stage__logo svg {
+  position: absolute;
+  right: -5px;
+  top: -9px;
+  width: 20px;
+  height: 14px;
+  fill: #c9b8ff;
+  opacity: 0.9;
+}
+
+.beego-call-stage__brand small {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--call-cyan);
 }
 
 .beego-call-stage__meta {
-  top: 58px;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #f5f1ff;
-  pointer-events: none;
+  grid-area: meta;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
 }
 
 .beego-call-stage__topic {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 68%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
-.beego-call-stage__halo {
-  opacity: 0;
+.beego-call-stage__topic h2 {
+  margin: 0;
+  font-family: var(--font-heading, Nunito, sans-serif);
+  font-size: clamp(20px, 5.6vw, 25px);
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.beego-call-stage__level {
+  padding: 4px 14px;
+  border-radius: 999px;
+  border: 1px solid #3ee08f66;
+  background: #3ee08f1f;
+  color: #6ff0a8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.beego-call-stage__clock {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #d9d6ff;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.beego-call-stage__clock svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.beego-call-stage__robot {
+  grid-area: robot;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  container-type: size;
+}
+
+.beego-call-stage__ring {
   position: absolute;
-  bottom: 18%;
-  left: 18%;
-  width: 64%;
-  height: 42%;
+  top: 50%;
+  left: 50%;
+  width: min(100cqmin, 300px);
+  height: min(100cqmin, 300px);
+  transform: translate(-50%, -50%);
   border-radius: 50%;
-  box-shadow: 0 0 90px #38c9ff66;
-  pointer-events: none;
+  background:
+    radial-gradient(closest-side, #5ef0ff1c, #5ef0ff08 70%, transparent 100%);
 }
 
-.beego-call-stage__scene.is-listening .beego-call-stage__halo {
-  opacity: 1;
+.beego-call-stage__ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--call-cyan) calc(var(--progress, 1) * 360deg),
+    rgb(255 255 255 / 10%) 0
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  filter: drop-shadow(0 0 6px #5ef0ff99);
+}
+
+.beego-call-stage__ring::after {
+  content: "";
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  border: 1px solid #a98bff33;
+}
+
+.beego-call-stage__orb {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--call-cyan);
+  box-shadow: 0 0 10px var(--call-cyan);
+  animation: beego-call-float 3.6s ease-in-out infinite alternate;
+}
+
+.beego-call-stage__orb.is-a {
+  top: 18%;
+  left: calc(50% - min(44cqmin, 140px));
+}
+
+.beego-call-stage__orb.is-b {
+  bottom: 22%;
+  right: calc(50% - min(44cqmin, 140px));
+  background: #c9b8ff;
+  box-shadow: 0 0 10px #a98bff;
+  animation-delay: -1.8s;
 }
 
 .beego-call-character {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 100%;
-  height: 78%;
+  position: relative;
+  height: min(88cqh, 268px);
+  max-width: 92cqw;
   pointer-events: none;
+  overflow: visible;
+  animation: beego-call-float 4s ease-in-out infinite alternate;
+}
+
+.beego-call-character__head {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.beego-call-character__mouth-idle,
+.beego-call-character__mouth-talk {
+  transform-box: fill-box;
+  transform-origin: 50% 0;
 }
 
 .beego-call-character__mouth-talk {
   display: none;
-  transform-origin: 235px 352px;
 }
 
 .beego-call-character.is-talking .beego-call-character__mouth-talk {
@@ -1632,139 +1816,407 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-character__eyes {
-  transform-origin: 220px 260px;
+  transform-box: fill-box;
+  transform-origin: 50% 70%;
   animation: beego-call-blink 6s infinite;
 }
 
-.beego-call-stage__scene.is-thinking .beego-call-character,
-.beego-call-stage__scene.is-transcribing .beego-call-character {
-  animation: beego-call-sway 2s infinite alternate;
+.beego-call-character__ear,
+.beego-call-character__light {
+  transition: opacity 0.3s;
 }
 
-.beego-call-stage__caption {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 16px;
-  z-index: 2;
-  text-align: center;
-  pointer-events: none;
+.beego-call-character.is-listening .beego-call-character__ear {
+  animation: beego-call-pulse 1s ease-in-out infinite alternate;
 }
 
-.beego-call-stage__caption span {
-  display: inline-block;
-  max-width: 100%;
-  background: #19242dec;
-  padding: 12px 16px;
-  border-radius: 17px;
-  font-size: clamp(16px, 4.5vw, 20px);
-  line-height: 1.35;
+.beego-call-character.is-talking .beego-call-character__light {
+  animation: beego-call-pulse 0.36s ease-in-out infinite alternate;
+}
+
+.beego-call-character.is-thinking .beego-call-character__head {
+  animation: beego-call-sway 1.4s ease-in-out infinite alternate;
+}
+
+.beego-call-character.is-thinking .beego-call-character__eyes {
+  animation: beego-call-pulse 0.9s ease-in-out infinite alternate;
 }
 
 .beego-call-stage__status {
+  grid-area: status;
+  margin: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--call-line);
+  background: rgb(255 255 255 / 7%);
+  color: #ecebff;
+  font-size: 14px;
+  font-weight: 700;
   text-align: center;
-  font-size: 12px;
-  color: #a9bbc4;
-  margin: 10px 16px 8px;
-  min-height: 18px;
+}
+
+.beego-call-stage__status i {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #8c89b8;
+}
+
+.beego-call-stage__status.is-listening i,
+.beego-call-stage__status.is-ready i {
+  background: #3ee08f;
+  box-shadow: 0 0 0 4px #3ee08f2e;
+}
+
+.beego-call-stage__status.is-listening i {
+  animation: beego-call-pulse 0.9s ease-in-out infinite alternate;
+}
+
+.beego-call-stage__status.is-speaking i {
+  background: var(--call-cyan);
+  box-shadow: 0 0 0 4px #5ef0ff2e;
+}
+
+.beego-call-stage__status.is-thinking i,
+.beego-call-stage__status.is-transcribing i,
+.beego-call-stage__status.is-connecting i {
+  background: #ffc857;
+  animation: beego-call-pulse 0.7s ease-in-out infinite alternate;
+}
+
+.beego-call-stage__status.is-error i,
+.beego-call-stage__status.is-mic i {
+  background: #ff6b8a;
+}
+
+.beego-call-stage__wave {
+  grid-area: wave;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.beego-call-stage__wave i {
+  width: 3px;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #8ff6ff, var(--call-cyan-deep));
+  opacity: 0.35;
+  transform: scaleY(0.12);
+  transition: transform 0.3s, opacity 0.3s;
+}
+
+.beego-call-stage__wave.is-active i {
+  opacity: 1;
+  animation: beego-call-wave 0.9s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * -73ms);
+  box-shadow: 0 0 6px #5ef0ff80;
+}
+
+.beego-call-stage__wave.is-mic i {
+  background: linear-gradient(180deg, #a6ffcf, #3ee08f);
+  box-shadow: 0 0 6px #3ee08f80;
+}
+
+.beego-call-stage__caption {
+  grid-area: caption;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 18px;
+  border-radius: 20px;
+  border: 1px solid var(--call-line);
+  background: var(--call-card);
+  backdrop-filter: blur(8px);
+  text-align: center;
+}
+
+.beego-call-stage__caption small {
+  color: var(--call-cyan);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2px;
+}
+
+.beego-call-stage__caption span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.beego-call-stage__caption.is-off small {
+  color: var(--call-muted);
+}
+
+.beego-call-stage__caption.is-off span {
+  color: var(--call-muted);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .beego-call-stage__controls {
+  grid-area: controls;
+  width: 100%;
+  max-width: 360px;
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.beego-call-stage__side,
+.beego-call-stage__speak {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 0 16px 16px;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #d9d6ff;
+  cursor: pointer;
 }
 
 .beego-call-stage__side {
-  background: transparent;
-  color: #42c4f4;
-  border: 0;
-  width: 48px;
-  min-height: 48px;
-  font-size: 28px;
-  cursor: pointer;
+  min-width: 72px;
+  padding-top: 14px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.beego-call-stage__cc {
-  font-size: 16px;
-  font-weight: 800;
-  border-radius: 15px;
-  background: #2b414d;
-  color: #8ca4b0;
-}
-
-.beego-call-stage__cc[aria-pressed="true"] {
-  background: #40c1f0;
-  color: #102731;
-}
-
-.beego-call-stage__speak {
-  flex: 1;
-  min-height: 64px;
-  border: 0;
-  border-radius: 20px;
-  background: #3bbff0;
-  box-shadow: 0 6px 0 #2194c1;
+.beego-call-stage__tile {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  border: 1px solid var(--call-line);
+  background: rgb(255 255 255 / 8%);
   color: #fff;
-  font-size: clamp(14px, 4vw, 17px);
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
 }
 
-.beego-call-stage__speak svg {
+.beego-call-stage__side:hover:not(:disabled) .beego-call-stage__tile {
+  background: rgb(255 255 255 / 14%);
+}
+
+.beego-call-stage__tile svg {
   width: 24px;
   height: 24px;
-  fill: currentColor;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.beego-call-stage__speak.is-listening {
-  background: #ee6889;
-  box-shadow: 0 6px 0 #c64668;
+.beego-call-stage__tile b {
+  padding: 3px 6px;
+  border: 2px solid currentColor;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.beego-call-stage__speak:disabled,
+.beego-call-stage__cc[aria-pressed="true"] .beego-call-stage__tile {
+  color: var(--call-cyan);
+  border-color: #5ef0ff66;
+  background: #5ef0ff1a;
+}
+
 .beego-call-stage__side:disabled {
   opacity: 0.4;
   cursor: default;
 }
 
-.beego-call-stage button:focus-visible {
-  outline: 3px solid #fff;
-  outline-offset: 3px;
+.beego-call-stage__mic {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #a5fbff, var(--call-cyan) 45%, var(--call-cyan-deep));
+  color: var(--call-ink);
+  box-shadow:
+    0 0 0 8px #5ef0ff1f,
+    0 0 0 16px #5ef0ff0d,
+    0 10px 30px #19c6e666;
+  transition: transform 0.15s, box-shadow 0.2s;
 }
 
-.beego-call-stage__sheet,
-.beego-call-stage__summary {
-  position: absolute;
-  z-index: 5;
-  background: #17242bf5;
+.beego-call-stage__mic svg {
+  width: 34px;
+  height: 34px;
+  fill: currentColor;
+}
+
+.beego-call-stage__speak:hover:not(:disabled) .beego-call-stage__mic {
+  transform: scale(1.04);
+}
+
+.beego-call-stage__speak:active:not(:disabled) .beego-call-stage__mic {
+  transform: scale(0.96);
+}
+
+.beego-call-stage__speak.is-listening .beego-call-stage__mic {
+  background: radial-gradient(circle at 35% 30%, #c4ffe0, #3ee08f 50%, #1fae66);
+  animation: beego-call-ring 1.2s ease-out infinite;
+}
+
+.beego-call-stage__speak:disabled {
+  cursor: default;
+}
+
+.beego-call-stage__speak:disabled .beego-call-stage__mic {
+  background: #3a3866;
+  color: #8f8cbf;
+  box-shadow: none;
+}
+
+.beego-call-stage__speak-label {
+  margin-top: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.beego-call-stage__history {
+  grid-area: history;
+  width: 100%;
+  max-width: 420px;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border: 1px solid var(--call-line);
+  border-radius: 16px;
+  background: var(--call-card);
+  color: #ecebff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.beego-call-stage__history:hover {
+  background: rgb(255 255 255 / 10%);
+}
+
+.beego-call-stage__history span {
+  flex: 1;
+  text-align: left;
+}
+
+.beego-call-stage__history svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.beego-call-stage__history .beego-call-stage__chevron {
+  color: var(--call-muted);
 }
 
 .beego-call-stage__sheet {
-  left: 0;
-  right: 0;
-  bottom: 0;
-  top: 30%;
+  grid-row: 2 / 7;
+  grid-column: 1 / -1;
+  justify-self: stretch;
   z-index: 4;
-  background: #17242b;
-  box-shadow: 0 -12px 28px #0006;
-  border-radius: 22px 22px 0 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 10px 14px 12px;
+  overflow: hidden;
+  padding: 6px 14px 10px;
+  border-radius: 22px;
+  border: 1px solid var(--call-line);
+  background: #14123a;
+  box-shadow: 0 18px 40px #0009;
+  color: #fff;
 }
 
 .beego-call-stage__sheet[hidden] {
   display: none;
 }
 
+.beego-call-stage__sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.beego-call-stage__sheet-head button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 28px;
+  cursor: pointer;
+}
+
+.beego-call-stage__log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 0;
+}
+
+.beego-call-stage__msg {
+  max-width: 86%;
+  margin: 6px 0;
+  padding: 9px 13px;
+  border-radius: 16px 16px 16px 4px;
+  background: rgb(255 255 255 / 8%);
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.beego-call-stage__msg.is-user {
+  margin-left: auto;
+  border-radius: 16px 16px 4px 16px;
+  background: #19c6e633;
+}
+
+.beego-call-stage__msg.is-interim {
+  opacity: 0.65;
+  font-style: italic;
+}
+
+.beego-call-stage__msg small,
+.beego-call-stage__recap small {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--call-cyan);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
 .beego-call-stage__empty {
-  color: #a9bbc4;
+  color: var(--call-muted);
   font-size: 13px;
   text-align: center;
 }
@@ -1776,87 +2228,38 @@ body.page-lesson-player .page-content {
   padding: 0 14px;
   border: 0;
   border-radius: 999px;
-  background: #40c1f0;
-  color: #102731;
+  background: var(--call-cyan);
+  color: var(--call-ink);
   font-weight: 800;
   cursor: pointer;
 }
 
-.beego-call-stage__sheet-head,
 .beego-call-stage__summary {
-  display: flex;
-}
-
-.beego-call-stage__sheet-head {
-  justify-content: space-between;
-  align-items: center;
-}
-
-.beego-call-stage__sheet-head button,
-.beego-call-stage__summary {
-  background: transparent;
-  color: #fff;
-  border: 0;
-}
-
-.beego-call-stage__sheet-head button {
-  font-size: 28px;
-  min-width: 44px;
-  min-height: 44px;
-  cursor: pointer;
-}
-
-.beego-call-stage__log {
-  overflow: auto;
-  flex: 1;
-  min-height: 0;
-  padding: 8px 0;
-}
-
-.beego-call-stage__msg {
-  max-width: 87%;
-  padding: 12px 14px;
-  border-radius: 17px;
-  background: #32424d;
-  margin: 10px 0;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.beego-call-stage__msg.is-user {
-  margin-left: auto;
-  background: #166c84;
-}
-
-.beego-call-stage__msg.is-interim {
-  opacity: 0.75;
-}
-
-.beego-call-stage__msg small {
-  display: block;
-  color: #c1d2db;
-  font-size: 10px;
-  margin-bottom: 3px;
-}
-
-.beego-call-stage__summary {
+  position: absolute;
   inset: 0;
   z-index: 8;
+  color: #fff;
+  display: flex;
   flex-direction: column;
-  padding: 28px 20px;
+  padding: calc(28px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
   overflow: auto;
-  background: #16232b;
+  background:
+    radial-gradient(120% 50% at 50% 0%, #2b1f6e 0%, transparent 65%),
+    #0b0b2c;
 }
 
 .beego-call-stage__summary h1 {
-  font-family: var(--font-heading, Oswald, sans-serif);
-  font-size: clamp(22px, 6vw, 27px);
   margin: 8px 0;
+  font-family: var(--font-heading, Nunito, sans-serif);
+  font-size: clamp(22px, 6vw, 27px);
 }
 
 .beego-call-stage__kicker {
-  color: #60d2ff;
   margin: 0;
+  color: var(--call-cyan);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
 }
 
 .beego-call-stage__stats {
@@ -1867,33 +2270,19 @@ body.page-lesson-player .page-content {
 
 .beego-call-stage__stats div {
   flex: 1;
-  background: #273b45;
   padding: 14px;
-  border-radius: 15px;
+  border-radius: 16px;
+  border: 1px solid var(--call-line);
+  background: var(--call-card);
   font-size: 12px;
+  color: #d9d6ff;
 }
 
 .beego-call-stage__stats strong {
   display: block;
-  color: #5bd2ff;
-  font-size: 22px;
   margin-bottom: 6px;
-}
-
-.beego-call-stage__leave {
-  position: sticky;
-  bottom: 0;
-  flex-shrink: 0;
-  width: 100%;
-  margin-top: 16px;
-  min-height: 52px;
-  border: 0;
-  border-radius: 15px;
-  background: #3bbff0;
-  color: #122832;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: 0 -10px 18px #16232b;
+  color: var(--call-cyan);
+  font-size: 22px;
 }
 
 .beego-call-stage__note {
@@ -1908,8 +2297,8 @@ body.page-lesson-player .page-content {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px 12px;
+  color: #c4c1ec;
   font-size: 13px;
-  color: #c9d7de;
 }
 
 .beego-call-stage__recap {
@@ -1923,20 +2312,29 @@ body.page-lesson-player .page-content {
   margin: 6px 0;
   padding: 8px 12px;
   border-radius: 14px;
-  background: #2a3a44;
+  background: rgb(255 255 255 / 8%);
   overflow-wrap: anywhere;
 }
 
 .beego-call-stage__recap li.is-user {
   margin-left: auto;
-  background: #1d6d88;
+  background: #19c6e633;
 }
 
-.beego-call-stage__recap small {
-  display: block;
-  margin-bottom: 2px;
-  color: #a9bbc4;
-  font-size: 11px;
+.beego-call-stage__leave {
+  position: sticky;
+  bottom: 0;
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 52px;
+  margin-top: 16px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--call-cyan);
+  color: var(--call-ink);
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 -10px 18px #0b0b2c;
 }
 
 @keyframes beego-call-talk {
@@ -1958,102 +2356,232 @@ body.page-lesson-player .page-content {
 }
 
 @keyframes beego-call-sway {
+  from {
+    transform: rotate(-2deg);
+  }
   to {
-    transform: translateX(3px) rotate(0.6deg);
+    transform: rotate(2deg);
   }
 }
 
-@media (min-width: 600px) {
+@keyframes beego-call-float {
+  to {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes beego-call-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.35;
+  }
+}
+
+@keyframes beego-call-wave {
+  0% {
+    transform: scaleY(0.15);
+  }
+  50% {
+    transform: scaleY(var(--h, 0.6));
+  }
+  100% {
+    transform: scaleY(0.25);
+  }
+}
+
+@keyframes beego-call-ring {
+  0% {
+    box-shadow: 0 0 0 0 #3ee08f66, 0 10px 30px #3ee08f55;
+  }
+  100% {
+    box-shadow: 0 0 0 22px #3ee08f00, 0 10px 30px #3ee08f55;
+  }
+}
+
+@media (min-width: 600px) and (min-height: 600px) {
   .beego-call-stage__phone {
-    width: 440px;
-    height: min(940px, 100dvh);
-    border-radius: 26px;
-    box-shadow: 0 20px 80px #0008;
+    width: 460px;
+    height: min(100dvh, 920px);
+    border-radius: 32px;
+    border: 1px solid var(--call-line);
+    box-shadow: 0 30px 80px #000a;
   }
 }
 
 @media (max-width: 360px) {
-  .beego-call-stage__header {
+  .beego-call-stage__scene {
     gap: 8px;
-  }
-
-  .beego-call-stage__controls {
-    gap: 8px;
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-}
-
-@media (max-height: 640px) {
-  .beego-call-character {
-    height: 72%;
+    padding: 8px 12px 10px;
   }
 
   .beego-call-stage__caption span {
-    padding: 8px 12px;
     font-size: 16px;
   }
 
-  .beego-call-stage__status {
-    margin: 6px 12px 4px;
-  }
-
-  .beego-call-stage__controls {
-    padding-bottom: 10px;
-  }
-
-  .beego-call-stage__speak {
-    min-height: 54px;
+  .beego-call-stage__mic {
+    width: 74px;
+    height: 74px;
   }
 }
 
-@media (max-height: 520px) {
-  .beego-call-stage__header {
-    top: 6px;
+@media (max-height: 700px) {
+  .beego-call-stage__scene {
+    gap: 7px;
+    grid-template-rows: auto auto minmax(110px, 1fr) auto auto auto auto auto;
+  }
+
+  .beego-call-stage__topic {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   .beego-call-stage__meta {
-    top: 46px;
+    gap: 4px;
   }
 
-  .beego-call-character {
-    left: 15%;
-    width: 70%;
-    height: 82%;
-  }
-
-  .beego-call-stage__window,
-  .beego-call-stage__curtain {
-    display: none;
-  }
-
-  .beego-call-stage__speak {
-    min-height: 46px;
-  }
-
-  .beego-call-stage__side {
-    min-height: 44px;
+  .beego-call-stage__wave {
+    height: 22px;
   }
 
   .beego-call-stage__caption {
-    bottom: 6px;
+    padding: 10px 14px;
+  }
+
+  .beego-call-stage__caption span {
+    font-size: 16px;
+    -webkit-line-clamp: 2;
+  }
+
+  .beego-call-stage__side {
+    padding-top: 8px;
+  }
+
+  .beego-call-stage__tile {
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+  }
+
+  .beego-call-stage__mic {
+    width: 70px;
+    height: 70px;
+  }
+
+  .beego-call-stage__speak-label {
+    margin-top: 2px;
+  }
+
+  .beego-call-stage__history {
+    min-height: 44px;
+  }
+}
+
+@media (max-height: 600px) {
+  .beego-call-stage__wave {
+    display: none;
+  }
+
+  .beego-call-stage__brand small {
+    display: none;
+  }
+}
+
+@media (max-height: 520px) and (min-width: 560px) {
+  .beego-call-stage__scene {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      "header header"
+      "robot meta"
+      "robot caption"
+      "robot status"
+      "robot controls"
+      "robot history";
+    column-gap: 18px;
+    row-gap: 6px;
+    padding: 6px 16px 8px;
+  }
+
+  .beego-call-stage__header {
+    grid-template-columns: 40px 1fr 40px;
+  }
+
+  .beego-call-stage__close,
+  .beego-call-stage__sound {
+    width: 40px;
+    height: 40px;
+  }
+
+  .beego-call-stage__logo {
+    font-size: 21px;
+  }
+
+  .beego-call-stage__robot {
+    height: 100%;
+  }
+
+  .beego-call-stage__topic h2 {
+    font-size: 18px;
+  }
+
+  .beego-call-stage__caption {
+    align-self: center;
+    padding: 8px 12px;
+    gap: 3px;
   }
 
   .beego-call-stage__caption span {
     font-size: 15px;
-    padding: 6px 10px;
+    -webkit-line-clamp: 2;
+  }
+
+  .beego-call-stage__status {
+    padding: 4px 12px;
+    font-size: 13px;
+  }
+
+  .beego-call-stage__side {
+    padding-top: 4px;
+    gap: 4px;
+    font-size: 12px;
+  }
+
+  .beego-call-stage__tile {
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+  }
+
+  .beego-call-stage__mic {
+    width: 56px;
+    height: 56px;
+    box-shadow: 0 0 0 6px #5ef0ff1f, 0 6px 18px #19c6e666;
+  }
+
+  .beego-call-stage__mic svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .beego-call-stage__speak {
+    gap: 2px;
+  }
+
+  .beego-call-stage__speak-label {
+    font-size: 11px;
+  }
+
+  .beego-call-stage__history {
+    min-height: 40px;
+    font-size: 14px;
   }
 
   .beego-call-stage__sheet {
-    top: 64px;
-  }
-
-  .beego-call-stage__summary {
-    padding: 14px 18px;
-  }
-
-  .beego-call-stage__stats {
-    margin: 8px 0;
+    grid-row: 2 / 5;
+    grid-column: 2;
   }
 }
 
@@ -2061,8 +2589,18 @@ body.page-lesson-player .page-content {
   .beego-call-character,
   .beego-call-character__eyes,
   .beego-call-character.is-talking .beego-call-character__mouth-talk,
-  .beego-call-stage__halo {
+  .beego-call-character__head,
+  .beego-call-character__ear,
+  .beego-call-character__light,
+  .beego-call-stage__orb,
+  .beego-call-stage__status i,
+  .beego-call-stage__wave.is-active i,
+  .beego-call-stage__speak.is-listening .beego-call-stage__mic {
     animation: none;
+  }
+
+  .beego-call-stage__wave.is-active i {
+    transform: scaleY(var(--h, 0.5));
   }
 }
 
