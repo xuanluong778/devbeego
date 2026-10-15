@@ -46,7 +46,7 @@ assert.ok(!focus.words.includes("is") && !focus.words.some((w) => /[^a-z']/.test
 const ctx = { userId: "1", title: "Chào hỏi", ...learnCallContextFromLesson(lesson, { topicTitle: "Chào hỏi" }) };
 assert.equal(ctx.objective, "Hỏi tên một người");
 const prompt = learnCallTutorPrompt(ctx);
-for (const part of ["Chào hỏi", "Hỏi tên một người", "What is your name", "name", "level 1", "Difficulty: Easy", "exactly one simple question", "two simple choices", "Never ask the learner to read aloud", "Remember what the learner told you"]) {
+for (const part of ["Chào hỏi", "Hỏi tên một người", "What is your name", "name", "level 1", "Difficulty: Easy", "exactly one short, simple question", "two simple choices", "Never ask the learner to read aloud", "Remember what the learner told you"]) {
   assert.ok(prompt.includes(part), `prompt has ${part}`);
 }
 assert.equal(learnAiCallLevelOnePrompt(ctx), prompt, "gateway prompt is the tutor prompt");
@@ -86,6 +86,7 @@ assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1 }, "hard").inclu
 assert.ok(learnCallTurnDirective({ mode: "greet" }, "hard").includes("more than a one-word answer"));
 for (const key of LEARN_CALL_DIFFICULTY_KEYS) {
   assert.ok(learnCallTurnDirective({ mode: "closing" }, key).includes("Do not ask any question"), `${key} closing has no question`);
+  assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1 }, key).includes("Never ask them to say or repeat"), `${key} ask bans repeat-after-me`);
 }
 
 assert.deepEqual(LEARN_CALL_DIFFICULTY_KEYS.map((k) => LEARN_CALL_DIFFICULTIES[k].maxReplyTokens), [LEARN_CALL_MAX_REPLY_TOKENS, 160, 200]);
