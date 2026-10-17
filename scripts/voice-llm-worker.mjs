@@ -1,10 +1,12 @@
 /**
  * BullMQ worker: streams LLM tokens and publishes to Redis pubsub channel voice:chan:{sessionId}.
  * Jobs: { kind: "spec"|"final", sessionId, requestId, text, memory }
+ * Learn Call jobs also carry learn: { system, memory, directive }; only that prompt is used for them.
  */
 
 import { Worker } from "bullmq";
 import Redis from "ioredis";
+import { LEARN_CALL_MAX_REPLY_TOKENS, buildLearnCallMessages, learnCallMaxReplyTokens } from "../lib/beego/learn/learn-call-tutor.js";
 
 const REDIS_URL = String(process.env.REDIS_URL || "").trim();
 const OPENAI_KEY = String(process.env.OPENAI_API_KEY || "").trim();
@@ -108,7 +110,7 @@ async function quotaCheckAndSignal({ sessionId, requestId, userId, plan }) {
   return false;
 }
 
-async function streamOpenAIChat({ messages, onToken, signal }) {
+async function streamOpenAIChat({ messages, onToken, signal, maxTokens = 512 }) {
   if (!OPENAI_KEY) throw new Error("Missing OPENAI_API_KEY");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -120,7 +122,7 @@ async function streamOpenAIChat({ messages, onToken, signal }) {
       model: OPENAI_MODEL,
       stream: true,
       messages,
-      max_tokens: 512,
+      max_tokens: maxTokens,
     }),
     signal,
   });
@@ -158,7 +160,7 @@ function pubJson(sessionId, obj) {
 const worker = new Worker(
   process.env.VOICE_LLM_QUEUE || "voice-llm",
   async (job) => {
-    const { kind, sessionId, requestId, text, memory, skipSharedUsage } = job.data || {};
+    const { kind, sessionId, requestId, text, memory, skipSharedUsage, learn } = job.data || {};
     const rid = Number(requestId);
     const sid = String(sessionId || "").trim();
     const userText = String(text || "").trim();
@@ -170,7 +172,10 @@ const worker = new Worker(
       ? "You are a concise English tutor. The learner may still be speaking—reply in at most 2 short sentences."
       : "You are a friendly English tutor. Keep answers under 5 short sentences. Correct gently and ask one follow-up when natural.";
 
-    const messages = [{ role: "system", content: system }, ...mem, { role: "user", content: userText }];
+    const learnJob = !speculative && learn && typeof learn.system === "string" && learn.system.trim();
+    const messages = learnJob
+      ? buildLearnCallMessages({ system: learn.system, memory: learn.memory, directive: learn.directive })
+      : [{ role: "system", content: system }, ...mem, { role: "user", content: userText }];
 
     const ac = new AbortController();
     let acc = "";
@@ -193,6 +198,7 @@ const worker = new Worker(
     await streamOpenAIChat({
       messages,
       signal: ac.signal,
+      maxTokens: learnJob ? learnCallMaxReplyTokens(learn.maxTokens ?? LEARN_CALL_MAX_REPLY_TOKENS) : 512,
       onToken: async (tok) => {
         if (await isCancelled(sid, rid)) {
           ac.abort();
@@ -223,9 +229,11 @@ const worker = new Worker(
       redis.hincrby(keyUsageMonth(userId, ym), "llm_tokens_out", estOut).catch(() => {});
       redis.expire(keyUsageMonth(userId, ym), 60 * 60 * 24 * 40).catch(() => {});
     }
-    pubJson(sid, { type: "ai_done", requestId: rid, text: acc });
+    // learn: 1 tells the gateway this reply used the Learn prompt; an older worker omits it.
+    const marker = learnJob ? { learn: 1 } : {};
+    pubJson(sid, { type: "ai_done", requestId: rid, text: acc, ...marker });
     // Enqueue TTS in separate queue via Redis key (gateway will do in phase 1.5).
-    pubJson(sid, { type: "llm_done_for_tts", requestId: rid, text: acc });
+    pubJson(sid, { type: "llm_done_for_tts", requestId: rid, text: acc, ...marker });
   },
   {
     connection: new Redis(REDIS_URL, { maxRetriesPerRequest: null }),

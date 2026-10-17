@@ -11,6 +11,9 @@ import {
   learnAiCallSummary,
   learnAiCallWsUrl,
   learnCallEntryFromResponse,
+  listOpenGateCallTargets,
+  listSpeakingTabTopics,
+  pickGateCallTarget,
   LEARN_AI_CALL_TEST_PACKAGE_QUOTA,
   learnAiCallPackageAllowanceMs,
   resolveLearnCallClock,
@@ -85,7 +88,7 @@ assert(learnCallEntryFromResponse(503, { code: "SUBSCRIPTION_LOAD_FAILED" }).vie
 assert(learnCallEntryFromResponse(403, { code: "FEATURE_DISABLED" }).view === "hidden", "flag off hides the entry");
 
 const prompt = learnAiCallLevelOnePrompt({ title: "Greetings", objective: "Say hello" });
-assert(prompt.includes("Greetings") && prompt.includes("Say hello") && prompt.includes("level 1"), "lesson context is in the level 1 prompt");
+assert(prompt.includes("Greetings") && prompt.includes("Say hello") && prompt.includes("CONTEXT FROM THE SYSTEM"), "lesson context is in the tutor prompt");
 assert(learnAiCallWsUrl({ LEARN_AI_CALL_WS_URL: "https://beego.vn/voice" }) === "", "only websocket urls are accepted");
 assert(learnAiCallWsUrl({ LEARN_AI_CALL_WS_URL: "ws://127.0.0.1:3032" }) === "ws://127.0.0.1:3032", "preview websocket url is kept");
 
@@ -150,5 +153,41 @@ const settled = settleLearnCallPackage({ reservedMs: 20_000, elapsedMs: 5_000, u
 const againSettled = settleLearnCallPackage({ reservedMs: 20_000, elapsedMs: 5_000, usedMs: settled.usedMs, alreadySettled: true });
 assert(settled.consumedMs === 5_000 && againSettled.consumedMs === 0 && againSettled.usedMs === 5_000, "closing twice does not add usage twice");
 assert(learnCallEntryFromResponse(402, { code: "PACKAGE_QUOTA" }).view === "quota", "an empty package is not shown as an upgrade");
+
+const pathFixture = {
+  sections: [
+    {
+      sectionId: "s-locked",
+      topicTitle: "Locked",
+      nodes: [{ lessonId: "a", type: "vocabulary", status: "locked" }],
+    },
+    {
+      sectionId: "s-open",
+      topicTitle: "Greetings",
+      nodes: [
+        { lessonId: "b1", type: "vocabulary", status: "completed" },
+        { lessonId: "b2", type: "grammar", status: "active" },
+      ],
+    },
+    {
+      sectionId: "s-done",
+      sectionTitle: "Done topic",
+      nodes: [
+        { lessonId: "c1", type: "listening", status: "completed" },
+        { lessonId: "c2", type: "test", status: "completed" },
+      ],
+    },
+  ],
+};
+assert(pickGateCallTarget(pathFixture.sections[0]) === null, "a locked gate has no call target");
+assert(pickGateCallTarget(pathFixture.sections[1])?.lessonId === "b2", "open gate prefers the active ordinary lesson");
+const allTopics = listSpeakingTabTopics(pathFixture);
+assert(allTopics.length === 3, "speaking tab lists every Học topic with ordinary lessons");
+assert(allTopics[0].locked === true && allTopics[0].topicTitle === "Locked", "locked Học topic stays listed");
+assert(allTopics[1].locked === false && allTopics[1].lessonId === "b2", "open topic is selectable");
+assert(allTopics[2].locked === false && allTopics[2].lessonId === "c1" && allTopics[2].lessonType === "listening", "completed gate falls back to an ordinary lesson, not the test node");
+const listed = listOpenGateCallTargets(pathFixture);
+assert(listed.length === 2 && listed.every((item) => !item.locked), "open-only helper skips locked topics");
+assert(listSpeakingTabTopics(null).length === 0, "missing path yields no speaking-tab topics");
 
 console.log("PASS learn ai call access");

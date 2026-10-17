@@ -9,20 +9,30 @@ import {
   LEARN_AI_CALL_PURPOSE,
   decideLearnAiCallAccess,
   isOrdinaryLessonCall,
+  claimLearnCallOpenLock,
+  finalizeLearnCallSession,
   learnAiCallContextKey,
   learnAiCallEmailAllowed,
   learnAiCallGateOpen,
   learnAiCallEnabled,
   learnAiCallLevelOneHints,
   learnAiCallLevelOneLimits,
-  learnAiCallOpenUserKey,
   learnAiCallPackageAllowanceMs,
   learnAiCallSessionKey,
   learnAiCallWsUrl,
+  learnCallOpenLockTtlSeconds,
+  releaseLearnCallOpenLock,
   readLearnCallPackage,
   resolveUnlockedGateCall,
 } from "@/lib/beego/learn/ai-call-access";
 import { getLessonContentById } from "@/lib/beego/learn/get-lesson-content";
+import {
+  LEARN_CALL_DEFAULT_DIFFICULTY,
+  learnCallContextFromLesson,
+  learnCallDifficulty,
+  learnCallLearningNotes,
+} from "@/lib/beego/learn/learn-call-tutor";
+import { learnCallTeacher } from "@/lib/beego/learn/learn-call-teachers";
 import { getLearningPathForUser } from "@/lib/beego/learning-path-progress";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +99,8 @@ export async function POST(request) {
     }
 
     const body = await request.json().catch(() => ({}));
+    // Missing or unknown difficulty always falls back to Easy (A0); never reject the call for this.
+    const difficulty = learnCallDifficulty(body?.difficulty) || LEARN_CALL_DEFAULT_DIFFICULTY;
     const path = await getLearningPathForUser(userId);
     const gate = resolveUnlockedGateCall(path, {
       sectionId: body?.sectionId,
@@ -117,7 +129,8 @@ export async function POST(request) {
     }
 
     const plan = decision.plan;
-    const limits = { ...learnAiCallLevelOneLimits() };
+    const teacher = learnCallTeacher(body?.teacher);
+    const limits = { ...learnAiCallLevelOneLimits(difficulty), teacher: teacher.id, teacherName: teacher.name };
     if (learnAiCallPackageAllowanceMs(plan) != null) {
       try {
         const quote = await readLearnCallPackage(redis, { userId, plan });
@@ -144,9 +157,10 @@ export async function POST(request) {
         );
       }
     }
-    const openKey = learnAiCallOpenUserKey(userId);
-    const openSession = await redis.get(openKey);
-    if (openSession) {
+    const sessionId = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `${userId}-${Date.now()}`;
+    const lockTtl = learnCallOpenLockTtlSeconds(limits.maxMinutes);
+    const claim = await claimLearnCallOpenLock(redis, { userId, sessionId, ttlSeconds: lockTtl });
+    if (!claim.granted) {
       return NextResponse.json(
         {
           success: false,
@@ -156,10 +170,8 @@ export async function POST(request) {
         { status: 409, headers: { "Cache-Control": "no-store" } }
       );
     }
-    const sessionId = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `${userId}-${Date.now()}`;
     try {
-      await redis.set(openKey, sessionId, "EX", 150);
-      await redis.set(learnAiCallSessionKey(sessionId), String(userId), "EX", TOKEN_TTL_SECONDS);
+      await redis.set(learnAiCallSessionKey(sessionId), String(userId), "EX", lockTtl);
       await redis.set(
         learnAiCallContextKey(sessionId),
         JSON.stringify({
@@ -168,16 +180,20 @@ export async function POST(request) {
           sectionId: gate.sectionId,
           title: gate.topicTitle || lesson.title,
           objective: lesson.objective,
+          ...learnCallContextFromLesson(lesson, { topicTitle: gate.topicTitle, sectionId: gate.sectionId }),
+          learningNotes: learnCallLearningNotes(path, { sectionId: gate.sectionId }),
           level: limits.level,
+          difficulty,
+          teacher: teacher.id,
           maxMinutes: limits.maxMinutes,
         }),
         "EX",
-        TOKEN_TTL_SECONDS
+        60 * 60
       );
     } catch {
       try {
         await redis.del(learnAiCallSessionKey(sessionId));
-        if ((await redis.get(openKey)) === sessionId) await redis.del(openKey);
+        await releaseLearnCallOpenLock(redis, { userId, sessionId });
       } catch {
         /* ignore */
       }
@@ -233,8 +249,7 @@ export async function DELETE(request) {
     const sessionId = String(body?.sessionId || "");
     const redis = getVoiceRedis();
     if (redis && sessionId) {
-      const openKey = learnAiCallOpenUserKey(userId);
-      if ((await redis.get(openKey)) === sessionId) await redis.del(openKey);
+      await finalizeLearnCallSession(redis, { userId, sessionId });
     }
     return NextResponse.json(
       { success: true },

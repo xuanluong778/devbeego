@@ -4,6 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isOrdinaryLessonCall, learnCallEntryFromResponse } from "@/lib/beego/learn/ai-call-access";
+import {
+  LEARN_CALL_DEFAULT_DIFFICULTY,
+  LEARN_CALL_DIFFICULTIES,
+  LEARN_CALL_DIFFICULTY_KEYS,
+} from "@/lib/beego/learn/learn-call-tutor";
+import {
+  LEARN_CALL_DEFAULT_TEACHER,
+  LEARN_CALL_TEACHERS,
+  LEARN_CALL_TEACHER_KEYS,
+  learnCallTeacher,
+} from "@/lib/beego/learn/learn-call-teachers";
+import { LearnCallRobotFace } from "./LearnCallCharacter";
 
 function formatServerDuration(ms) {
   const n = Number(ms);
@@ -32,6 +44,9 @@ export default function LearnLessonCall({
   const [offer, setOffer] = useState(null);
   const [call, setCall] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [difficulty, setDifficulty] = useState(LEARN_CALL_DEFAULT_DIFFICULTY);
+  const [teacher, setTeacher] = useState(LEARN_CALL_DEFAULT_TEACHER);
+  const [startError, setStartError] = useState("");
   const autoCheckedRef = useRef(false);
 
   useEffect(() => {
@@ -72,6 +87,8 @@ export default function LearnLessonCall({
   const checkAccess = async () => {
     setBusy(true);
     setMessage("");
+    setStartError("");
+    setDifficulty(LEARN_CALL_DEFAULT_DIFFICULTY);
     try {
       const query = new URLSearchParams({ lessonId: resolvedLessonId || lessonId });
       if (sectionId) query.set("sectionId", sectionId);
@@ -107,15 +124,21 @@ export default function LearnLessonCall({
     if (busy || call) return;
     setBusy(true);
     setMessage("");
+    setStartError("");
     try {
       const res = await fetch("/api/learn/ai-call/session", {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ lessonId: resolvedLessonId || lessonId, sectionId }),
+        body: JSON.stringify({ lessonId: resolvedLessonId || lessonId, sectionId, difficulty, teacher }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.success) {
+        if (json?.code === "INVALID_DIFFICULTY") {
+          setDifficulty(LEARN_CALL_DEFAULT_DIFFICULTY);
+          setStartError(json.message || "Chọn mức độ Dễ, Vừa hoặc Khó trước khi bắt đầu.");
+          return;
+        }
         const next = learnCallEntryFromResponse(res.status, json);
         setMessage(json?.message || "");
         setView(next.view === "prepare" ? "retry" : next.view);
@@ -207,29 +230,98 @@ export default function LearnLessonCall({
       ) : null}
 
       {view === "prepare" ? (
-        <div className="beego-lesson-call__panel" role="region" aria-label="Chuẩn bị gọi AI">
-          <p>
-            <strong>Chủ đề:</strong> {offer?.title || "Bài học"}
-          </p>
-          <p>
-            <strong>Mục tiêu:</strong> {offer?.objective || "Ôn nội dung bài vừa học."}
-          </p>
-          <p>
-            <strong>{offer?.limits?.levelLabel || "Mức 1 — Làm quen"}</strong>
-            {" · "}tối đa {offer?.limits?.maxMinutes ?? 2} phút mỗi phiên
-            {offer?.limits?.targetTurns ? ` · ${offer.limits.targetTurns}` : ""}
-          </p>
-          {Number.isFinite(offer?.limits?.packageRemainingMs) ? (
+        <div className="beego-lesson-call__panel beego-lesson-call__panel--prepare" role="region" aria-label="Chuẩn bị gọi AI">
+          <div className="beego-lesson-call__prepare-main">
             <p>
-              {offer.limits.packageLabel || "Hạn mức gói"}: còn {formatServerDuration(offer.limits.packageRemainingMs)} theo server.
+              <strong>Chủ đề:</strong> {offer?.title || "Bài học"}
             </p>
-          ) : null}
-          <button type="button" onClick={start} disabled={busy}>
-            {busy ? "Đang mở phiên…" : "Bắt đầu"}
-          </button>
-          <button type="button" onClick={closePanel} disabled={busy}>
-            {returnLabel}
-          </button>
+            <p className="beego-lesson-call__objective">
+              <strong>Mục tiêu:</strong> {offer?.objective || "Ôn nội dung bài vừa học."}
+            </p>
+            <fieldset className="beego-lesson-call__teachers" disabled={busy}>
+              <legend>Chọn giáo viên</legend>
+              <div className="beego-lesson-call__teacher-row">
+                {LEARN_CALL_TEACHER_KEYS.map((key) => {
+                  const option = LEARN_CALL_TEACHERS[key];
+                  const selected = teacher === key;
+                  return (
+                    <label key={key} className={`beego-lesson-call__teacher${selected ? " is-selected" : ""}`}>
+                      <input
+                        type="radio"
+                        name="learn-call-teacher"
+                        value={key}
+                        checked={selected}
+                        onChange={() => setTeacher(key)}
+                      />
+                      <span className="beego-lesson-call__teacher-face">
+                        {option.image ? (
+                          <img src={option.image} alt="" width="64" height="64" loading="eager" decoding="async" />
+                        ) : (
+                          <LearnCallRobotFace />
+                        )}
+                      </span>
+                      <span className="beego-lesson-call__teacher-name">{option.shortName}</span>
+                      <span className="beego-lesson-call__teacher-voice">{option.voiceLabel}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+            <fieldset className="beego-lesson-call__levels" disabled={busy}>
+              <legend>Chọn mức độ</legend>
+              <div className="beego-lesson-call__level-row">
+                {LEARN_CALL_DIFFICULTY_KEYS.map((key) => {
+                  const option = LEARN_CALL_DIFFICULTIES[key];
+                  const selected = difficulty === key;
+                  return (
+                    <label key={key} className={`beego-lesson-call__level${selected ? " is-selected" : ""}`}>
+                      <input
+                        type="radio"
+                        name="learn-call-difficulty"
+                        value={key}
+                        checked={selected}
+                        onChange={() => setDifficulty(key)}
+                      />
+                      <span className="beego-lesson-call__level-name">{option.label}</span>
+                      <span className="beego-lesson-call__level-desc">{option.short}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="beego-lesson-call__level-note">{LEARN_CALL_DIFFICULTIES[difficulty].description}</p>
+            </fieldset>
+            <p className="beego-lesson-call__limits">
+              Tối đa {offer?.limits?.maxMinutes ?? 2} phút mỗi phiên
+              {offer?.limits?.targetTurns ? ` · ${offer.limits.targetTurns}` : ""}
+            </p>
+            {Number.isFinite(offer?.limits?.packageRemainingMs) ? (
+              <p>
+                {offer.limits.packageLabel || "Hạn mức gói"}: còn {formatServerDuration(offer.limits.packageRemainingMs)} theo server.
+              </p>
+            ) : null}
+            {startError ? (
+              <p className="beego-lesson-call__error" role="alert">
+                {startError}
+              </p>
+            ) : null}
+          </div>
+          <div className="beego-lesson-call__prepare-side">
+            <div className="beego-lesson-call__start-wrap">
+              <button
+                type="button"
+                className="beego-lesson-call__start"
+                onClick={start}
+                disabled={busy}
+                aria-label={`Bắt đầu cuộc gọi với ${LEARN_CALL_TEACHERS[teacher].name}, mức ${LEARN_CALL_DIFFICULTIES[difficulty].label}`}
+              >
+                <span className="beego-lesson-call__start-label">{busy ? "Đang mở…" : "Bắt đầu"}</span>
+                <span className="beego-lesson-call__start-level">Mức {LEARN_CALL_DIFFICULTIES[difficulty].label}</span>
+              </button>
+            </div>
+            <button type="button" className="beego-lesson-call__back" onClick={closePanel} disabled={busy}>
+              {returnLabel}
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -239,7 +331,8 @@ export default function LearnLessonCall({
           sessionId={call.sessionId}
           wsUrl={call.wsUrl}
           offer={offer}
-          hints={offer?.hints}
+          teacher={learnCallTeacher(offer?.limits?.teacher || teacher)}
+          returnLabel={returnLabel}
           onClose={() => {
             const sessionId = call?.sessionId;
             void releaseSession(sessionId);

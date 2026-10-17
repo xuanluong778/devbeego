@@ -110,12 +110,18 @@ function pubJson(sessionId, obj) {
   pub.publish(chan(sessionId), JSON.stringify(obj)).catch(() => {});
 }
 
-async function streamOpenAITtsPcm({ text, onChunk, signal }) {
+// Jobs without a known voice (old speaking, older gateways) keep the original voice.
+const TTS_VOICES = ["alloy", "nova", "onyx", "shimmer"];
+function ttsVoice(voice) {
+  return TTS_VOICES.includes(voice) ? voice : "alloy";
+}
+
+async function streamOpenAITtsPcm({ text, voice, onChunk, signal }) {
   if (!OPENAI_KEY) throw new Error("Missing OPENAI_API_KEY");
   const body = {
     model: "tts-1",
     input: String(text).slice(0, 4096),
-    voice: "alloy",
+    voice: ttsVoice(voice),
     response_format: "pcm",
     stream: true,
   };
@@ -139,13 +145,14 @@ async function streamOpenAITtsPcm({ text, onChunk, signal }) {
     if (done) break;
     if (!value?.length) continue;
     const u8 = value;
+    // Await each chunk so the caller's tts_end is published after the last tts_chunk.
     if (!firstSent && u8.length > 2048) {
-      onChunk(u8.subarray(0, 2048));
-      onChunk(u8.subarray(2048));
+      await onChunk(u8.subarray(0, 2048));
+      await onChunk(u8.subarray(2048));
       firstSent = true;
       continue;
     }
-    onChunk(u8);
+    await onChunk(u8);
     firstSent = true;
   }
 }
@@ -153,7 +160,7 @@ async function streamOpenAITtsPcm({ text, onChunk, signal }) {
 const worker = new Worker(
   process.env.VOICE_TTS_QUEUE || "voice-tts",
   async (job) => {
-    const { sessionId, requestId, text, skipSharedUsage } = job.data || {};
+    const { sessionId, requestId, text, skipSharedUsage, voice } = job.data || {};
     const rid = Number(requestId);
     const sid = String(sessionId || "").trim();
     const t = String(text || "").trim();
@@ -170,6 +177,7 @@ const worker = new Worker(
     const ac = new AbortController();
     await streamOpenAITtsPcm({
       text: t,
+      voice,
       signal: ac.signal,
       onChunk: async (chunkU8) => {
         if (await isCancelled(sid, rid)) {

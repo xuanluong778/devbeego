@@ -1,10 +1,10 @@
 /**
  * Preview-only package budget. Uses Redis holds, not production usage tables.
  */
-import fs from "node:fs";
 import jwt from "jsonwebtoken";
 import Redis from "ioredis";
 import WebSocket from "ws";
+import { loadLearnCallTestEnv } from "./learn-call-test-env.mjs";
 import {
   learnAiCallBudgetKey,
   learnAiCallClockKey,
@@ -17,19 +17,13 @@ import {
   learnAiCallUsageKey,
 } from "../lib/beego/learn/ai-call-access.js";
 
-const env = {};
-for (const line of fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8").split(/\n/)) {
-  const t = line.trim();
-  if (!t || t.startsWith("#") || !t.includes("=")) continue;
-  const i = t.indexOf("=");
-  if (!env[t.slice(0, i).trim()]) env[t.slice(0, i).trim()] = t.slice(i + 1).trim();
-}
+const env = loadLearnCallTestEnv();
 const userId = "900000001";
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const ymd = learnAiCallBudgetDay();
 
 function tokenFor(plan, sid) {
-  return jwt.sign({ sub: userId, plan, purpose: "learn_ai_call", sid }, env.VOICE_JWT_SECRET, { expiresIn: 120 });
+  return jwt.sign({ sub: userId, plan, purpose: "learn_ai_call", sid, learnAllow: 1 }, env.VOICE_JWT_SECRET, { expiresIn: 120 });
 }
 async function bind(sid, maxMinutes) {
   await redis.set(learnAiCallSessionKey(sid), userId, "EX", 120);
@@ -41,7 +35,7 @@ async function bind(sid, maxMinutes) {
   );
 }
 function open(plan, sid) {
-  const ws = new WebSocket(`ws://127.0.0.1:3032/?token=${encodeURIComponent(tokenFor(plan, sid))}&sessionId=${encodeURIComponent(sid)}`);
+  const ws = new WebSocket(`ws://127.0.0.1:${env.wsPort}/?token=${encodeURIComponent(tokenFor(plan, sid))}&sessionId=${encodeURIComponent(sid)}`);
   const messages = [];
   let closeCode = 0;
   ws.on("message", (data, isBinary) => {
@@ -135,7 +129,7 @@ const usedStill = Number(await redis.hget(learnAiCallBudgetKey(userId, ymd), "us
 
 const expiredId = `pkg-expired-${Date.now()}`;
 await bind(expiredId, 2);
-const expired = new WebSocket(`ws://127.0.0.1:3032/?token=${encodeURIComponent(tokenFor("expired", expiredId))}&sessionId=${encodeURIComponent(expiredId)}`);
+const expired = new WebSocket(`ws://127.0.0.1:${env.wsPort}/?token=${encodeURIComponent(tokenFor("expired", expiredId))}&sessionId=${encodeURIComponent(expiredId)}`);
 const expiredCode = await new Promise((resolve) => expired.once("close", (code) => resolve(code)));
 
 const keys = [
