@@ -102,8 +102,15 @@ const summary = learnAiCallSummary({
     { role: "assistant", content: "Hello before the cutoff", requestId: 1, playback: "interrupted" },
   ],
 });
-assert(summary.score === null, "summary has no score");
-assert(summary.pronunciation === "Chưa đánh giá" && summary.correctionNote === "Chưa đánh giá", "pronunciation is not graded");
+assert(summary.score === null, "summary has no score without Azure pronunciation turns");
+assert(summary.pronunciation === "Chưa đánh giá" && summary.correctionNote === "Chưa đánh giá", "pronunciation stays unevaluated without Azure scores");
+const graded = learnAiCallSummary({
+  startedAt: 1_000,
+  endedAt: 4_500,
+  memory: [{ role: "user", content: "My name is Lan.", requestId: 1, pronunciationScore: 82, accuracyScore: 80, fluencyScore: 84 }],
+});
+assert(graded.score === 82 && graded.pronunciation === "82/100", "Azure pronunciation score is surfaced");
+assert(/Azure Pronunciation Assessment/.test(graded.pronunciationNote || ""), "note explains Azure audio scoring");
 assert(summary.durationSeconds === 4, "duration comes from the session clock");
 assert(summary.learnerQuotes.length === 1 && summary.learnerQuotes[0] === "My name is Lan.", "learner evidence is quoted");
 assert(summary.playedTutorQuotes.length === 1 && summary.playedTutorQuotes[0].includes("Lan"), "only fully played tutor lines are listed");

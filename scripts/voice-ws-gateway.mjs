@@ -45,6 +45,11 @@ import {
 import { LEARN_TALK_FINAL_WAIT_MS, LEARN_TALK_SEGMENT_FLUSH_MS, createLearnUtterance } from "../lib/beego/learn/learn-call-talk.js";
 import { learnTranscriptSnapshot } from "../lib/beego/learn/learn-call-transcript.js";
 import { learnCallTeacher } from "../lib/beego/learn/learn-call-teachers.js";
+import {
+  assessLearnCallPcm,
+  createLearnPcmBuffer,
+  LEARN_CALL_PRON_TIMEOUT_MS,
+} from "../lib/beego/learn/learn-call-pronunciation.js";
 
 const require = createRequire(import.meta.url);
 const sdk = require("microsoft-cognitiveservices-speech-sdk");
@@ -447,6 +452,84 @@ function pushLearnTurn(sessionId, role, content, extra) {
   return pushTurn(sessionId, role, content, extra, LEARN_CALL_MEMORY_MAX_ENTRIES);
 }
 
+function trackLearnPronunciation(ws, promise) {
+  if (!ws || !promise) return;
+  const pending = Promise.resolve(promise).catch(() => null);
+  ws.learnPronPending = Promise.all([ws.learnPronPending || Promise.resolve(), pending]).then(() => null);
+  return pending;
+}
+
+async function waitLearnPronunciation(ws, timeoutMs = LEARN_CALL_PRON_TIMEOUT_MS) {
+  if (!ws?.learnPronPending) return;
+  await Promise.race([
+    ws.learnPronPending,
+    new Promise((resolve) => setTimeout(resolve, Math.max(500, Number(timeoutMs) || LEARN_CALL_PRON_TIMEOUT_MS))),
+  ]);
+}
+
+/** Attach Azure pronunciation scores onto the matching Learn Call user turn. */
+const MARK_PRONUNCIATION_LUA = `
+local items = redis.call('LRANGE', KEYS[1], 0, tonumber(ARGV[7]) - 1)
+for i, raw in ipairs(items) do
+  local ok, item = pcall(cjson.decode, raw)
+  if ok and type(item) == 'table' and item.role == 'user' and tonumber(item.requestId) == tonumber(ARGV[1]) then
+    item.pronunciationScore = tonumber(ARGV[2])
+    if ARGV[3] ~= '' then item.accuracyScore = tonumber(ARGV[3]) end
+    if ARGV[4] ~= '' then item.fluencyScore = tonumber(ARGV[4]) end
+    if ARGV[5] ~= '' then item.completenessScore = tonumber(ARGV[5]) end
+    if ARGV[6] ~= '' then item.prosodyScore = tonumber(ARGV[6]) end
+    item.pronunciationSource = 'azure'
+    redis.call('LSET', KEYS[1], i - 1, cjson.encode(item))
+    return 1
+  end
+end
+return 0`;
+
+async function markLearnPronunciation(sessionId, requestId, scores) {
+  const rid = normalizeRequestId(requestId);
+  const pronunciationScore = Number(scores?.pronunciationScore);
+  if (!rid || !Number.isFinite(pronunciationScore)) return false;
+  const changed = await redis.eval(
+    MARK_PRONUNCIATION_LUA,
+    1,
+    kMem(sessionId),
+    String(rid),
+    String(Math.round(pronunciationScore)),
+    scores?.accuracyScore != null ? String(Math.round(Number(scores.accuracyScore))) : "",
+    scores?.fluencyScore != null ? String(Math.round(Number(scores.fluencyScore))) : "",
+    scores?.completenessScore != null ? String(Math.round(Number(scores.completenessScore))) : "",
+    scores?.prosodyScore != null ? String(Math.round(Number(scores.prosodyScore))) : "",
+    String(LEARN_CALL_MEMORY_MAX_ENTRIES)
+  );
+  return Number(changed) === 1;
+}
+
+function scoreLearnUtterancePronunciation(ws, { sessionId, requestId, text, pcmBuffer }) {
+  if (!ws?.learnPrompt || !USE_AZURE) return Promise.resolve(null);
+  const reference = String(text || "").trim();
+  if (!reference || !pcmBuffer?.byteLength) return Promise.resolve(null);
+  const job = assessLearnCallPcm({
+    sdk,
+    speechKey: AZURE_KEY,
+    speechRegion: AZURE_REGION,
+    pcmBuffer,
+    referenceText: reference,
+  }).then(async (scores) => {
+    if (!scores) return null;
+    await markLearnPronunciation(sessionId, requestId, scores);
+    safeSend(ws, {
+      type: "pronunciation_score",
+      requestId,
+      pronunciationScore: scores.pronunciationScore,
+      accuracyScore: scores.accuracyScore,
+      fluencyScore: scores.fluencyScore,
+      completenessScore: scores.completenessScore,
+    });
+    return scores;
+  });
+  return trackLearnPronunciation(ws, job);
+}
+
 // Atomic so concurrent acks and memory pushes cannot duplicate or drop entries.
 const MARK_PLAYBACK_LUA = `
 local items = redis.call('LRANGE', KEYS[1], 0, tonumber(ARGV[3]) - 1)
@@ -569,6 +652,7 @@ function learnHintsForReply(ws, text) {
 async function emitLearnSummary(ws, reason) {
   if (!ws?.learnPrompt || ws.summarySent) return null;
   ws.summarySent = true;
+  await waitLearnPronunciation(ws, LEARN_CALL_PRON_TIMEOUT_MS);
   const startedRaw = await redis.hget(kSess(ws.sessionId), "connectedAt");
   const memory = await getLearnMemory(ws.sessionId);
   const summary = learnAiCallSummary({
@@ -645,6 +729,10 @@ function appendPreRoll(ws, data) {
 function handleBinary(ws, data) {
   const s = ws.session;
   if (!s?.active) return;
+  if (ws.learnPrompt) {
+    if (!ws.learnPcm) ws.learnPcm = createLearnPcmBuffer();
+    ws.learnPcm.append(data);
+  }
   // Usage tracking (Phase 2): approximate audio ms from raw PCM bytes.
   try {
     const len = Buffer.isBuffer(data) ? data.length : data.byteLength;
@@ -1276,6 +1364,10 @@ wss.on("connection", async (ws, req) => {
       if (!okQuota) return;
 
       ws.currentRequestId = rid;
+      if (ws.learnPrompt) {
+        ws.learnPcm = createLearnPcmBuffer();
+        ws.learnUtterance = createLearnUtterance(rid);
+      }
       await redis.hset(kSess(sessionId), { currentRequestId: String(rid) });
       await setCancelled(sessionId, rid); // cancel any previous request keys quickly
       await redis.del(kCancel(sessionId, rid)); // clear cancel for this rid (fresh)
@@ -1308,10 +1400,20 @@ wss.on("connection", async (ws, req) => {
           ws.learnUtterance = utterance;
           const result = utterance.finish();
           if (result.duplicate) return;
+          const pcmSnapshot = ws.learnPcm?.toBuffer?.() || Buffer.alloc(0);
+          ws.learnPcm?.clear?.();
           safeSend(ws, { type: "final_transcript", requestId: rid, text: result.text });
           if (!result.text) return;
           pushLearnTurn(sessionId, "user", result.text, { requestId: rid })
-            .then(() => getLearnMemory(sessionId))
+            .then(() => {
+              scoreLearnUtterancePronunciation(ws, {
+                sessionId,
+                requestId: rid,
+                text: result.text,
+                pcmBuffer: pcmSnapshot,
+              });
+              return getLearnMemory(sessionId);
+            })
             .then((memory) => queueLearnTutorTurn(ws, { sessionId, requestId: rid, text: result.text, memory }))
             .catch(() => {});
         };

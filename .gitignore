@@ -8,9 +8,14 @@ out/
 .cache/
 *.zip
 
-# local environment
+# local environment / secrets (never commit)
+.env
+.env.docker
 .env.local
 .env.*.local
+
+# large DB dumps kept on the VPS only
+docker/db-full/
 
 # database backups & dumps (local only)
 .backups/

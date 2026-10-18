@@ -978,7 +978,19 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
               <li>Hủy trước khi phát: {tutorCount("cancelled")}</li>
               <li>Chưa xác nhận: {tutorCount("pending")}</li>
             </ul>
-            <p>Phát âm: {serverSummary?.pronunciation || "Chưa đánh giá"}</p>
+            <p>
+              Phát âm:{" "}
+              <strong>{serverSummary?.pronunciation || "Chưa đánh giá"}</strong>
+              {Number.isFinite(Number(serverSummary?.accuracyScore)) ? (
+                <span className="beego-call-stage__note">
+                  {" "}
+                  · chính xác {Math.round(Number(serverSummary.accuracyScore))}
+                  {Number.isFinite(Number(serverSummary?.fluencyScore))
+                    ? ` · trôi chảy ${Math.round(Number(serverSummary.fluencyScore))}`
+                    : ""}
+                </span>
+              ) : null}
+            </p>
             {serverSummary?.pronunciationNote ? <p className="beego-call-stage__note">{serverSummary.pronunciationNote}</p> : null}
             {Number.isFinite(Number(packageLeft)) ? <p>Còn lại theo gói, từ server: {Math.max(0, Math.round(Number(packageLeft) / 1000))} giây</p> : null}
             {summaryTurns.length ? (

@@ -1,0 +1,14 @@
+node_modules
+.next
+.next-*
+.git
+android
+docs
+*.md
+*.txt
+*.html
+beego-db-full-*.zip
+docker/db-full
+downloads
+.tmp
+.cache

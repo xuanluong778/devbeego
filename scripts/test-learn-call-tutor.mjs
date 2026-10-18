@@ -389,6 +389,7 @@ assert.deepEqual(summary.tutorPlayback, { complete: 3, interrupted: 1, cancelled
 assert.equal(summary.closed, true);
 assert.equal(summary.transcript.length, fullSession.length);
 assert.equal(summary.pronunciation, "Chưa đánh giá");
+assert.match(String(summary.pronunciationNote || ""), /Chưa có điểm phát âm Azure|Azure Pronunciation Assessment/);
 assert.equal(summary.score, null);
 assert.equal(summary.practiced, true);
 const silent = learnAiCallSummary({ memory: [tutor(1, "Hello! What is your name?", "complete")], startedAt: 0, endedAt: 30_000, deadlineAt: 120_000 });

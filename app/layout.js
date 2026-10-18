@@ -36,6 +36,10 @@ export const metadata = {
     title: "Beego",
     statusBarStyle: "default",
   },
+  // Chrome/Android: prefer mobile-web-app-capable (apple-* is deprecated in Chromium)
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
   icons: {
     icon: [
       { url: "/icons/beego-192.png", sizes: "192x192", type: "image/png" },

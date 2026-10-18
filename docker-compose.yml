@@ -1,0 +1,207 @@
+name: beego
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: beego-mysql
+    restart: unless-stopped
+    command: ["mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--bind-address=0.0.0.0"]
+    env_file: .env.docker
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: beego_vn
+      MYSQL_USER: beego_app
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - beego_mysql_data:/var/lib/mysql
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    networks: [beego_net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: beego-redis
+    restart: unless-stopped
+    command: ["redis-server", "--bind", "0.0.0.0", "--protected-mode", "no", "--appendonly", "yes"]
+    volumes:
+      - beego_redis_data:/data
+    ports:
+      - "127.0.0.1:6399:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [beego_net]
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: https://dev.beego.vn
+        NEXT_PUBLIC_VOICE_WS_URL: wss://dev.beego.vn/voice
+        LEARN_AI_CALL_WS_URL: wss://dev.beego.vn/voice-learn
+    image: beego-app:latest
+    container_name: beego-web
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      DB_HOST: mysql
+      REDIS_URL: redis://redis:6379
+      VOICE_WS_PORT: "3031"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3025:3025"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3025/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    networks: [beego_net]
+
+  voice-gateway:
+    image: beego-app:latest
+    container_name: beego-voice-gateway
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      DB_HOST: mysql
+      REDIS_URL: redis://redis:6379
+      VOICE_WS_PORT: "3031"
+      VOICE_WS_HOST: "0.0.0.0"
+      NODE_ENV: production
+    command: ["node", "scripts/voice-ws-gateway.mjs"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      web: { condition: service_started }
+    ports:
+      - "127.0.0.1:3031:3031"
+    networks: [beego_net]
+
+  voice-llm:
+    image: beego-app:latest
+    container_name: beego-voice-llm
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      DB_HOST: mysql
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+    command: ["node", "scripts/voice-llm-worker.mjs"]
+    depends_on:
+      redis: { condition: service_healthy }
+      web: { condition: service_started }
+    networks: [beego_net]
+
+  voice-tts:
+    image: beego-app:latest
+    container_name: beego-voice-tts
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      DB_HOST: mysql
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+    command: ["node", "scripts/voice-tts-worker.mjs"]
+    depends_on:
+      redis: { condition: service_healthy }
+      web: { condition: service_started }
+    networks: [beego_net]
+
+  voice-usage:
+    image: beego-app:latest
+    container_name: beego-voice-usage
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      DB_HOST: mysql
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+    command: ["node", "scripts/voice-usage-worker.mjs"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      web: { condition: service_started }
+    networks: [beego_net]
+
+  voice-gateway-learn:
+    image: beego-app:latest
+    container_name: beego-voice-gateway-learn
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      DB_HOST: mysql
+      REDIS_URL: redis://redis:6379
+      VOICE_WS_PORT: "3033"
+      VOICE_WS_HOST: "0.0.0.0"
+      VOICE_LLM_QUEUE: voice-llm-learn
+      VOICE_TTS_QUEUE: voice-tts-learn
+      VOICE_USAGE_QUEUE: voice-usage-learn
+      LEARN_AI_CALL_RUNTIME_GATE: "1"
+      NODE_ENV: production
+    command: ["node", "scripts/voice-ws-gateway.mjs"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      web: { condition: service_started }
+    ports:
+      - "127.0.0.1:3033:3033"
+    networks: [beego_net]
+
+  voice-llm-learn:
+    image: beego-app:latest
+    container_name: beego-voice-llm-learn
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      DB_HOST: mysql
+      REDIS_URL: redis://redis:6379
+      VOICE_LLM_QUEUE: voice-llm-learn
+      VOICE_TTS_QUEUE: voice-tts-learn
+      VOICE_USAGE_QUEUE: voice-usage-learn
+      NODE_ENV: production
+    command: ["node", "scripts/voice-llm-worker.mjs"]
+    depends_on:
+      redis: { condition: service_healthy }
+      voice-gateway-learn: { condition: service_started }
+    networks: [beego_net]
+
+  voice-tts-learn:
+    image: beego-app:latest
+    container_name: beego-voice-tts-learn
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      DB_HOST: mysql
+      REDIS_URL: redis://redis:6379
+      VOICE_LLM_QUEUE: voice-llm-learn
+      VOICE_TTS_QUEUE: voice-tts-learn
+      VOICE_USAGE_QUEUE: voice-usage-learn
+      NODE_ENV: production
+    command: ["node", "scripts/voice-tts-worker.mjs"]
+    depends_on:
+      redis: { condition: service_healthy }
+      voice-gateway-learn: { condition: service_started }
+    networks: [beego_net]
+
+networks:
+  beego_net:
+    name: beego_net
+
+volumes:
+  beego_mysql_data:
+  beego_redis_data:
