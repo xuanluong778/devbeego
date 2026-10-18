@@ -277,7 +277,11 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           correctRef.current += 1;
           setCorrectCount(correctRef.current);
         } else if (lives > 0) {
-          setLives((l) => l - 1);
+          // Mic/nhận dạng lỗi không tính là sai kiến thức (không trừ tim khi là speaking/pronunciation)
+          const isSpeech = question?.type === "speaking" || question?.type === "pronunciation";
+          if (!isSpeech) {
+            setLives((l) => l - 1);
+          }
         }
         const activity = Number(question?.extensions?.activity);
         if (activity) evidenceAttemptsRef.current.push({ activity, correct: ok });
@@ -468,6 +472,24 @@ export default function LessonPlayer({ lessonId, replay = false }) {
       <LessonTopBar progress={progress} lives={lives} onExit={handleExit} />
 
       <main className="beego-lesson-player__main">
+        {lesson.versionNotice ? (
+          <div
+            role="status"
+            className="beego-lesson-version-notice"
+            style={{
+              background: "#eff6ff",
+              color: "#1e40af",
+              border: "1px solid #bfdbfe",
+              padding: "10px 14px",
+              borderRadius: "10px",
+              marginBottom: "16px",
+              fontSize: "13px",
+              lineHeight: "1.4",
+            }}
+          >
+            💡 {lesson.versionNotice}
+          </div>
+        ) : null}
         {lesson.masteryRubric ? <LessonAim rubric={lesson.masteryRubric} /> : null}
         <ExerciseRenderer
           key={question?.id || index}

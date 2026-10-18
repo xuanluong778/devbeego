@@ -93,6 +93,20 @@ export async function POST(request) {
     if (code === "LESSON_LOCKED" || code === "REQUIRED_QUESTIONS_SKIPPED") {
       return NextResponse.json({ success: false, message: error.message, code }, { status: 403 });
     }
+    if (code === "GATE_TEST_FAILED") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: error.message,
+          code,
+          score: error.score,
+          required_score: error.requiredScore,
+          remediation_lesson_id: error.remediationLessonId,
+          unmet_competencies: error.unmetCompetencies || [],
+        },
+        { status: 422 }
+      );
+    }
     const detail =
       process.env.NODE_ENV === "development" && error instanceof Error ? ` ${error.message}` : "";
     return NextResponse.json(

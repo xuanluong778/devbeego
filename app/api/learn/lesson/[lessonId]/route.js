@@ -94,10 +94,23 @@ export async function GET(request, { params }) {
         );
         const answeredQuestionIds = rows.map((row) => String(row.question_id));
         const correctCount = rows.filter((row) => Number(row.is_correct) === 1).length;
+        const isCompleted = String(progress[0]?.status || "") === "completed";
+        let versionNotice = null;
+        if (!isCompleted && rows.length === 0 && contentRevision) {
+          const [older] = await pool.query(
+            `SELECT COUNT(*) AS c FROM user_learn_exercise_attempts
+             WHERE user_id = ? AND lesson_id = ? AND (content_revision IS NULL OR content_revision != ?)`,
+            [user.id, lessonId, contentRevision]
+          );
+          if (Number(older[0]?.c || 0) > 0) {
+            versionNotice = "Bài học đã được nâng cấp lên phiên bản mới ngắn gọn và sư phạm hơn. Bạn bắt đầu làm quen với bộ câu hỏi cải tiến nhé!";
+          }
+        }
         data = {
           ...data,
+          versionNotice: versionNotice || data.versionNotice || null,
           resume: {
-            completed: String(progress[0]?.status || "") === "completed",
+            completed: isCompleted,
             answeredQuestionIds,
             correctCount,
             startIndex: resumeStartIndex(data.questions, answeredQuestionIds),
