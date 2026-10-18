@@ -1,12 +1,23 @@
 "use client";
 
+import { useMemo } from "react";
+import { nextCorrectPraise } from "@/lib/beego/learn/praise-messages";
+
 export default function LessonFeedbackBar({
   correct,
   correctAnswerText,
   explanation,
   onContinue,
   continueDisabled = false,
+  praiseSeed,
 }) {
+  const praise = useMemo(
+    () => (correct ? nextCorrectPraise(praiseSeed) : ""),
+    // Recompute only when a new correct result appears.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [correct, praiseSeed, correctAnswerText]
+  );
+
   return (
     <footer
       className={`beego-lesson-feedback${correct ? " beego-lesson-feedback--correct" : " beego-lesson-feedback--wrong"}`}
@@ -18,7 +29,7 @@ export default function LessonFeedbackBar({
             <span className="beego-lesson-feedback__icon" aria-hidden>
               ✓
             </span>
-            <strong>Giỏi quá!</strong>
+            <strong className="beego-lesson-feedback__praise">{praise || "Giỏi quá!"}</strong>
           </>
         ) : (
           <>
@@ -27,6 +38,7 @@ export default function LessonFeedbackBar({
               Đáp án đúng: <span>{correctAnswerText}</span>
             </p>
             {explanation ? <small>{explanation}</small> : null}
+            <small className="beego-lesson-feedback__encourage">Không sao — sửa ngay sẽ nhớ lâu hơn.</small>
           </>
         )}
       </div>

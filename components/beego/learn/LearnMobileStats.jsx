@@ -11,12 +11,16 @@ export default function LearnMobileStats({
   dailyGoalXp = 30,
   dailyGoalPct = 0,
   dailyGoalCompleted = false,
+  celebrate = false,
   loading,
 }) {
   const pct = Math.max(0, Math.min(100, Number(dailyGoalPct) || 0));
 
   return (
-    <div className="beego-learn-mobile-stats" aria-label="Mục tiêu học hôm nay">
+    <div
+      className={`beego-learn-mobile-stats${celebrate || dailyGoalCompleted ? " beego-learn-mobile-stats--celebrate" : ""}`}
+      aria-label="Mục tiêu học hôm nay"
+    >
       <div className="beego-learn-mobile-stats__item beego-learn-mobile-stats__item--streak">
         <span className="beego-learn-mobile-stats__icon" aria-hidden>
           🔥

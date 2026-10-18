@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import styles from "./LessonAiConversation.module.css";
+import { nextCorrectPraise } from "@/lib/beego/learn/praise-messages";
 
 /**
  * @param {object} props
@@ -42,6 +44,10 @@ export default function LessonCompleteScreen({
   onAiPractice,
 }) {
   const title = lesson?.title || "Bài học Beego";
+  const celebrateLine = useMemo(
+    () => (celebrate && !replay && !saving ? nextCorrectPraise(correctCount + total) : ""),
+    [celebrate, replay, saving, correctCount, total]
+  );
 
   return (
     <div className={`beego-lesson-complete${celebrate ? " beego-lesson-complete--celebrate" : ""}`}>
@@ -50,6 +56,7 @@ export default function LessonCompleteScreen({
           🐝
         </span>
         <h1>{saving ? "Đang lưu tiến độ…" : replay ? "Đã học lại bài này" : "Hoàn thành bài học!"}</h1>
+        {celebrateLine ? <p className="beego-lesson-complete__praise">{celebrateLine}</p> : null}
         <p className="beego-lesson-complete__title">{title}</p>
         <ul className="beego-lesson-complete__stats">
           <li>

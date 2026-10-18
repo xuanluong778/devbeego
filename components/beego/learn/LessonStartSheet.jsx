@@ -40,6 +40,44 @@ function SheetCta({ node, onClose }) {
   );
 }
 
+const INTEGRATED_SKILL_CHIPS = [
+  "Nghe chọn hình",
+  "Chọn nghĩa",
+  "Ghép từ",
+  "Sắp xếp câu",
+  "Nghe điền",
+  "Dịch",
+  "Hội thoại",
+  "Đọc thành tiếng",
+];
+
+const TYPE_SKILL_CHIPS = {
+  vocabulary: ["Từ vựng", "Chọn nghĩa"],
+  grammar: ["Ngữ pháp", "Điền ngữ cảnh"],
+  sentence_patterns: ["Mẫu câu", "Sắp xếp câu"],
+  listening: ["Nghe hiểu", "Nghe điền"],
+  speaking: ["Phát âm", "Đọc thành tiếng"],
+  story: ["Đọc hiểu", "Từ trong chuyện"],
+  review: ["Ôn tập", "Củng cố"],
+  test: ["Kiểm tra", "Tổng hợp"],
+};
+
+function SheetSkillChips({ node }) {
+  const chips = node.integratedLesson
+    ? INTEGRATED_SKILL_CHIPS
+    : TYPE_SKILL_CHIPS[getNodeType(node)] || ["Bài học"];
+
+  return (
+    <ul className="beego-learn-sheet__chips" aria-label="Kỹ năng trong bài">
+      {chips.map((label) => (
+        <li key={label} className="beego-learn-sheet__chip">
+          {label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function SheetBody({ node, sheetKind }) {
   if (!node) return null;
 
@@ -79,11 +117,7 @@ function SheetBody({ node, sheetKind }) {
         {node.title}
       </h3>
       {node.subtitle ? <p className="beego-learn-sheet__sub">{node.subtitle}</p> : null}
-      {node.integratedLesson ? (
-        <p className="beego-learn-sheet__sub">
-          Có nghe chọn hình, chọn nghĩa, ghép từ, ghép âm thanh, sắp xếp câu, nghe điền, nhập lại, dịch hai chiều, điền ngữ cảnh, hội thoại, đọc thành tiếng và một đoạn đọc hiểu.
-        </p>
-      ) : null}
+      <SheetSkillChips node={node} />
       {node.goal ? <p className="beego-learn-sheet__goal">{node.goal}</p> : null}
       <SheetMeta node={node} />
       {node.status === "completed" ? (

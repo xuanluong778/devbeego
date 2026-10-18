@@ -24,6 +24,7 @@ import { stopLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
 import { playLessonSfx, stopLessonSfx } from "@/lib/beego/learn/lesson-sfx";
 import { assessP1MasteryEvidence } from "@/lib/beego/learn/p1-g1-plan";
 import { gradeListenDictation } from "@/lib/beego/learn/listen-dictation";
+import { pickLoadingTip } from "@/lib/beego/learn/praise-messages";
 
 function masteryEvidenceForSession(lesson, attempts) {
   const rubric = lesson?.masteryRubric;
@@ -405,9 +406,14 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   }, [phase, lesson]);
 
   if (loadState === "loading") {
+    const tip = pickLoadingTip(String(lessonId || "").length);
     return (
-      <div className="beego-lesson-player beego-lesson-player--loading">
-        <p className="beego-lesson-complete__msg">Đang tải bài học…</p>
+      <div className="beego-lesson-player beego-lesson-player--loading" aria-busy="true">
+        <span className="beego-lesson-loading__bee" aria-hidden>
+          🐝
+        </span>
+        <p className="beego-lesson-loading__title">Đang tải bài học…</p>
+        {tip ? <p className="beego-lesson-loading__tip">{tip}</p> : null}
       </div>
     );
   }
@@ -493,6 +499,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           explanation={reveal?.explanation}
           onContinue={handleContinue}
           continueDisabled={checking}
+          praiseSeed={`${question?.id || index}-${correctCount}`}
         />
       ) : (
         <LessonBottomBar

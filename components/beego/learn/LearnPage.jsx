@@ -21,6 +21,7 @@ import PlacementBanner from "./PlacementBanner";
 import TodayForYouCard from "./TodayForYouCard";
 import ProgressInsightsCard from "./ProgressInsightsCard";
 import AchievementsCard from "./AchievementsCard";
+import LearnContinueDock from "./LearnContinueDock";
 import InstallAppOffer from "@/components/beego/InstallAppOffer";
 import { LEARNING_PATH_UPDATED_EVENT } from "@/lib/beego/learn/complete-lesson-client";
 import LessonAiConversation from "@/components/beego/lesson-player/LessonAiConversation";
@@ -114,7 +115,7 @@ export default function LearnPage() {
     seenCompletedRef.current = new Set(ids);
     if (!fresh) return;
     setJustCompletedId(fresh);
-    const timer = window.setTimeout(() => setJustCompletedId(""), 700);
+    const timer = window.setTimeout(() => setJustCompletedId(""), 2200);
     return () => window.clearTimeout(timer);
   }, [pathData]);
 
@@ -306,7 +307,7 @@ export default function LearnPage() {
   const dailyGoalCompleted = Boolean(dash?.daily_goal_completed);
 
   return (
-    <div className="beego-learn" ref={learnRootRef}>
+    <div className="beego-learn beego-learn--has-continue-dock" ref={learnRootRef}>
       <LearnHeader
         ref={headerRef}
         section={activeSection}
@@ -347,8 +348,6 @@ export default function LearnPage() {
               }}
             />
             <TodayForYouCard />
-            <ProgressInsightsCard />
-            <AchievementsCard onToast={showAchievementToast} />
             <LearnMobileStats
               streak={streak}
               honeyPoints={honeyPoints}
@@ -356,6 +355,7 @@ export default function LearnPage() {
               dailyGoalXp={dailyGoalXp}
               dailyGoalPct={dailyGoalPct}
               dailyGoalCompleted={dailyGoalCompleted}
+              celebrate={goalCelebrate}
               loading={dashLoading}
             />
             <BeegoMascotBubble message={mascotMessage} />
@@ -369,6 +369,13 @@ export default function LearnPage() {
               justCompletedId={justCompletedId}
               onSectionRef={registerSectionRef}
             />
+            <details className="beego-learn-collapse">
+              <summary className="beego-learn-collapse__summary">Tiến độ &amp; thành tích</summary>
+              <div className="beego-learn-collapse__body">
+                <ProgressInsightsCard />
+                <AchievementsCard onToast={showAchievementToast} />
+              </div>
+            </details>
           </div>
 
           <LearnRightPanel
@@ -385,6 +392,8 @@ export default function LearnPage() {
           />
         </div>
       </div>
+
+      <LearnContinueDock sections={pathData.sections} loading={dashLoading} />
 
       <LessonStartSheet
         open={sheet.open}
