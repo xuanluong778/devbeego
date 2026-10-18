@@ -81,7 +81,11 @@ export default function LessonCompleteScreen({
               {streak != null ? <li>🔥 Streak: {streak} ngày</li> : null}
             </>
           )}
-          {livesLeft > 0 ? <li>❤️ Còn {livesLeft} tim</li> : null}
+          {livesLeft > 0 ? (
+            <li>❤️ Còn {livesLeft} tim</li>
+          ) : (
+            <li>🛡️ Hoàn thành ở chế độ luyện có hướng dẫn</li>
+          )}
         </ul>
         {masteryEvidence ? (
           <p className={`beego-lesson-evidence beego-lesson-evidence--${masteryEvidence.status}`}>

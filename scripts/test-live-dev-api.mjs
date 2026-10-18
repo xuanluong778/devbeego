@@ -57,6 +57,30 @@ async function run() {
   assert.ok(ttsBuf.byteLength > 1000, `TTS returned valid audio buffer (${ttsBuf.byteLength} bytes)`);
   console.log(`[PASS] TTS adapter endpoint works: ${ttsBuf.byteLength} bytes received`);
 
+  // 7. HTTPS Strict TLS Certificate Validation (when testing https://dev.beego.vn)
+  if (BASE.startsWith("https://")) {
+    const https = await import("node:https");
+    const tlsResult = await new Promise((resolve, reject) => {
+      const req = https.request(BASE + "/api/health", { method: "GET" }, (res) => {
+        const cert = res.socket.getPeerCertificate();
+        resolve({
+          authorized: res.socket.authorized,
+          authorizationError: res.socket.authorizationError,
+          subject: cert.subject?.CN,
+          issuer: cert.issuer?.O,
+          validTo: cert.valid_to,
+        });
+      });
+      req.on("error", reject);
+      req.end();
+    });
+    assert.strictEqual(tlsResult.authorized, true, "TLS certificate must be strictly authorized by root CAs");
+    assert.strictEqual(tlsResult.authorizationError, null, "TLS authorization error must be null");
+    assert.strictEqual(tlsResult.subject, "dev.beego.vn", "Certificate CN must be dev.beego.vn");
+    assert.ok(new Date(tlsResult.validTo).getTime() > Date.now(), "Certificate must not be expired");
+    console.log(`[PASS] HTTPS Strict TLS Validation: CN=${tlsResult.subject}, Issuer=${tlsResult.issuer}, ValidTo=${tlsResult.validTo}`);
+  }
+
   console.log("\n=== ALL LIVE DEV API TESTS PASSED! ===");
 }
 

@@ -33,14 +33,16 @@ export async function POST(request) {
       return NextResponse.json({ success: false, message: "Account blocked." }, { status: 403 });
     }
 
-    const body = await request.json().catch(() => ({}));
     const lessonId = String(body.lesson_id || body.lessonId || "").trim();
     const score = body.score != null ? Number(body.score) : undefined;
+    const assessmentSessionId = String(
+      body.assessment_session_id || body.assessmentSessionId || ""
+    ).trim();
     if (!lessonId) {
       return NextResponse.json({ success: false, message: "lesson_id required." }, { status: 400 });
     }
 
-    const result = await completeLessonForUser(user.id, lessonId, { score });
+    const result = await completeLessonForUser(user.id, lessonId, { score, assessmentSessionId });
     let smartProgression = null;
     if (!result.already_completed) {
       try {

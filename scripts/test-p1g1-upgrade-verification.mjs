@@ -137,19 +137,32 @@ async function run() {
 
     // Test B: n08 Mid-gate failure when score < 75% (e.g. 5/8 = 63%)
     const n08Content = getLessonContentById("p1-g1-n08");
+    // Test B: n08 Mid-gate Check - Session Isolation & Failure
+    const n08SessionFail = "sess-n08-fail-" + Date.now();
     for (let idx = 0; idx < n08Content.questions.length; idx++) {
       const q = n08Content.questions[idx];
       const isRight = idx < 5 ? 1 : 0; // 5 out of 8 = 62.5%
       await conn.query(
         `INSERT INTO user_learn_exercise_attempts
-         (attempt_key, user_id, lesson_id, question_id, content_revision, skill_key, exercise_type, is_correct, created_at)
-         VALUES (?, ?, 'p1-g1-n08', ?, 'p1g1-r4', 'review', 'choice', ?, NOW())`,
-        [`att-n08-fail-${testUserId}-${q.id}`, testUserId, q.id, isRight]
+         (attempt_key, user_id, lesson_id, question_id, content_revision, assessment_session_id, skill_key, exercise_type, is_correct, created_at)
+         VALUES (?, ?, 'p1-g1-n08', ?, 'p1g1-r4', ?, 'review', 'choice', ?, NOW())`,
+        [`att-n08-fail-${testUserId}-${q.id}`, testUserId, q.id, n08SessionFail, isRight]
       );
     }
-    let n08Failed = false;
+
+    // B1: Check without assessmentSessionId throws ASSESSMENT_SESSION_REQUIRED
+    let n08SessionRequired = false;
     try {
       await completeLessonForUser(testUserId, "p1-g1-n08");
+    } catch (err) {
+      if (err.code === "ASSESSMENT_SESSION_REQUIRED") n08SessionRequired = true;
+    }
+    assert(n08SessionRequired, "n08 requires assessmentSessionId for server-side evaluation");
+
+    // B2: Check fail routes to remediation
+    let n08Failed = false;
+    try {
+      await completeLessonForUser(testUserId, "p1-g1-n08", { assessmentSessionId: n08SessionFail });
     } catch (err) {
       if (err.code === "GATE_TEST_FAILED" && err.remediationLessonId === "p1-g1-n06") {
         n08Failed = true;
@@ -157,16 +170,19 @@ async function run() {
     }
     assert(n08Failed, "n08 fails when score < 75% and routes to remediation p1-g1-n06");
 
-    // Retry n08 with 8/8 (100%)
+    // Retry n08 with a FRESH session (100%)
+    const n08SessionPass = "sess-n08-pass-" + Date.now();
     for (const q of n08Content.questions) {
       await conn.query(
         `INSERT INTO user_learn_exercise_attempts
-         (attempt_key, user_id, lesson_id, question_id, content_revision, skill_key, exercise_type, is_correct, created_at)
-         VALUES (?, ?, 'p1-g1-n08', ?, 'p1g1-r4', 'review', 'choice', 1, NOW() + INTERVAL 1 SECOND)`,
-        [`att-n08-pass-${testUserId}-${q.id}`, testUserId, q.id]
+         (attempt_key, user_id, lesson_id, question_id, content_revision, assessment_session_id, skill_key, exercise_type, is_correct, created_at)
+         VALUES (?, ?, 'p1-g1-n08', ?, 'p1g1-r4', ?, 'review', 'choice', 1, NOW() + INTERVAL 1 SECOND)`,
+        [`att-n08-pass-${testUserId}-${q.id}`, testUserId, q.id, n08SessionPass]
       );
     }
-    const n08PassRes = await completeLessonForUser(testUserId, "p1-g1-n08");
+    const n08PassRes = await completeLessonForUser(testUserId, "p1-g1-n08", {
+      assessmentSessionId: n08SessionPass,
+    });
     assert(n08PassRes.next_lesson_id === "p1-g1-n09", "n08 retry pass advances to p1-g1-n09");
 
     // Complete n09 to n14
@@ -189,38 +205,133 @@ async function run() {
     const pathAtN15 = await getLearningPathForUser(testUserId);
     assert(pathAtN15.progress.active_lesson_id === "p1-g1-n15", "Progress advanced to p1-g1-n15");
 
-    // Test C: n15 Gate Checkpoint - score 80% BUT completely missing origin competency (q4, q5 wrong)
+    // Test C1: n15 Missing Session ID Rejected
+    let n15SessionRequired = false;
+    try {
+      await completeLessonForUser(testUserId, "p1-g1-n15");
+    } catch (err) {
+      if (err.code === "ASSESSMENT_SESSION_REQUIRED") n15SessionRequired = true;
+    }
+    assert(n15SessionRequired, "n15 requires assessmentSessionId for server-side evaluation");
+
+    // Test C2: Two simultaneous tabs (Hai tab đồng thời) cannot stitch answers together
+    const sessTabA = "sess-n15-tabA-" + Date.now();
+    const sessTabB = "sess-n15-tabB-" + Date.now();
     const n15Content = getLessonContentById("p1-g1-n15");
+
+    // Tab A answers only questions 1 to 5 (all correct)
+    for (let idx = 0; idx < 5; idx++) {
+      const q = n15Content.questions[idx];
+      await conn.query(
+        `INSERT INTO user_learn_exercise_attempts
+         (attempt_key, user_id, lesson_id, question_id, content_revision, assessment_session_id, skill_key, exercise_type, is_correct, created_at)
+         VALUES (?, ?, 'p1-g1-n15', ?, 'p1g1-r4', ?, 'test', 'choice', 1, NOW())`,
+        [`att-tabA-${testUserId}-${q.id}`, testUserId, q.id, sessTabA]
+      );
+    }
+
+    // Tab B answers only questions 6 to 10 (all correct)
+    for (let idx = 5; idx < 10; idx++) {
+      const q = n15Content.questions[idx];
+      await conn.query(
+        `INSERT INTO user_learn_exercise_attempts
+         (attempt_key, user_id, lesson_id, question_id, content_revision, assessment_session_id, skill_key, exercise_type, is_correct, created_at)
+         VALUES (?, ?, 'p1-g1-n15', ?, 'p1g1-r4', ?, 'test', 'choice', 1, NOW())`,
+        [`att-tabB-${testUserId}-${q.id}`, testUserId, q.id, sessTabB]
+      );
+    }
+
+    // Attempting to complete Tab A must fail (questions 6-10 missing in sessTabA)
+    let tabAFailed = false;
+    try {
+      await completeLessonForUser(testUserId, "p1-g1-n15", { assessmentSessionId: sessTabA });
+    } catch (err) {
+      if (err.code === "REQUIRED_QUESTIONS_SKIPPED") tabAFailed = true;
+    }
+    assert(tabAFailed, "Tab A cannot pass: questions answered in Tab B do not leak into Tab A session");
+
+    // Attempting to complete Tab B must fail (questions 1-5 missing in sessTabB)
+    let tabBFailed = false;
+    try {
+      await completeLessonForUser(testUserId, "p1-g1-n15", { assessmentSessionId: sessTabB });
+    } catch (err) {
+      if (err.code === "REQUIRED_QUESTIONS_SKIPPED") tabBFailed = true;
+    }
+    assert(tabBFailed, "Tab B cannot pass: questions answered in Tab A do not leak into Tab B session");
+
+    // Test C3: Two consecutive runs (Hai lần thi liên tiếp) are strictly isolated
+    const sessRun1 = "sess-n15-run1-" + Date.now();
+    for (let idx = 0; idx < 10; idx++) {
+      const q = n15Content.questions[idx];
+      const isRight = idx < 5 ? 1 : 0; // 5/10 = 50%
+      await conn.query(
+        `INSERT INTO user_learn_exercise_attempts
+         (attempt_key, user_id, lesson_id, question_id, content_revision, assessment_session_id, skill_key, exercise_type, is_correct, created_at)
+         VALUES (?, ?, 'p1-g1-n15', ?, 'p1g1-r4', ?, 'test', 'choice', ?, NOW())`,
+        [`att-run1-${testUserId}-${q.id}`, testUserId, q.id, sessRun1, isRight]
+      );
+    }
+    let run1Failed = false;
+    try {
+      await completeLessonForUser(testUserId, "p1-g1-n15", { assessmentSessionId: sessRun1 });
+    } catch (err) {
+      if (err.code === "GATE_TEST_FAILED") run1Failed = true;
+    }
+    assert(run1Failed, "Run 1 fails due to 50% score");
+
+    // Run 2 starts: if user only submits questions 6 to 10 on sessRun2, Run 1 answers are NOT blended
+    const sessRun2 = "sess-n15-run2-" + Date.now();
+    for (let idx = 5; idx < 10; idx++) {
+      const q = n15Content.questions[idx];
+      await conn.query(
+        `INSERT INTO user_learn_exercise_attempts
+         (attempt_key, user_id, lesson_id, question_id, content_revision, assessment_session_id, skill_key, exercise_type, is_correct, created_at)
+         VALUES (?, ?, 'p1-g1-n15', ?, 'p1g1-r4', ?, 'test', 'choice', 1, NOW())`,
+        [`att-run2-part-${testUserId}-${q.id}`, testUserId, q.id, sessRun2]
+      );
+    }
+    let run2PartFailed = false;
+    try {
+      await completeLessonForUser(testUserId, "p1-g1-n15", { assessmentSessionId: sessRun2 });
+    } catch (err) {
+      if (err.code === "REQUIRED_QUESTIONS_SKIPPED") run2PartFailed = true;
+    }
+    assert(run2PartFailed, "Run 2 cannot borrow questions from Run 1 to complete");
+
+    // Test C4: Core competency group check (origin_where_from failed)
+    const sessCompetency = "sess-n15-comp-" + Date.now();
     for (const q of n15Content.questions) {
-      // q4 and q5 wrong -> 8/10 correct (80%) but misses origin_where_from!
       const isRight = (q.id === "p1-g1-n15-q4" || q.id === "p1-g1-n15-q5") ? 0 : 1;
       await conn.query(
         `INSERT INTO user_learn_exercise_attempts
-         (attempt_key, user_id, lesson_id, question_id, content_revision, skill_key, exercise_type, is_correct, created_at)
-         VALUES (?, ?, 'p1-g1-n15', ?, 'p1g1-r4', 'test', 'choice', ?, NOW())`,
-        [`att-n15-unmet-${testUserId}-${q.id}`, testUserId, q.id, isRight]
+         (attempt_key, user_id, lesson_id, question_id, content_revision, assessment_session_id, skill_key, exercise_type, is_correct, created_at)
+         VALUES (?, ?, 'p1-g1-n15', ?, 'p1g1-r4', ?, 'test', 'choice', ?, NOW())`,
+        [`att-n15-comp-${testUserId}-${q.id}`, testUserId, q.id, sessCompetency, isRight]
       );
     }
     let n15CompetencyBlocked = false;
     try {
-      await completeLessonForUser(testUserId, "p1-g1-n15");
+      await completeLessonForUser(testUserId, "p1-g1-n15", { assessmentSessionId: sessCompetency });
     } catch (err) {
       if (err.code === "GATE_TEST_FAILED" && err.unmetCompetencies?.includes("origin_where_from")) {
         n15CompetencyBlocked = true;
       }
     }
-    assert(n15CompetencyBlocked, "n15 blocks pass if a core competency group is completely skipped/failed despite >= 80%");
+    assert(n15CompetencyBlocked, "n15 blocks pass if core competency is failed despite >= 80%");
 
-    // Retry n15 with all 10 correct
+    // Retry n15 with all 10 correct under a fresh valid session
+    const sessPass = "sess-n15-pass-" + Date.now();
     for (const q of n15Content.questions) {
       await conn.query(
         `INSERT INTO user_learn_exercise_attempts
-         (attempt_key, user_id, lesson_id, question_id, content_revision, skill_key, exercise_type, is_correct, created_at)
-         VALUES (?, ?, 'p1-g1-n15', ?, 'p1g1-r4', 'test', 'choice', 1, NOW() + INTERVAL 2 SECOND)`,
-        [`att-n15-pass-${testUserId}-${q.id}`, testUserId, q.id]
+         (attempt_key, user_id, lesson_id, question_id, content_revision, assessment_session_id, skill_key, exercise_type, is_correct, created_at)
+         VALUES (?, ?, 'p1-g1-n15', ?, 'p1g1-r4', ?, 'test', 'choice', 1, NOW() + INTERVAL 2 SECOND)`,
+        [`att-n15-pass-${testUserId}-${q.id}`, testUserId, q.id, sessPass]
       );
     }
-    const n15PassRes = await completeLessonForUser(testUserId, "p1-g1-n15");
+    const n15PassRes = await completeLessonForUser(testUserId, "p1-g1-n15", {
+      assessmentSessionId: sessPass,
+    });
     assert(n15PassRes.next_lesson_id === "p1-g1-n16", "n15 pass unlocks p1-g1-n16");
 
     // Complete n16 (Review)
@@ -247,22 +358,49 @@ async function run() {
       "SRS falls back to gate_curriculum when no personalized mistakes due"
     );
 
-    // Test F: Legacy mistake archival verification
+    // Test F1: Legacy mistake archival for retired questions (a09-a13)
     await conn.query(
       `INSERT INTO user_learn_mistakes
-       (user_id, lesson_id, question_id, skill_key, exercise_type, wrong_count, status, created_at, updated_at)
-       VALUES (?, 'p1-g1-n01', 'p1-g1-n01-a12', 'speaking', 'speaking', 1, 'open', NOW(), NOW())`,
+       (user_id, lesson_id, question_id, content_revision, skill_key, exercise_type, wrong_count, status, created_at, updated_at)
+       VALUES (?, 'p1-g1-n01', 'p1-g1-n01-a12', 'p1g1-r3', 'speaking', 'speaking', 1, 'open', NOW(), NOW())
+       ON DUPLICATE KEY UPDATE status = 'open'`,
       [testUserId]
     );
-    // Trigger review build which checks legacy mistakes
     await buildPersonalizedReviewSession(testUserId, "p1-g1-n16");
-    const [archivedRows] = await conn.query(
+    const [archivedRetired] = await conn.query(
       `SELECT status FROM user_learn_mistakes WHERE user_id = ? AND question_id = 'p1-g1-n01-a12'`,
       [testUserId]
     );
     assert(
-      archivedRows[0]?.status === "archived",
+      archivedRetired[0]?.status === "archived",
       "Retired question mistake automatically archived in DB (never marked resolved)"
+    );
+
+    // Test F2: Legacy mistake disambiguation for kept IDs (a01-a08) with altered content
+    // User made mistake on old a01 under p1g1-r3. The review engine must NOT serve the new a01!
+    await conn.query(
+      `INSERT INTO user_learn_mistakes
+       (user_id, lesson_id, question_id, content_revision, skill_key, exercise_type, wrong_count, status, created_at, updated_at)
+       VALUES (?, 'p1-g1-n01', 'p1-g1-n01-a01', 'p1g1-r3', 'listening', 'listening_choice', 2, 'open', NOW(), NOW())
+       ON DUPLICATE KEY UPDATE content_revision = 'p1g1-r3', status = 'open'`,
+      [testUserId]
+    );
+    const reviewWithLegacyA01 = await buildPersonalizedReviewSession(testUserId, "p1-g1-n16");
+    const [archivedA01] = await conn.query(
+      `SELECT status FROM user_learn_mistakes WHERE user_id = ? AND question_id = 'p1-g1-n01-a01'`,
+      [testUserId]
+    );
+    assert(
+      archivedA01[0]?.status === "archived",
+      "Legacy mistake on kept ID a01 from p1g1-r3 is quarantined to status=archived and not served as new a01"
+    );
+    assert(
+      !reviewWithLegacyA01.questions?.some((q) => q.reviewMeta?.reason === "open_mistake"),
+      "Review session questions contain zero open_mistake items because legacy mistake was quarantined"
+    );
+    assert(
+      !reviewWithLegacyA01.candidates?.some((c) => c.reason === "open_mistake"),
+      "Review session candidates contain zero open_mistake items"
     );
 
   } finally {

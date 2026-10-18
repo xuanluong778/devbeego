@@ -235,6 +235,9 @@ export async function POST(request) {
     const sourceQuestionId = String(
       body.source_question_id || body.sourceQuestionId || ""
     ).trim();
+    const assessmentSessionId = String(
+      body.assessment_session_id || body.assessmentSessionId || ""
+    ).trim();
 
     const graded = await gradeExerciseServerSide({
       lessonId,
@@ -310,6 +313,7 @@ export async function POST(request) {
       activityStage,
       difficulty,
       contentRevision: graded.contentRevision,
+      assessmentSessionId,
     });
 
     try {

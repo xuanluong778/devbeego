@@ -112,6 +112,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   const correctAtFinishRef = useRef(0);
   const correctRef = useRef(0);
   const canPersistCompleteRef = useRef(false);
+  const assessmentSessionIdRef = useRef(null);
   const [celebrate, setCelebrate] = useState(false);
   const fanfarePlayedRef = useRef(false);
   const evidenceAttemptsRef = useRef([]);
@@ -139,6 +140,10 @@ export default function LessonPlayer({ lessonId, replay = false }) {
     exerciseAttemptKeyRef.current = null;
     exerciseResultSentRef.current = false;
     canPersistCompleteRef.current = false;
+    assessmentSessionIdRef.current =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `sess-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
     (async () => {
       const result = await fetchLessonForPlayer(lessonId);
@@ -252,6 +257,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           difficulty: question?.activityMeta?.difficulty || "",
           answer,
           replay,
+          assessmentSessionId: assessmentSessionIdRef.current,
         });
 
         if (!result.ok) {
@@ -354,6 +360,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
     (async () => {
       const result = await postLearningPathComplete(lessonId, {
         score: scoreAtFinishRef.current,
+        assessmentSessionId: assessmentSessionIdRef.current,
       });
       if (cancelled) return;
 
@@ -488,6 +495,30 @@ export default function LessonPlayer({ lessonId, replay = false }) {
             }}
           >
             💡 {lesson.versionNotice}
+          </div>
+        ) : null}
+        {lives === 0 && lessonId !== "p1-g1-n08" && lessonId !== "p1-g1-n15" ? (
+          <div
+            role="status"
+            className="beego-lesson-guided-banner"
+            style={{
+              background: "#fffbeb",
+              color: "#92400e",
+              border: "1px solid #fde68a",
+              padding: "10px 14px",
+              borderRadius: "10px",
+              marginBottom: "16px",
+              fontSize: "13px",
+              lineHeight: "1.4",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <span aria-hidden="true">🛡️</span>
+            <span>
+              <strong>Chế độ luyện có hướng dẫn:</strong> Bạn đã dùng hết tim nhưng vẫn tiếp tục luyện trọn vẹn bài học để củng cố kiến thức.
+            </span>
           </div>
         ) : null}
         {lesson.masteryRubric ? <LessonAim rubric={lesson.masteryRubric} /> : null}
