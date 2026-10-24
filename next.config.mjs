@@ -26,6 +26,7 @@ const createConfig = (phase) => {
       ];
     },
     experimental: {
+      serverComponentsExternalPackages: ["microsoft-cognitiveservices-speech-sdk"],
       instrumentationHook: true,
       // Limit workers on memory-constrained hosts
       cpus: 1,

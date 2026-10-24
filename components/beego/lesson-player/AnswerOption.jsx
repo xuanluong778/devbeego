@@ -18,6 +18,11 @@ export default function AnswerOption({
   role,
 }) {
   const [imageBroken, setImageBroken] = useState(false);
+  const hasPhoto = Boolean(option?.imageUrl);
+  const hasEmoji = Boolean(option?.imageEmoji);
+  const hasVisual = hasPhoto || hasEmoji;
+  // Nếu ẩn text Anh mà không có ảnh/emoji và cũng không hiện nghĩa → hiện text để tránh ô trống.
+  const showPrimaryText = !hideText || (!hasVisual && !revealMeaning);
   const className = [
     "beego-lesson-option",
     layout === "grid" ? "beego-lesson-option--grid" : "",
@@ -44,7 +49,7 @@ export default function AnswerOption({
       }}
       disabled={!!state}
     >
-      {showVisual && option.imageUrl ? (
+      {showVisual && hasPhoto ? (
         imageBroken ? (
           <span className="beego-lesson-option__broken">Ảnh không tải được</span>
         ) : (
@@ -56,12 +61,12 @@ export default function AnswerOption({
           />
         )
       ) : null}
-      {showVisual && !option.imageUrl && option.imageEmoji ? (
+      {showVisual && !hasPhoto && hasEmoji ? (
         <span className="beego-lesson-option__img" aria-hidden>
           {option.imageEmoji}
         </span>
       ) : null}
-      {hideText ? null : <span className="beego-lesson-option__text">{option.text}</span>}
+      {showPrimaryText ? <span className="beego-lesson-option__text">{option.text}</span> : null}
       {revealMeaning && option.meaningVi ? (
         <span className="beego-lesson-option__meaning">{option.meaningVi}</span>
       ) : null}

@@ -7,6 +7,7 @@ import { getOrCreateLessonMixSession } from "@/lib/beego/learn/lesson-mix-sessio
 import { sanitizeLessonForClient } from "@/lib/beego/learn/sanitize-lesson-for-client";
 import { listLessonAttemptRows } from "@/lib/beego/learn/mastery-mistake-engine";
 import { resumeStartIndex } from "@/lib/beego/learn/lesson-resume";
+import { isCurriculum50LessonId } from "@/lib/beego/learn/curriculum-50/constants";
 import pool from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,11 @@ export async function GET(request, { params }) {
 
     let data = content;
     const user = await getSessionUserFromRequest(request);
-    if (user?.id && content.type === "review") {
+    // Curriculum-50 ships full 11-part banks — do not subsample via adaptive mix / personalized review.
+    const keepFullCurriculumBank =
+      isCurriculum50LessonId(lessonId) || content.contentSource === "curriculum-50";
+
+    if (!keepFullCurriculumBank && user?.id && content.type === "review") {
       try {
         const session = await buildPersonalizedReviewSession(user.id, lessonId);
         if (session.questions?.length >= 1) {
@@ -47,7 +52,7 @@ export async function GET(request, { params }) {
       } catch {
         /* keep catalog fallback */
       }
-    } else if (content.type !== "review") {
+    } else if (!keepFullCurriculumBank && content.type !== "review") {
       try {
         if (user?.id) {
           const mix = await getOrCreateLessonMixSession(user.id, data);
@@ -103,7 +108,8 @@ export async function GET(request, { params }) {
             [user.id, lessonId, contentRevision]
           );
           if (Number(older[0]?.c || 0) > 0) {
-            versionNotice = "Bài học đã được nâng cấp lên phiên bản mới ngắn gọn và sư phạm hơn. Bạn bắt đầu làm quen với bộ câu hỏi cải tiến nhé!";
+            versionNotice =
+              "Bài học đã được nâng cấp (thêm hội thoại mở đầu, mẫu câu và kết bài). Tiến độ cũ vẫn giữ; bạn làm phiên bản mới từ đầu các hoạt động của bản này.";
           }
         }
         data = {

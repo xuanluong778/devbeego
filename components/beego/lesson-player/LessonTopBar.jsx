@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { lessonSfxEnabled, setLessonSfxEnabled, subscribeLessonSfx } from "@/lib/beego/learn/lesson-sfx";
 
-export default function LessonTopBar({ progress, lives, onExit }) {
+export default function LessonTopBar({ progress, lives, onExit, stepLabel = "" }) {
   const [sfxOn, setSfxOn] = useState(true);
 
   useEffect(() => {
@@ -20,6 +20,11 @@ export default function LessonTopBar({ progress, lives, onExit }) {
         <div className="beego-lesson-topbar__track">
           <span className="beego-lesson-topbar__fill" style={{ width: `${progress}%` }} />
         </div>
+        {stepLabel ? (
+          <span className="beego-lesson-topbar__step" aria-live="polite">
+            {stepLabel}
+          </span>
+        ) : null}
       </div>
       <button
         type="button"

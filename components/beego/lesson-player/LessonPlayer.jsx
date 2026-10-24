@@ -120,6 +120,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   const total = lesson?.questions?.length ?? 0;
   const question = lesson?.questions?.[index];
   const progress = phase === "complete" ? 100 : total ? Math.round((index / total) * 100) : 0;
+  const stepLabel = total > 0 ? `Hoạt động ${Math.min(index + 1, total)}/${total}` : "";
 
   const canCheck = question && hasAnswerSelected(question, answer) && !feedback && !checking;
   const skipDisabled = Boolean(question?.required);
@@ -168,6 +169,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
         canPersistCompleteRef.current = false;
         correctRef.current = resumeCorrect;
         setCorrectCount(resumeCorrect);
+        correctAtFinishRef.current = resumeCorrect;
         scoreAtFinishRef.current = questionCount ? Math.round((resumeCorrect / questionCount) * 100) : 0;
         setPhase("complete");
       } else {
@@ -178,8 +180,10 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           setCorrectCount(resumeCorrect);
           setIndex(startIndex);
         } else if (startIndex >= questionCount && questionCount > 0 && resume?.answeredQuestionIds?.length) {
+          // All questions answered but progress not saved yet — finish screen will persist unlock.
           correctRef.current = resumeCorrect;
           setCorrectCount(resumeCorrect);
+          correctAtFinishRef.current = resumeCorrect;
           scoreAtFinishRef.current = Math.round((resumeCorrect / questionCount) * 100);
           setPhase("complete");
         }
@@ -275,16 +279,24 @@ export default function LessonPlayer({ lessonId, replay = false }) {
         setFeedback(ok ? "correct" : "wrong");
         setReveal({
           correctAnswerText: result.data?.correct_answer_display || "—",
-          explanation: result.data?.explanation || null,
+          explanation: result.data?.explanation || answer?.feedbackVi || null,
           correctAnswerId: result.data?.correct_answer_id ?? null,
           storyVi: result.data?.story_vi || "",
+          softPraise: Boolean(
+            result.data?.soft_pass ||
+              answer?.softPass ||
+              question?.extensions?.gradingMode === "communicative_rubric"
+          ),
         });
         if (ok) {
           correctRef.current += 1;
           setCorrectCount(correctRef.current);
         } else if (lives > 0) {
           // Mic/nhận dạng lỗi không tính là sai kiến thức (không trừ tim khi là speaking/pronunciation)
-          const isSpeech = question?.type === "speaking" || question?.type === "pronunciation";
+          const isSpeech =
+            question?.type === "speaking" ||
+            question?.type === "pronunciation" ||
+            question?.type === "passage_read";
           if (!isSpeech) {
             setLives((l) => l - 1);
           }
@@ -310,6 +322,14 @@ export default function LessonPlayer({ lessonId, replay = false }) {
     exerciseAttemptKeyRef.current = null;
     exerciseResultSentRef.current = false;
   }, [index, total, goToCompletePhase]);
+
+  const handleRetry = useCallback(() => {
+    setFeedback(null);
+    setReveal(null);
+    setAnswer(null);
+    exerciseAttemptKeyRef.current = null;
+    exerciseResultSentRef.current = false;
+  }, []);
 
   const handleSkip = useCallback(() => {
     if (feedback || checking) return;
@@ -476,7 +496,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
 
   return (
     <div className={`beego-lesson-player${keyboardMode ? " beego-lesson-player--keyboard" : ""}`}>
-      <LessonTopBar progress={progress} lives={lives} onExit={handleExit} />
+      <LessonTopBar progress={progress} lives={lives} onExit={handleExit} stepLabel={stepLabel} />
 
       <main className="beego-lesson-player__main">
         {lesson.versionNotice ? (
@@ -525,6 +545,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
         <ExerciseRenderer
           key={question?.id || index}
           exercise={question}
+          lessonId={lesson?.lessonId || lessonId}
           activityType={lesson?.type}
           answer={answer}
           onAnswerChange={setAnswer}
@@ -551,8 +572,10 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           correctAnswerText={reveal?.correctAnswerText || "—"}
           explanation={reveal?.explanation}
           onContinue={handleContinue}
+          onRetry={handleRetry}
           continueDisabled={checking}
           praiseSeed={`${question?.id || index}-${correctCount}`}
+          softPraise={Boolean(reveal?.softPraise)}
         />
       ) : (
         <LessonBottomBar

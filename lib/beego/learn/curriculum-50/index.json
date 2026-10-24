@@ -1,0 +1,405 @@
+{
+  "schema": "beego-curriculum-50/3.0",
+  "gates": [
+    {
+      "gateNumber": 1,
+      "id": 1,
+      "title": "Chào hỏi và làm quen",
+      "level": "Pre-A1 → A1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 2,
+      "id": 2,
+      "title": "Thông tin cá nhân",
+      "level": "Pre-A1 → A1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 3,
+      "id": 3,
+      "title": "Gia đình và con người",
+      "level": "Pre-A1 → A1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 4,
+      "id": 4,
+      "title": "Số đếm và thời gian",
+      "level": "Pre-A1 → A1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 5,
+      "id": 5,
+      "title": "Đồ vật và lớp học",
+      "level": "Pre-A1 → A1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 6,
+      "id": 6,
+      "title": "Nhà ở và vị trí",
+      "level": "Pre-A1 → A1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 7,
+      "id": 7,
+      "title": "Sinh hoạt hằng ngày",
+      "level": "Pre-A1 → A1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 8,
+      "id": 8,
+      "title": "Đồ ăn và thức uống",
+      "level": "Pre-A1 → A1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 9,
+      "id": 9,
+      "title": "Mua sắm và giá cả",
+      "level": "Pre-A1 → A1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 10,
+      "id": 10,
+      "title": "Đường đi và phương tiện",
+      "level": "Pre-A1 → A1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 11,
+      "id": 11,
+      "title": "Thời tiết và mùa",
+      "level": "A1 → A2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 12,
+      "id": 12,
+      "title": "Sở thích và giải trí",
+      "level": "A1 → A2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 13,
+      "id": 13,
+      "title": "Sức khỏe, thể thao và thói quen tốt",
+      "level": "A1 → A2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 14,
+      "id": 14,
+      "title": "Bạn bè và lời mời",
+      "level": "A1 → A2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 15,
+      "id": 15,
+      "title": "Điện thoại và giao tiếp số",
+      "level": "A1 → A2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 16,
+      "id": 16,
+      "title": "Trường học và cách học",
+      "level": "A1 → A2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 17,
+      "id": 17,
+      "title": "Nghề nghiệp và nơi làm việc",
+      "level": "A1 → A2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 18,
+      "id": 18,
+      "title": "Du lịch, đặt chỗ và xử lý sự cố",
+      "level": "A1 → A2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 19,
+      "id": 19,
+      "title": "Nhà hàng và dịch vụ",
+      "level": "A1 → A2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 20,
+      "id": 20,
+      "title": "Mua sắm trực tuyến",
+      "level": "A1 → A2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 21,
+      "id": 21,
+      "title": "Nhà thuê và hàng xóm",
+      "level": "A2 → B1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 22,
+      "id": 22,
+      "title": "Kể chuyện quá khứ",
+      "level": "A2 → B1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 23,
+      "id": 23,
+      "title": "Kế hoạch và mục tiêu",
+      "level": "A2 → B1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 24,
+      "id": 24,
+      "title": "Văn hóa và lễ hội",
+      "level": "A2 → B1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 25,
+      "id": 25,
+      "title": "Cộng đồng và tình nguyện",
+      "level": "A2 → B1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 26,
+      "id": 26,
+      "title": "Cảm xúc và quan hệ",
+      "level": "A2 → B1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 27,
+      "id": 27,
+      "title": "Môi trường và lối sống",
+      "level": "A2 → B1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 28,
+      "id": 28,
+      "title": "Ôn tập đời sống và dự án A2",
+      "level": "A2 → B1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 29,
+      "id": 29,
+      "title": "Phỏng vấn và phát triển nghề nghiệp",
+      "level": "A2 → B1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 30,
+      "id": 30,
+      "title": "Email và giao tiếp công sở",
+      "level": "A2 → B1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 31,
+      "id": 31,
+      "title": "Họp và làm việc nhóm",
+      "level": "B1 → B2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 32,
+      "id": 32,
+      "title": "Thuyết trình và kể chuyện",
+      "level": "B1 → B2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 33,
+      "id": 33,
+      "title": "Chăm sóc khách hàng",
+      "level": "B1 → B2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 34,
+      "id": 34,
+      "title": "Công nghệ và an toàn số",
+      "level": "B1 → B2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 35,
+      "id": 35,
+      "title": "Tiền bạc và quyết định tiêu dùng",
+      "level": "B1 → B2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 36,
+      "id": 36,
+      "title": "Tin tức và hiểu biết truyền thông",
+      "level": "B1 → B2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 37,
+      "id": 37,
+      "title": "Khoa học và khám phá",
+      "level": "B1 → B2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 38,
+      "id": 38,
+      "title": "Sức khỏe công cộng và thông tin",
+      "level": "B1 → B2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 39,
+      "id": 39,
+      "title": "Học thuật và đọc có chiến lược",
+      "level": "B1 → B2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 40,
+      "id": 40,
+      "title": "Đàm phán và thuyết phục",
+      "level": "B1 → B2",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 41,
+      "id": 41,
+      "title": "Quản lý dự án và thay đổi",
+      "level": "B2 → tiền C1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 42,
+      "id": 42,
+      "title": "Văn hóa liên quốc gia và hòa nhập",
+      "level": "B2 → tiền C1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 43,
+      "id": 43,
+      "title": "Nghệ thuật và phê bình",
+      "level": "B2 → tiền C1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 44,
+      "id": 44,
+      "title": "Lịch sử và biến đổi xã hội",
+      "level": "B2 → tiền C1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 45,
+      "id": 45,
+      "title": "Đạo đức và trách nhiệm",
+      "level": "B2 → tiền C1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 46,
+      "id": 46,
+      "title": "Khí hậu và phát triển bền vững",
+      "level": "B2 → tiền C1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 47,
+      "id": 47,
+      "title": "Trí tuệ nhân tạo và tương lai việc làm",
+      "level": "B2 → tiền C1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 48,
+      "id": 48,
+      "title": "Tranh biện và tư duy phản biện",
+      "level": "B2 → tiền C1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 49,
+      "id": 49,
+      "title": "Nghiên cứu và viết lập luận",
+      "level": "B2 → tiền C1",
+      "lessonCount": 16,
+      "hasExam": true
+    },
+    {
+      "gateNumber": 50,
+      "id": 50,
+      "title": "Hội nhập và dự án tổng kết",
+      "level": "B2 → tiền C1",
+      "lessonCount": 16,
+      "hasExam": true
+    }
+  ]
+}

@@ -8,14 +8,16 @@ export default function LessonFeedbackBar({
   correctAnswerText,
   explanation,
   onContinue,
+  onRetry,
   continueDisabled = false,
   praiseSeed,
+  softPraise = false,
 }) {
   const praise = useMemo(
-    () => (correct ? nextCorrectPraise(praiseSeed) : ""),
+    () => (correct ? nextCorrectPraise(praiseSeed, { soft: softPraise }) : ""),
     // Recompute only when a new correct result appears.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [correct, praiseSeed, correctAnswerText]
+    [correct, praiseSeed, correctAnswerText, softPraise]
   );
 
   return (
@@ -29,27 +31,48 @@ export default function LessonFeedbackBar({
             <span className="beego-lesson-feedback__icon" aria-hidden>
               ✓
             </span>
-            <strong className="beego-lesson-feedback__praise">{praise || "Giỏi quá!"}</strong>
+            <strong className="beego-lesson-feedback__praise">{praise || (softPraise ? "Ổn rồi!" : "Giỏi quá!")}</strong>
+            {softPraise && explanation ? <small>{explanation}</small> : null}
           </>
         ) : (
           <>
-            <strong>Chưa đúng</strong>
+            <strong>Chưa đạt yêu cầu</strong>
             <p>
-              Đáp án đúng: <span>{correctAnswerText}</span>
+              {correctAnswerText && correctAnswerText !== "—" ? (
+                <>
+                  Gợi ý: <span>{correctAnswerText}</span>
+                </>
+              ) : (
+                "Hãy nói lại theo đúng đề bài."
+              )}
             </p>
             {explanation ? <small>{explanation}</small> : null}
-            <small className="beego-lesson-feedback__encourage">Không sao — sửa ngay sẽ nhớ lâu hơn.</small>
+            <small className="beego-lesson-feedback__encourage">
+              Đọc gợi ý rồi thử lại, hoặc tiếp tục sang câu sau.
+            </small>
           </>
         )}
       </div>
-      <button
-        type="button"
-        className="beego-lesson-feedback__continue"
-        onClick={onContinue}
-        disabled={continueDisabled}
-      >
-        {continueDisabled ? "Đang lưu..." : "Tiếp tục"}
-      </button>
+      <div className="beego-lesson-feedback__actions">
+        {!correct && typeof onRetry === "function" ? (
+          <button
+            type="button"
+            className="beego-lesson-feedback__retry"
+            onClick={onRetry}
+            disabled={continueDisabled}
+          >
+            Thử lại
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="beego-lesson-feedback__continue"
+          onClick={onContinue}
+          disabled={continueDisabled}
+        >
+          {continueDisabled ? "Đang lưu..." : "Tiếp tục"}
+        </button>
+      </div>
     </footer>
   );
 }

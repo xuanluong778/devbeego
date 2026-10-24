@@ -7,7 +7,9 @@
 export default function UnitBanner({ section }) {
   if (!section) return null;
 
-  const gateLabel = `Phần ${section.partNumber} · Cửa ${section.gateNumber}`;
+  const gateNum =
+    Number(section.curriculumGateNumber || section.partNumber || section.gateNumber) || 1;
+  const gateLabel = `Cửa ${gateNum}/50`;
   const description = section.sectionDescription || section.sectionTitle || "";
 
   return (

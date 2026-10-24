@@ -33,6 +33,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, message: "Account blocked." }, { status: 403 });
     }
 
+    const body = await request.json().catch(() => ({}));
     const lessonId = String(body.lesson_id || body.lessonId || "").trim();
     const score = body.score != null ? Number(body.score) : undefined;
     const assessmentSessionId = String(

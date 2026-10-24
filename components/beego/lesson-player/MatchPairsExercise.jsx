@@ -8,6 +8,7 @@ import {
   AUDIO_PLAYBACK_ERROR,
   afterAudioCue,
   columnOrder,
+  ensureMatchPairIds,
   initialMatchState,
   leftItemId,
   matchSummary,
@@ -41,12 +42,15 @@ function SoundWave({ playing }) {
 }
 
 export default function MatchPairsExercise({ exercise, onAnswerChange }) {
-  const pairs = Array.isArray(exercise?.pairs) ? exercise.pairs : [];
+  const pairs = ensureMatchPairIds(exercise?.pairs);
   const audioMatch = Boolean(exercise?.extensions?.audioMatch);
+  /** Right column shows Vietnamese meanings (Duolingo-style listen → nghĩa). */
+  const rightShowsVi = audioMatch || Boolean(exercise?.extensions?.rightShowsVi);
   const [order, setOrder] = useState(() => columnOrder(pairs, exercise?.id || "match"));
   const [state, setState] = useState(initialMatchState);
   const [playingId, setPlayingId] = useState("");
   const [hearError, setHearError] = useState("");
+  const [showAudioText, setShowAudioText] = useState(false);
   const finishedRef = useRef(false);
   const playGen = useRef(0);
   const lockedCountRef = useRef(0);
@@ -56,9 +60,10 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
   useEffect(() => {
     finishedRef.current = false;
     setState(initialMatchState());
-    setOrder(columnOrder(Array.isArray(exercise?.pairs) ? exercise.pairs : [], exercise?.id || "match"));
+    setOrder(columnOrder(ensureMatchPairIds(exercise?.pairs), exercise?.id || "match"));
     setPlayingId("");
     setHearError("");
+    setShowAudioText(false);
     lockedCountRef.current = 0;
     wrongKeyRef.current = "";
     playGen.current += 1;
@@ -129,7 +134,13 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
       className="beego-lesson-match__col"
       role="group"
       aria-label={
-        audioMatch && side === "left" ? "Âm thanh" : side === "left" ? "Tiếng Anh" : audioMatch ? "Từ tiếng Anh" : "Tiếng Việt"
+        audioMatch && side === "left"
+          ? "Nghe tiếng Anh"
+          : side === "left"
+            ? "Tiếng Anh"
+            : rightShowsVi
+              ? "Nghĩa tiếng Việt"
+              : "Tiếng Việt"
       }
       onKeyDown={moveFocus}
     >
@@ -197,7 +208,11 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
               >
                 <SpeakerIcon />
               </button>
-              <SoundWave playing={playing} />
+              {showAudioText ? (
+                <span className="beego-lesson-audio-card__text">{pair.en}</span>
+              ) : (
+                <SoundWave playing={playing} />
+              )}
             </div>
           );
         }
@@ -223,10 +238,7 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
               }}
             >
               <span className="beego-lesson-word-card__num">{order.left.length + index + 1}</span>
-              <span className="beego-lesson-word-card__text">
-                {pair.en}
-                {locked ? <span className="beego-lesson-match__meaning">{pair.vi}</span> : null}
-              </span>
+              <span className="beego-lesson-word-card__text">{rightShowsVi ? pair.vi : pair.en}</span>
             </button>
           );
         }
@@ -244,8 +256,7 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
               choose(side, itemId);
             }}
           >
-            {side === "left" ? pair.en : audioMatch ? pair.en : pair.vi}
-            {audioMatch && locked ? <span className="beego-lesson-match__meaning">{pair.vi}</span> : null}
+            {side === "left" ? pair.en : pair.vi}
           </button>
         );
       })}
@@ -258,6 +269,15 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
         {renderColumn(order.left, "left")}
         {renderColumn(order.right, "right")}
       </div>
+      {audioMatch && !showAudioText ? (
+        <button
+          type="button"
+          className="beego-lesson-match__cant-hear"
+          onClick={() => setShowAudioText(true)}
+        >
+          Hiện không nghe được
+        </button>
+      ) : null}
       <p className="beego-lesson-match__status" role="status">
         {hearError || state.message || `Đã ghép ${state.locked.length}/${pairs.length}`}
       </p>

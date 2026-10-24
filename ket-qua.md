@@ -73,6 +73,33 @@ Tài liệu lưu **toàn bộ câu hỏi / câu trả lời** (Câu hỏi 1 → 
 
 ---
 
+### Câu hỏi 4
+
+> Người dùng thấy bài Cửa 1 chỉ có 3 câu, trải nghiệm chưa khác biệt. Kiểm tra và sửa trực tiếp trên dev; giữ nguyên dữ liệu câu hỏi cũ, chỉ nâng cấp thêm; hoàn thiện mẫu n01; báo nguyên nhân + link học thử.
+
+#### Trả lời (đã deploy dev)
+
+**Nguyên nhân (không phải cache guest):**
+
+1. Builder `integrated-p1-builder` cố ý chỉ sinh **6–8 câu**/bài (rút từ khung 12) → API guest n01 = **6**.
+2. **Resume**: đã làm một phần → UI còn ~**3/6** hoạt động; thanh tiến độ chỉ %, dễ hiểu nhầm “bài chỉ có 3 câu”.
+3. `ENRICHED` 4 câu **không** được merge (`< 10`). Mix integrated không cắt còn 3.
+
+**Sửa (chỉ nâng cấp thêm, giữ a01–a06):**
+
+- `P1_CONTENT_REVISION` → **`p1g1-r5`**
+- n01 thêm **a07** hội thoại nghe, **a08** nghĩa, **a09** mẫu câu, **a10** kết bài → **10** hoạt động
+- UI: nhãn `Hoạt động X/Y` + nút **Thử lại** khi sai
+- Backup: `backups/p1-g1-n01-20261018-205256/`
+- Không xóa attempts/progress
+
+**Live sau deploy:** API guest n01 = **10**, rev `p1g1-r5`.  
+**Link mẫu:** https://dev.beego.vn/learn/lesson/p1-g1-n01?replay=1  
+
+**UX browser:** chưa chạy được E2E mobile bằng tài khoản test trong phiên này (lesson page 307 redirect; browser MCP không enumerate tools). Bằng chứng tin cậy hiện là API + JSON before/after.
+
+---
+
 ## Phần A2 — Lộ trình học (làm rõ)
 
 ### 1) Cấu trúc tổng thể

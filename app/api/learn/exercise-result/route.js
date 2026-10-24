@@ -16,6 +16,7 @@ import {
 } from "@/lib/beego/learn/exercise-check";
 import { gradeMatchAnswer, matchSummary } from "@/lib/beego/learn/match-pairs";
 import { findServedMixExercise } from "@/lib/beego/learn/lesson-mix-session-store";
+import { getPassageAttempt } from "@/lib/beego/learn/passage-attempt-store";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,13 @@ function assertListeningAligned(ex) {
   const type = String(ex?.type || "");
   if (type !== "listening_choice" && type !== "listening_fill") return { ok: true };
   const target = String(
-    ex.extensions?.gradingTarget || ex.extensions?.ttsText || ex.ttsText || ""
+    ex.extensions?.gradingTarget ||
+      ex.extensions?.ttsText ||
+      ex.ttsText ||
+      ex.listenText ||
+      ex.extensions?.transcript ||
+      ex.extensions?.audioScript ||
+      ""
   ).trim();
   if (!target) {
     return {
@@ -45,7 +52,10 @@ function assertListeningAligned(ex) {
     };
   }
   if (type === "listening_choice") {
-    if (String(correctOpt.text).trim() !== target) {
+    const mode = String(ex.extensions?.listeningMode || "");
+    // Comprehension: EN audio + VI/meaning options. Word-match items still require option === audio.
+    const comprehension = mode === "comprehension" || mode === "meaning";
+    if (!comprehension && String(correctOpt.text).trim() !== target) {
       return {
         ok: false,
         code: "LISTENING_MISALIGNED",
@@ -114,7 +124,25 @@ async function gradeExerciseServerSide({ lessonId, questionId, answer, sourceLes
   const ex = loaded.exercise;
   const type = String(ex.type || "");
   let isCorrect = false;
-  if (type === "speaking" || type === "pronunciation") {
+  let speakScored = null;
+  if (type === "passage_read") {
+    const attemptId = String(answer?.passageAttemptId || "").trim();
+    const row = userId && attemptId ? await getPassageAttempt(userId, attemptId) : null;
+    if (!row || row.attemptKey !== attemptId || String(row.lessonId || "") !== lid) {
+      return {
+        ok: false,
+        status: 400,
+        message: "Cần chấm audio Azure trước khi nộp câu đọc.",
+        code: "PASSAGE_ATTEMPT_REQUIRED",
+      };
+    }
+    isCorrect = Boolean(row.passed);
+    speakScored = {
+      feedbackVi: row.feedbackVi,
+      softPass: true,
+      passed: row.passed,
+    };
+  } else if (type === "speaking" || type === "pronunciation") {
     const transcript =
       answer && typeof answer === "object"
         ? String(answer.transcript || answer.text || "")
@@ -127,8 +155,8 @@ async function gradeExerciseServerSide({ lessonId, questionId, answer, sourceLes
         code: "ANSWER_REQUIRED",
       };
     }
-    const scored = scoreSpeakingAttempt(ex, transcript);
-    isCorrect = Boolean(scored.passed);
+    speakScored = scoreSpeakingAttempt(ex, transcript);
+    isCorrect = Boolean(speakScored.passed);
   } else {
     if (answer == null) {
       return {
@@ -164,13 +192,20 @@ async function gradeExerciseServerSide({ lessonId, questionId, answer, sourceLes
         ? matchSummary(Array.isArray(ex.pairs) ? ex.pairs.length : 0, Number(answer?.mistakeCount) || 0)
         : (ex.pairs || []).map((pair) => `${pair.en} = ${pair.vi}`).join("; ")
       : "";
+  const speakExplain = speakScored?.feedbackVi || null;
+  const speakHint =
+    speakScored && !isCorrect && Array.isArray(speakScored.focusMissing) && speakScored.focusMissing.length
+      ? `Cần dùng: ${speakScored.focusMissing.join(", ")}`
+      : null;
 
   return {
     ok: true,
     isCorrect,
-    correctAnswerDisplay: matchText || getCorrectAnswerDisplay(ex),
+    correctAnswerDisplay: matchText || speakHint || getCorrectAnswerDisplay(ex),
     correctAnswerId,
-    explanation: matchText || (ex.explanation ? String(ex.explanation) : null),
+    explanation:
+      matchText || speakExplain || (ex.explanation ? String(ex.explanation) : null),
+    soft_pass: Boolean(speakScored?.softPass),
     storyVi: type === "story_comprehension" ? String(ex.storyVi || ex.extensions?.storyVi || "") : "",
     gradedLessonId: loaded.sourceLessonId,
     gradedQuestionId: ex.id,
@@ -259,6 +294,7 @@ export async function POST(request) {
       correct_answer_display: graded.correctAnswerDisplay,
       correct_answer_id: graded.correctAnswerId,
       explanation: graded.explanation,
+      soft_pass: Boolean(graded.soft_pass),
       story_vi: graded.storyVi || "",
       graded_server: true,
     };

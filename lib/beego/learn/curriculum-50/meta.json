@@ -1,0 +1,9 @@
+{
+  "schema": "beego-curriculum-50/3.0",
+  "title": "Beego · 50 cửa · Nội dung theo từng chủ đề",
+  "language": "vi",
+  "targetLanguage": "en",
+  "gateCount": 50,
+  "lessonCount": 800,
+  "partsPerLesson": 11
+}

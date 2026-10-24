@@ -47,6 +47,10 @@ const orderA = columnOrder(match.pairs, match.id);
 const orderB = columnOrder(match.pairs, match.id);
 assert(JSON.stringify(orderA) === JSON.stringify(orderB), "shuffle is stable");
 assert(JSON.stringify(orderA.left) !== JSON.stringify(orderA.right), "columns shuffle independently");
+assert(
+  orderA.left.every((item, idx) => pairIdFromItemId(item) !== pairIdFromItemId(orderA.right[idx])),
+  "derangement: no matching pair is aligned in the same row"
+);
 
 let state = initialMatchState();
 const first = match.pairs[0];
