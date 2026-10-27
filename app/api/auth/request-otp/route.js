@@ -3,6 +3,7 @@ import pool from "@/lib/db";
 import { ensureVerificationSchema } from "@/lib/auth/ensure-verification-schema";
 import { generateOtpCode, generateOtpToken, hashOtpCode } from "@/lib/auth";
 import { sendOtp } from "@/lib/otp-delivery";
+import { authRateLimitResponse } from "@/lib/security/auth-rate-limit";
 import { getSettingSync } from "@/lib/runtime-settings/cache";
 import { normalizePhoneE164 } from "@/lib/phone-vn";
 import { isEmailOtpDeliveryConfigured, smtpMissingMessage } from "@/lib/auth/register-config";
@@ -25,6 +26,8 @@ function normalizeContact(type, value) {
 }
 
 export async function POST(request) {
+  const limited = await authRateLimitResponse(request, "auth_otp_send", 8);
+  if (limited) return limited;
   try {
     const body = await request.json();
     const normalized = normalizeContact(body.contact_type, body.contact_value);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { getVoiceRedis } from "@/lib/voice/redis";
 import { defaultVoiceQuotaConfig, getVoiceQuotaConfigFromDb, setVoiceQuotaConfigToDb } from "@/lib/voice/quota-config";
-import { requireAdminUser } from "@/lib/admin/require-admin";
+import { requireSystemOwner } from "@/lib/admin/require-admin";
 
 export const runtime = "nodejs";
 
@@ -29,7 +29,8 @@ async function mirrorToRedis(config) {
 }
 
 export async function GET(request) {
-  const admin = await requireAdminUser(request);
+  const admin = await requireSystemOwner(request);
+  if (admin instanceof NextResponse) return admin;
   if (!admin) {
     return NextResponse.json({ success: false, message: "Forbidden. Admin access only." }, { status: 403 });
   }
@@ -38,7 +39,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const admin = await requireAdminUser(request);
+  const admin = await requireSystemOwner(request);
+  if (admin instanceof NextResponse) return admin;
   if (!admin) {
     return NextResponse.json({ success: false, message: "Forbidden. Admin access only." }, { status: 403 });
   }
@@ -55,7 +57,8 @@ export async function POST(request) {
 
 export async function PUT(request) {
   // Reset to defaults quickly.
-  const admin = await requireAdminUser(request);
+  const admin = await requireSystemOwner(request);
+  if (admin instanceof NextResponse) return admin;
   if (!admin) {
     return NextResponse.json({ success: false, message: "Forbidden. Admin access only." }, { status: 403 });
   }

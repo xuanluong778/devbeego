@@ -39,6 +39,7 @@ export default function LessonCompleteScreen({
   replay = false,
   showAiPractice = false,
   celebrate = false,
+  gate1 = false,
   callSlot = null,
   masteryEvidence = null,
   onAiPractice,
@@ -50,7 +51,7 @@ export default function LessonCompleteScreen({
   );
 
   return (
-    <div className={`beego-lesson-complete${celebrate ? " beego-lesson-complete--celebrate" : ""}`}>
+    <div className={`beego-lesson-complete${celebrate ? " beego-lesson-complete--celebrate" : ""}${gate1 ? " beego-lesson-complete--gate1" : ""}`}>
       <div className="beego-lesson-complete__card">
         <span className="beego-lesson-complete__bee" aria-hidden>
           🐝

@@ -67,6 +67,9 @@ export default function AnswerOption({
         </span>
       ) : null}
       {showPrimaryText ? <span className="beego-lesson-option__text">{option.text}</span> : null}
+      {state === "correct" ? <span className="beego-lesson-option__mark">Đúng</span> : null}
+      {state === "wrong" ? <span className="beego-lesson-option__mark">Chưa đúng</span> : null}
+      {selected && !state ? <span className="beego-lesson-option__mark">Đã chọn</span> : null}
       {revealMeaning && option.meaningVi ? (
         <span className="beego-lesson-option__meaning">{option.meaningVi}</span>
       ) : null}

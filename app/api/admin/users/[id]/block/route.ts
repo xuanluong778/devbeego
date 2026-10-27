@@ -8,7 +8,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const admin = await requireAdminUser(request);
+  const admin = await requireAdminUser(request, "students.lock");
+  if (admin instanceof NextResponse) return admin;
   if (!admin) {
     return NextResponse.json({ success: false, message: "Forbidden. Admin access only." }, { status: 403 });
   }

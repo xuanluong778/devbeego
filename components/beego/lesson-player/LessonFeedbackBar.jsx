@@ -12,6 +12,7 @@ export default function LessonFeedbackBar({
   continueDisabled = false,
   praiseSeed,
   softPraise = false,
+  mascot = false,
 }) {
   const praise = useMemo(
     () => (correct ? nextCorrectPraise(praiseSeed, { soft: softPraise }) : ""),
@@ -25,6 +26,11 @@ export default function LessonFeedbackBar({
       className={`beego-lesson-feedback${correct ? " beego-lesson-feedback--correct" : " beego-lesson-feedback--wrong"}`}
       role="status"
     >
+      {mascot ? (
+        <span className={`beego-gate1-bee${correct ? " is-happy" : " is-coach"}`} aria-hidden>
+          🐝
+        </span>
+      ) : null}
       <div className="beego-lesson-feedback__copy">
         {correct ? (
           <>

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { playLessonTts, stopLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
 import { alignAzureWords, errorLabelVi } from "@/lib/beego/learn/passage-word-marks";
 
-const MAX_MS = 30_000;
 const TARGET_RATE = 16000;
 
 function encodeWav(samples) {
@@ -69,7 +68,7 @@ function sentenceTokens(row) {
     .map((text) => ({ text, ipa: "" }));
 }
 
-export default function PassageReadExercise({ exercise, lessonId, onAnswerChange, feedback }) {
+export default function PassageReadExercise({ exercise, lessonId, onAnswerChange, feedback, showPlayback = false }) {
   const sentences = Array.isArray(exercise?.extensions?.passageSentences)
     ? exercise.extensions.passageSentences
     : [];
@@ -81,6 +80,7 @@ export default function PassageReadExercise({ exercise, lessonId, onAnswerChange
   const [result, setResult] = useState(null);
   const [blobUrl, setBlobUrl] = useState("");
   const [picked, setPicked] = useState(null);
+  const [playingRate, setPlayingRate] = useState(0);
   const recRef = useRef(null);
   const startedRef = useRef(0);
   const tickRef = useRef(0);
@@ -107,9 +107,14 @@ export default function PassageReadExercise({ exercise, lessonId, onAnswerChange
   const play = async (rate) => {
     const token = ++playGen.current;
     stopLessonTts();
-    for (const row of sentences) {
-      if (token !== playGen.current || phaseRef.current === "recording") return;
-      await playLessonTts({ text: row.text, lang: "en-US", rate });
+    setPlayingRate(rate);
+    try {
+      for (const row of sentences) {
+        if (token !== playGen.current || phaseRef.current === "recording") return;
+        await playLessonTts({ text: row.text, lang: "en-US", rate });
+      }
+    } finally {
+      if (token === playGen.current) setPlayingRate(0);
     }
   };
 
@@ -248,9 +253,7 @@ export default function PassageReadExercise({ exercise, lessonId, onAnswerChange
       },
     };
     tickRef.current = setInterval(() => {
-      const ms = Date.now() - startedRef.current;
-      setElapsed(ms);
-      if (ms >= MAX_MS) void stopRecording("limit");
+      setElapsed(Date.now() - startedRef.current);
     }, 250);
   };
 
@@ -271,8 +274,8 @@ export default function PassageReadExercise({ exercise, lessonId, onAnswerChange
   return (
     <div className="beego-passage">
       <div className="beego-passage__toolbar">
-        <button type="button" onClick={() => play(1)} disabled={phase === "recording" || phase === "scoring"}>Nghe mẫu</button>
-        <button type="button" onClick={() => play(0.75)} disabled={phase === "recording" || phase === "scoring"}>Nghe chậm</button>
+        <button type="button" className={playingRate === 1 ? "is-playing" : ""} aria-pressed={showPlayback ? playingRate === 1 : undefined} onClick={() => play(1)} disabled={phase === "recording" || phase === "scoring"}>{showPlayback && playingRate === 1 ? "Đang phát" : "Nghe mẫu"}</button>
+        <button type="button" className={playingRate === 0.75 ? "is-playing" : ""} aria-pressed={showPlayback ? playingRate === 0.75 : undefined} onClick={() => play(0.75)} disabled={phase === "recording" || phase === "scoring"}>{showPlayback && playingRate === 0.75 ? "Đang phát chậm" : "Nghe chậm"}</button>
         <button type="button" onClick={() => setShowVi((v) => !v)} aria-pressed={showVi}>
           {showVi ? "Ẩn nghĩa" : "Hiện nghĩa"}
         </button>
@@ -333,17 +336,21 @@ export default function PassageReadExercise({ exercise, lessonId, onAnswerChange
           <p>Nghe mẫu chậm, rồi đọc riêng từ này trước khi đọc lại cả đoạn.</p>
         </div>
       ) : null}
-      <p className="beego-passage__note">Nghỉ lấy hơi vẫn đang ghi. Bấm Dừng khi đọc xong.</p>
+      <p className="beego-passage__note">
+        {phase === "recording" && elapsed >= 90_000
+          ? "Đã quá 90 giây. Bản này sẽ không được chấm. Bấm Dừng, rồi đọc lại trong 90 giây."
+          : "Nghỉ lấy hơi vẫn đang ghi. Bấm Dừng khi đọc xong để chấm điểm. Mỗi lần chấm tối đa 90 giây."}
+      </p>
       <p className="beego-passage__meta">
-        {micLabel} · {formatTime(elapsed)} / 00:30
+        {phase === "recording" ? `${micLabel} · ${formatTime(elapsed)}` : micLabel}
       </p>
       <div className="beego-passage__actions">
-        {phase !== "recording" ? (
-          <button type="button" className="beego-passage__rec" onClick={startRecording} disabled={!!feedback || phase === "scoring" || phase === "arming"}>
-            {phase === "result" || phase === "score-error" ? "Ghi lại" : "Ghi âm"}
-          </button>
-        ) : (
+        {phase === "recording" ? (
           <button type="button" className="beego-passage__stop" onClick={() => stopRecording("user")}>Dừng</button>
+        ) : (
+          <button type="button" className="beego-passage__rec" onClick={startRecording} disabled={!!feedback || phase === "scoring" || phase === "arming"}>
+            {phase === "arming" ? "Đang xin quyền…" : "Bắt đầu"}
+          </button>
         )}
         <button type="button" onClick={() => blobUrl && new Audio(blobUrl).play()} disabled={!blobUrl || phase === "recording"}>Nghe lại</button>
         {phase === "score-error" ? (

@@ -11,20 +11,16 @@ export default function AdminGuard({ children }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" });
+        const res = await fetch("/api/admin/staff/me", { credentials: "same-origin", cache: "no-store" });
         const json = await res.json().catch(() => ({}));
         if (cancelled) return;
         if (!res.ok || !json.success) {
-          router.replace("/auth?next=/admin");
-          return;
-        }
-        if (json.data?.role !== "admin" && !json.data?.is_admin) {
-          router.replace("/dashboard");
+          router.replace("/auth?next=/admin/students");
           return;
         }
         setState("ok");
       } catch {
-        if (!cancelled) router.replace("/auth?next=/admin");
+        if (!cancelled) router.replace("/auth?next=/admin/students");
       }
     })();
     return () => {
@@ -35,16 +31,7 @@ export default function AdminGuard({ children }) {
   if (state !== "ok") {
     return (
       <div className="adm-loading">
-        <p>Đang xác minh quyền admin…</p>
-        <style jsx>{`
-          .adm-loading {
-            min-height: 60vh;
-            display: grid;
-            place-items: center;
-            font-weight: 700;
-            color: #1e40af;
-          }
-        `}</style>
+        <p>Đang xác minh quyền quản trị…</p>
       </div>
     );
   }

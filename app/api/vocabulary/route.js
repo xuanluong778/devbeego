@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { normalizeMediaUrl } from "@/lib/media-url";
 import { getSessionUserIdFromRequest } from "@/lib/http/ai-entitlement";
-import { requireAdminUser } from "@/lib/admin/require-admin";
+import { requireSystemOwner } from "@/lib/admin/require-admin";
 import { assertMutationOrigin } from "@/lib/security/csrf-origin";
 import { ensureUserWordProgressTable, PROGRESS_SELECT_FIELDS } from "@/lib/srs/ensure-schema";
 import { ensureVocabularySchema } from "@/lib/vocabulary/ensure-schema";
@@ -237,7 +237,9 @@ export async function POST(request) {
       return NextResponse.json({ success: false, message: csrf.message, code: csrf.code }, { status: 403 });
     }
 
-    const admin = await requireAdminUser(request);
+    const admin = await requireSystemOwner(request);
+
+    if (admin instanceof NextResponse) return admin;
     if (!admin) {
       return NextResponse.json(
         { success: false, message: "Admin only." },

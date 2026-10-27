@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
-import { requireAdminUser } from "@/lib/admin/require-admin";
+import { requireSystemOwner } from "@/lib/admin/require-admin";
 import { clipInputToDbFields, rowToListeningClip } from "@/lib/listening/clip-mapper";
 import { ensureListeningSchema, seedDefaultListeningClips, seedHeadwayListeningClips } from "@/lib/listening/ensure-schema";
 import { HEADWAY_LISTENING_CLIPS } from "@/lib/listening/headway-clips";
@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request) {
   try {
-    const admin = await requireAdminUser(request);
+    const admin = await requireSystemOwner(request);
+    if (admin instanceof NextResponse) return admin;
     if (!admin) {
       return NextResponse.json({ success: false, message: "Unauthorized." }, { status: 401 });
     }
@@ -32,7 +33,8 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const admin = await requireAdminUser(request);
+    const admin = await requireSystemOwner(request);
+    if (admin instanceof NextResponse) return admin;
     if (!admin) {
       return NextResponse.json({ success: false, message: "Unauthorized." }, { status: 401 });
     }

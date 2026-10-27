@@ -56,21 +56,25 @@
     "@capacitor/status-bar": "^6.0.3",
     "@sendgrid/mail": "^8.1.6",
     "arpabet-to-ipa": "^1.0.0",
-    "bullmq": "^5.73.0",
+    "bullmq": "^5.81.5",
     "cmu-pronouncing-dictionary": "^3.0.0",
+    "eslint-config-next": "^15.5.28",
     "iconv-lite": "^0.7.2",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.3",
-    "microsoft-cognitiveservices-speech-sdk": "^1.49.0",
-    "mysql2": "^3.11.3",
-    "next": "^14.2.5",
-    "nodemailer": "^8.0.4",
+    "microsoft-cognitiveservices-speech-sdk": "^1.53.0",
+    "mysql2": "^3.24.6",
+    "next": "^15.5.28",
+    "nodemailer": "^10.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "sepay-pg-node": "^1.0.0",
     "stripe": "^17.7.0",
     "twilio": "^5.13.1",
-    "ws": "^8.20.0"
+    "ws": "^8.22.0"
+  },
+  "overrides": {
+    "axios": "^1.20.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.2",

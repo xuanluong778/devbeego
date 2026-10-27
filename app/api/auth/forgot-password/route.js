@@ -6,6 +6,7 @@ import { sendOtp } from "@/lib/otp-delivery";
 import { isEmailOtpDeliveryConfigured, smtpMissingMessage } from "@/lib/auth/register-config";
 import { findUserByEmail, findUserByPhone } from "@/lib/auth/find-user-by-identifier";
 import { normalizePhoneE164 } from "@/lib/phone-vn";
+import { authRateLimitResponse } from "@/lib/security/auth-rate-limit";
 
 const GENERIC_OK =
   "Nếu tài khoản tồn tại, mã OTP sẽ được gửi đến email hoặc số điện thoại đã đăng ký.";
@@ -32,6 +33,8 @@ function normalizeForgotContact(method, value) {
 }
 
 export async function POST(request) {
+  const limited = await authRateLimitResponse(request, "auth_otp_send", 8);
+  if (limited) return limited;
   try {
     const body = await request.json();
     const parsed = normalizeForgotContact(body.contact_type, body.contact_value);

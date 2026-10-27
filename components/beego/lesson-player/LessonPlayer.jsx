@@ -64,6 +64,11 @@ function previewDictation(question, answer) {
   };
 }
 
+function isGate1Lesson(lesson, lessonId) {
+  if (Number(lesson?.gateNumber) === 1) return true;
+  return /^g01/i.test(String(lesson?.lessonId || lessonId || ""));
+}
+
 function LessonAim({ rubric }) {
   return (
     <section className="beego-lesson-aim" aria-label="Mục tiêu bài">
@@ -117,6 +122,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   const fanfarePlayedRef = useRef(false);
   const evidenceAttemptsRef = useRef([]);
 
+  const gate1 = isGate1Lesson(lesson, lessonId);
   const total = lesson?.questions?.length ?? 0;
   const question = lesson?.questions?.[index];
   const progress = phase === "complete" ? 100 : total ? Math.round((index / total) * 100) : 0;
@@ -361,6 +367,23 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   }, [index, phase]);
 
   useEffect(() => {
+    if (!gate1 || typeof window === "undefined" || !window.visualViewport) return undefined;
+    const viewport = window.visualViewport;
+    const apply = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      document.documentElement.style.setProperty("--beego-keyboard-inset", `${Math.round(inset)}px`);
+    };
+    viewport.addEventListener("resize", apply);
+    viewport.addEventListener("scroll", apply);
+    apply();
+    return () => {
+      viewport.removeEventListener("resize", apply);
+      viewport.removeEventListener("scroll", apply);
+      document.documentElement.style.removeProperty("--beego-keyboard-inset");
+    };
+  }, [gate1]);
+
+  useEffect(() => {
     if (question?.type !== "matching_pairs") return;
     if (!answer?.completed || feedback || checking) return;
     void handleCheck();
@@ -439,7 +462,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   if (loadState === "loading") {
     const tip = pickLoadingTip(String(lessonId || "").length);
     return (
-      <div className="beego-lesson-player beego-lesson-player--loading" aria-busy="true">
+      <div className={`beego-lesson-player beego-lesson-player--loading${isGate1Lesson(null, lessonId) ? " beego-lesson-player--gate1" : ""}`} aria-busy="true">
         <span className="beego-lesson-loading__bee" aria-hidden>
           🐝
         </span>
@@ -451,7 +474,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
 
   if (loadState === "error" || !lesson) {
     return (
-      <div className="beego-lesson-player beego-lesson-player--error">
+      <div className={`beego-lesson-player beego-lesson-player--error${isGate1Lesson(null, lessonId) ? " beego-lesson-player--gate1" : ""}`}>
         <div className="beego-lesson-complete__card">
           <h1>Không mở được bài học</h1>
           <p>{loadError || "Nội dung không khả dụng."}</p>
@@ -465,7 +488,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
 
   if (phase === "complete") {
     return (
-      <div className="beego-lesson-player beego-lesson-player--complete">
+      <div className={`beego-lesson-player beego-lesson-player--complete${gate1 ? " beego-lesson-player--gate1" : ""}`}>
         <LessonCompleteScreen
           lesson={lesson}
           correctCount={correctAtFinishRef.current}
@@ -480,6 +503,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           alreadyCompleted={alreadyCompleted || replay}
           masteryEvidence={masteryEvidenceForSession(lesson, evidenceAttemptsRef.current)}
           celebrate={celebrate}
+          gate1={gate1}
           replay={replay}
           showAiPractice={aiPracticeOn}
           onAiPractice={() => setAiPanelOpen(true)}
@@ -495,7 +519,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   }
 
   return (
-    <div className={`beego-lesson-player${keyboardMode ? " beego-lesson-player--keyboard" : ""}`}>
+    <div className={`beego-lesson-player${keyboardMode ? " beego-lesson-player--keyboard" : ""}${gate1 ? " beego-lesson-player--gate1" : ""}`}>
       <LessonTopBar progress={progress} lives={lives} onExit={handleExit} stepLabel={stepLabel} />
 
       <main className="beego-lesson-player__main">
@@ -542,8 +566,8 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           </div>
         ) : null}
         {lesson.masteryRubric ? <LessonAim rubric={lesson.masteryRubric} /> : null}
+        <div key={question?.id || index} className={gate1 ? "beego-gate1-stage" : undefined}>
         <ExerciseRenderer
-          key={question?.id || index}
           exercise={question}
           lessonId={lesson?.lessonId || lessonId}
           activityType={lesson?.type}
@@ -553,7 +577,9 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           storySupportVi={reveal?.storyVi || ""}
           revealCorrectId={reveal?.correctAnswerId ?? null}
           onCheck={handleCheck}
+          livelyUi={gate1}
         />
+        </div>
         {keyboardMode && question?.type !== "listening_dictation" ? (
           <input
             type="text"
@@ -576,6 +602,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           continueDisabled={checking}
           praiseSeed={`${question?.id || index}-${correctCount}`}
           softPraise={Boolean(reveal?.softPraise)}
+          mascot={gate1}
         />
       ) : (
         <LessonBottomBar
@@ -587,6 +614,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           onToggleKeyboard={() => setKeyboardMode((v) => !v)}
           skipDisabled={skipDisabled}
           skipLabel={Number(question?.extensions?.activity) === 11 ? "Bỏ qua câu nói" : "Bỏ qua"}
+          gate1={gate1}
         />
       )}
     </div>

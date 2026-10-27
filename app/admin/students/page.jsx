@@ -1,134 +1,192 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import adminTable from "@/components/admin/AdminTable.module.css";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import AdminShell from "@/components/admin/AdminShell";
+
+const PLAN_FILTERS = [
+  { id: "all", label: "Tất cả gói" },
+  { id: "trial", label: "Trial" },
+  { id: "paid", label: "Trả phí (Pro/VIP)" },
+  { id: "expired", label: "Hết hạn" },
+  { id: "not_activated", label: "Chưa kích hoạt" },
+  { id: "new", label: "Mới 7 ngày" },
+];
+
+const STATUS_FILTERS = [
+  { id: "all", label: "Mọi trạng thái TK" },
+  { id: "active", label: "Hoạt động" },
+  { id: "blocked", label: "Đã khóa" },
+];
+
+function fmtDate(v) {
+  if (!v) return "—";
+  try {
+    return new Date(v).toLocaleString("vi-VN");
+  } catch {
+    return "—";
+  }
+}
 
 export default function AdminStudentsPage() {
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState("");
+  const [meta, setMeta] = useState({ page: 1, total_pages: 1, total: 0 });
   const [qInput, setQInput] = useState("");
   const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [accountStatus, setAccountStatus] = useState("all");
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [success, setSuccess] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    setMsg("");
+    setErr("");
+    setSuccess("");
     try {
-      const qs = new URLSearchParams({ page: "1", limit: "50" });
-      if (q.trim()) qs.set("q", q.trim());
-      const res = await fetch(`/api/admin/students?${qs}`, { cache: "no-store" });
+      const sp = new URLSearchParams({
+        page: String(page),
+        limit: "20",
+        filter,
+        account_status: accountStatus,
+      });
+      if (q.trim()) sp.set("q", q.trim());
+      const res = await fetch(`/api/admin/students?${sp}`, { cache: "no-store", credentials: "same-origin" });
       const json = await res.json();
       if (!res.ok || !json.success) {
-        setMsg(json.message || "Không tải được danh sách học viên.");
-        setItems([]);
-        return;
+        throw new Error(json.message || "Không tải được danh sách học viên.");
       }
-      setItems(json.data || []);
-    } catch {
-      setMsg("Lỗi kết nối khi tải danh sách học viên.");
+      setItems(json.data.items || []);
+      setMeta(json.data);
+    } catch (e) {
+      setErr(e.message || "Lỗi kết nối.");
       setItems([]);
     } finally {
       setLoading(false);
     }
-  }, [q]);
+  }, [accountStatus, filter, page, q]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  const formatDate = (value) => {
-    if (!value) return "--";
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return "--";
-    return d.toLocaleString("vi-VN");
-  };
-
-  function applySearch(e) {
-    e?.preventDefault?.();
+  function submitSearch(e) {
+    e.preventDefault();
+    setPage(1);
     setQ(qInput.trim());
   }
 
   return (
-    <main className="page" style={{ minHeight: "100vh", padding: "1rem" }}>
-      <section
-        className="card"
-        style={{
-          width: "min(1100px, 100%)",
-          margin: "0 auto",
-          background: "#fff",
-          borderRadius: 22,
-          border: "4px solid #fff",
-          boxShadow: "0 14px 0 rgba(35,51,104,0.16)",
-          padding: "1rem",
-        }}
-      >
-        <h1 style={{ margin: "0 0 0.5rem", color: "#2f4f88", textAlign: "center" }}>
-          Danh sách học viên
-        </h1>
-        <form className={adminTable.searchRow} onSubmit={applySearch}>
+    <AdminShell title="Quản lý học viên" subtitle="Danh sách, tìm kiếm và hồ sơ học viên trên dev.beego.vn">
+      <section className="adm-card">
+        <form className="adm-toolbar adm-toolbar--stack" onSubmit={submitSearch}>
           <input
-            className={adminTable.searchInput}
+            className="adm-input adm-input--grow"
             type="search"
-            placeholder="Tìm theo tên hoặc email…"
+            placeholder="Tìm theo mã, tên, email hoặc SĐT…"
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
-            enterKeyHint="search"
           />
-          <button type="submit" className={adminTable.searchBtn}>
-            Tìm kiếm
-          </button>
-        </form>
-        {msg && (
-          <p
-            style={{
-              margin: "0.3rem 0",
-              padding: "0.4rem 0.6rem",
-              borderRadius: 12,
-              background: "#f5f9ff",
-              border: "2px dashed #c9d8ff",
-              color: "#36558b",
-              textAlign: "center",
-              fontWeight: 600,
-            }}
+          <select className="adm-select" value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }}>
+            {PLAN_FILTERS.map((f) => (
+              <option key={f.id} value={f.id}>{f.label}</option>
+            ))}
+          </select>
+          <select
+            className="adm-select"
+            value={accountStatus}
+            onChange={(e) => { setAccountStatus(e.target.value); setPage(1); }}
           >
-            {msg}
-          </p>
-        )}
-        {loading && <p style={{ textAlign: "center" }}>Đang tải...</p>}
-        {!loading && items.length === 0 && (
-          <p style={{ textAlign: "center" }}>Chưa có học viên khớp bộ lọc.</p>
-        )}
-        {!loading && items.length > 0 && (
-          <div className={adminTable.wrap}>
-            <table className={adminTable.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Tên</th>
-                  <th>Email</th>
-                  <th>Ngày đăng ký</th>
-                  <th>Đăng nhập gần nhất</th>
-                  <th>Số lần đăng nhập</th>
-                  <th>Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.id}</td>
-                    <td>{u.name}</td>
-                    <td>{u.email}</td>
-                    <td>{formatDate(u.created_at)}</td>
-                    <td>{formatDate(u.last_login_at)}</td>
-                    <td>{Number(u.login_count || 0)}</td>
-                    <td>{Number(u.active_sessions || 0) > 0 ? "Đang online" : "Offline"}</td>
+            {STATUS_FILTERS.map((f) => (
+              <option key={f.id} value={f.id}>{f.label}</option>
+            ))}
+          </select>
+          <button type="submit" className="adm-btn adm-btn--primary">Tìm kiếm</button>
+        </form>
+
+        {success ? <p className="adm-success">{success}</p> : null}
+        {err ? <p className="adm-err">{err}</p> : null}
+        {loading ? <p className="adm-msg">Đang tải danh sách…</p> : null}
+
+        {!loading && !err && items.length === 0 ? (
+          <p className="adm-empty">Chưa có học viên khớp bộ lọc.</p>
+        ) : null}
+
+        {!loading && items.length > 0 ? (
+          <>
+            <div className="adm-table-wrap">
+              <table className="adm-table">
+                <thead>
+                  <tr>
+                    <th>Mã</th>
+                    <th>Họ tên</th>
+                    <th>Email</th>
+                    <th>SĐT</th>
+                    <th>Đăng nhập</th>
+                    <th>Xác minh</th>
+                    <th>Ngày ĐK</th>
+                    <th>Gói</th>
+                    <th>Trạng thái</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {items.map((u) => (
+                    <tr key={u.id}>
+                      <td>
+                        <Link href={`/admin/students/${u.id}`} className="adm-link">
+                          {u.code}
+                        </Link>
+                      </td>
+                      <td>
+                        <Link href={`/admin/students/${u.id}`} className="adm-link">
+                          {u.name}
+                        </Link>
+                      </td>
+                      <td>{u.email || "—"}</td>
+                      <td>{u.phone || "—"}</td>
+                      <td>{u.login_method_label}</td>
+                      <td>{u.verification_label}</td>
+                      <td>{fmtDate(u.created_at)}</td>
+                      <td>
+                        <span className={`adm-badge adm-badge--${u.plan_state === "expired" ? "expired" : "paid"}`}>
+                          {u.plan_state}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`adm-badge adm-badge--${u.account_status === "active" ? "active" : "blocked"}`}>
+                          {u.account_status_label}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="adm-toolbar adm-toolbar--between">
+              <button
+                type="button"
+                className="adm-btn adm-btn--ghost"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                ← Trang trước
+              </button>
+              <span className="adm-msg">
+                Trang {meta.page}/{meta.total_pages} · {meta.total} học viên
+              </span>
+              <button
+                type="button"
+                className="adm-btn adm-btn--ghost"
+                disabled={page >= meta.total_pages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Trang sau →
+              </button>
+            </div>
+          </>
+        ) : null}
       </section>
-    </main>
+    </AdminShell>
   );
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { LISTENING_PATH } from "@/lib/beego/routes";
+import { assertMutationOrigin } from "@/lib/security/csrf-origin";
+import { checkIpRateLimit } from "@/lib/security/ip-rate-limit";
 
 const SESSION_COOKIE = "session_token";
 
@@ -70,6 +72,24 @@ function isPublicApiPath(pathname: string, method: string): boolean {
   return false;
 }
 
+const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/** Cookie-session API nhạy cảm: CSRF + rate limit nhẹ tại edge (per instance). */
+function isStaffOrBillingMutationPath(pathname: string, method: string): boolean {
+  if (!MUTATION_METHODS.has(method.toUpperCase())) return false;
+  if (pathname.startsWith("/api/admin/")) return true;
+  if (pathname.startsWith("/api/org/")) return true;
+  if (pathname === "/api/payments/create") return true;
+  if (pathname.startsWith("/api/billing/checkout")) return true;
+  return false;
+}
+
+function isStaffReadPath(pathname: string, method: string): boolean {
+  const m = method.toUpperCase();
+  if (m !== "GET" && m !== "HEAD") return false;
+  return pathname.startsWith("/api/admin/") || pathname.startsWith("/api/org/");
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const method = request.method;
@@ -113,8 +133,40 @@ export function middleware(request: NextRequest) {
     if (isPublicApiPath(pathname, method)) {
       return NextResponse.next();
     }
+
+    if (isStaffOrBillingMutationPath(pathname, method)) {
+      const csrf = assertMutationOrigin(request);
+      if (!csrf.ok) {
+        return NextResponse.json(
+          { success: false, message: csrf.message, code: csrf.code },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (isStaffOrBillingMutationPath(pathname, method) || isStaffReadPath(pathname, method)) {
+      const mutation = isStaffOrBillingMutationPath(pathname, method);
+      const rl = checkIpRateLimit(request, {
+        key: mutation ? "edge:staff-mutation" : "edge:staff-read",
+        windowMs: 60_000,
+        max: Number(
+          mutation
+            ? process.env.EDGE_ADMIN_MUTATION_RATE_MAX || 90
+            : process.env.EDGE_ADMIN_READ_RATE_MAX || 240
+        ),
+      });
+      if (!rl.ok) {
+        return NextResponse.json(
+          { success: false, message: "Too many requests.", code: "RATE_LIMIT" },
+          {
+            status: 429,
+            headers: rl.retryAfterSec ? { "Retry-After": String(rl.retryAfterSec) } : undefined,
+          }
+        );
+      }
+    }
+
     // Auth validated per route (cookie or Bearer via getSessionUserFromRequest).
-    // Do not treat arbitrary Authorization headers as authenticated at the edge.
     return NextResponse.next();
   }
 

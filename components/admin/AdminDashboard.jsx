@@ -294,8 +294,8 @@ export default function AdminDashboard() {
               <small>Trung tâm, lớp, bộ từ, giao bài</small>
             </Link>
             <Link href="/admin/students" className="adm-link-card">
-              Học viên (legacy)
-              <small>Trang quản lý cũ</small>
+              Quản lý học viên
+              <small>Danh sách, hồ sơ, ghi chú, nhật ký</small>
             </Link>
           </div>
         </section>

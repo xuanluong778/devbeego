@@ -5,11 +5,14 @@ import {
   type VerifyOtpBody,
 } from "@/lib/otp/service";
 import { loadUserPayload, setSessionOnResponse } from "@/lib/auth/create-session";
+import { authRateLimitResponse } from "@/lib/security/auth-rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  const limited = await authRateLimitResponse(request, "auth_otp_verify", 20);
+  if (limited) return limited;
   try {
     let body: unknown;
     try {

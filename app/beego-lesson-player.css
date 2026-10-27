@@ -857,8 +857,8 @@ body.page-lesson-player .page-content {
   font-weight: 750;
   cursor: pointer;
 }
-.beego-passage__rec { background: #7c3aed; color: #fff; border-color: #7c3aed; }
-.beego-passage__stop { background: #b91c1c; color: #fff; border-color: #b91c1c; }
+.beego-passage__rec { background: #00da70; color: #111; border-color: #00a856; }
+.beego-passage__stop { background: #f97316; color: #111; border-color: #c2410c; }
 .beego-passage__text { display: flex; flex-direction: column; gap: 12px; }
 .beego-passage__sentence { margin: 0; }
 .beego-passage__en { margin: 0; font-weight: 750; line-height: 1.6; }
@@ -3579,8 +3579,283 @@ body.page-lesson-player .page-content {
   .beego-lesson-wordbank__chip--placed.is-wave,
   .beego-lesson-complete--celebrate .beego-lesson-complete__bee,
   .beego-lesson-complete--celebrate .beego-lesson-complete__card,
-  .beego-lesson-loading__bee {
+  .beego-lesson-loading__bee,
+  .beego-gate1-stage,
+  .beego-gate1-bee,
+  .beego-lesson-player--gate1 .beego-lesson-listen-btn.is-playing {
     animation: none;
     transition: none;
   }
+}
+
+/* Cửa 1 only — playful beginner shell. Other gates do not use this class. */
+.beego-lesson-option__mark {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.beego-lesson-player--gate1 {
+  background:
+    radial-gradient(1200px 420px at 10% -10%, #fde68a 0%, transparent 55%),
+    radial-gradient(900px 380px at 110% 0%, #ddd6fe 0%, transparent 50%),
+    #fffdf8;
+  font-family: inherit;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-topbar {
+  background: rgba(255, 253, 248, 0.94);
+  border-bottom-color: #f3e8ff;
+  backdrop-filter: blur(8px);
+}
+
+.beego-lesson-player--gate1 .beego-lesson-topbar__track {
+  height: 16px;
+  background: #efe7ff;
+  box-shadow: inset 0 1px 2px rgba(109, 40, 217, 0.12);
+}
+
+.beego-lesson-player--gate1 .beego-lesson-topbar__fill {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b 42%, #7c3aed);
+}
+
+.beego-lesson-player--gate1 .beego-lesson-topbar__step {
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #5b21b6;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-player__main {
+  padding-top: 16px;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-question__prompt {
+  font-size: clamp(1.35rem, 4.6vw, 1.85rem);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: #1e1b4b;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-question__skill {
+  color: #7c3aed;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.beego-gate1-stage {
+  animation: beego-gate1-in 0.38s ease;
+}
+
+@keyframes beego-gate1-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.beego-lesson-player--gate1 .beego-lesson-option {
+  border-width: 2px;
+  border-radius: 18px;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-option--selected {
+  transform: translateY(-1px);
+  border-color: #7c3aed;
+  box-shadow: 0 8px 0 #ddd6fe;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-option__mark {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 6px 0 0;
+  overflow: visible;
+  clip: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-option--correct .beego-lesson-option__mark::before {
+  content: "✓ ";
+}
+
+.beego-lesson-player--gate1 .beego-lesson-option--wrong .beego-lesson-option__mark::before {
+  content: "✕ ";
+}
+
+.beego-lesson-player--gate1 .beego-lesson-option--selected .beego-lesson-option__mark::before {
+  content: "• ";
+}
+
+.beego-lesson-player--gate1 .beego-lesson-listen-btn,
+.beego-lesson-player--gate1 .beego-passage button {
+  border-radius: 999px;
+  min-height: 44px;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-listen-btn.is-playing {
+  background: #5b21b6;
+  color: #fff;
+  border-color: #5b21b6;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.18);
+}
+
+.beego-lesson-player--gate1 .beego-lesson-bottombar,
+.beego-lesson-player--gate1 .beego-lesson-feedback {
+  bottom: var(--beego-keyboard-inset, 0px);
+  border-radius: 20px 20px 0 0;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-bottombar__check--active {
+  background: #00da70;
+  color: #111111;
+  box-shadow: 0 4px 0 #009e52;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-bottombar__check--active:active {
+  box-shadow: 0 2px 0 #009e52;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-feedback {
+  align-items: flex-start;
+}
+
+.beego-gate1-bee {
+  font-size: 2rem;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.beego-gate1-bee.is-happy {
+  animation: beego-gate1-hop 0.7s ease;
+}
+
+.beego-gate1-bee.is-coach {
+  animation: beego-gate1-nod 0.8s ease;
+}
+
+@keyframes beego-gate1-hop {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  40% { transform: translateY(-8px) rotate(-8deg); }
+  70% { transform: translateY(-2px) rotate(6deg); }
+}
+
+@keyframes beego-gate1-nod {
+  0%, 100% { transform: rotate(0); }
+  40% { transform: rotate(-8deg); }
+  70% { transform: rotate(6deg); }
+}
+
+.beego-lesson-complete--gate1 .beego-lesson-complete__card {
+  border: 2px solid #fde68a;
+  box-shadow: 0 18px 40px rgba(124, 58, 237, 0.12);
+}
+
+.beego-lesson-complete--gate1 .beego-lesson-complete__bee {
+  font-size: 3.4rem;
+}
+
+.beego-lesson-player--gate1 .beego-lesson-speaking__status,
+.beego-lesson-player--gate1 .beego-passage__error,
+.beego-lesson-player--gate1 .beego-passage__meta {
+  font-weight: 700;
+}
+
+/* Activity 11 scrolls with the page, not inside a small box. */
+.beego-lesson-player:has(.beego-passage) {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.beego-lesson-player:has(.beego-passage) .beego-lesson-topbar {
+  padding-top: max(8px, env(safe-area-inset-top));
+  padding-bottom: 8px;
+}
+
+.beego-lesson-player:has(.beego-passage) .beego-lesson-player__main {
+  display: block;
+  overflow: visible;
+  padding: 6px 14px calc(var(--beego-lesson-bar-h) + 28px);
+}
+
+.beego-lesson-player:has(.beego-passage) .beego-gate1-stage,
+.beego-lesson-player:has(.beego-passage) .beego-lesson-question {
+  display: block;
+  overflow: visible;
+}
+
+.beego-lesson-question:has(.beego-passage) .beego-lesson-question__activity,
+.beego-lesson-question:has(.beego-passage) .beego-lesson-question__skill {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.2;
+}
+
+.beego-lesson-question:has(.beego-passage) .beego-lesson-question__prompt,
+.beego-lesson-player--gate1 .beego-lesson-question:has(.beego-passage) .beego-lesson-question__prompt {
+  margin: 0 0 2px;
+  font-size: clamp(0.95rem, 2.2vh, 1.15rem);
+  line-height: 1.15;
+}
+
+.beego-lesson-question:has(.beego-passage) .beego-lesson-question__mascot {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 2px;
+  border-radius: 14px;
+}
+
+.beego-lesson-question:has(.beego-passage) .beego-lesson-question__bee {
+  font-size: 1.7rem;
+}
+
+.beego-lesson-player:has(.beego-passage) .beego-passage {
+  display: block;
+  overflow: visible;
+  gap: 8px;
+}
+
+.beego-lesson-player:has(.beego-passage) .beego-passage__toolbar,
+.beego-lesson-player:has(.beego-passage) .beego-passage__actions {
+  flex: 0 0 auto;
+}
+
+.beego-lesson-player:has(.beego-passage) .beego-passage__text {
+  overflow: visible;
+  gap: 8px;
+}
+
+.beego-lesson-player--gate1 .beego-passage button.beego-passage__word {
+  min-height: 0;
+  padding: 0;
+}
+
+.beego-lesson-player:has(.beego-passage) .beego-passage__en {
+  font-size: clamp(1.02rem, 2.2vh, 1.22rem);
+  line-height: 1.3;
+}
+
+.beego-lesson-player:has(.beego-passage) .beego-passage__ipa,
+.beego-lesson-player:has(.beego-passage) .beego-passage__vi {
+  margin: 0;
+  font-size: clamp(0.84rem, 1.75vh, 1rem);
+  line-height: 1.3;
+}
+
+.beego-lesson-player:has(.beego-passage) .beego-passage__accent,
+.beego-lesson-player:has(.beego-passage) .beego-passage__note,
+.beego-lesson-player:has(.beego-passage) .beego-passage__meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.3;
 }

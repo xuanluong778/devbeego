@@ -1,28 +1,14 @@
 import { NextResponse } from "next/server";
-import pool from "@/lib/db";
 import { signVoiceJwt } from "@/lib/voice/jwt";
 import { ensureSubscriptionRow, fetchSubscriptionRow, getUserPlan } from "@/lib/subscriptions/subscription-service";
 import { resolveEffectivePlanForEmail } from "@/lib/auth/admin-entitlement";
+import { getSessionUserFromRequest } from "@/lib/auth/get-session-user";
 
 export const runtime = "nodejs";
 
-async function requireAuthenticatedUser(request) {
-  const token = request.cookies.get("session_token")?.value;
-  if (!token) return null;
-  const [rows] = await pool.query(
-    `SELECT u.id, u.name, u.email
-     FROM user_sessions s
-     INNER JOIN users u ON u.id = s.user_id
-     WHERE s.token = ? AND s.expires_at > NOW()
-     LIMIT 1`,
-    [token]
-  );
-  return rows[0] || null;
-}
-
 export async function GET(request) {
   try {
-    const user = await requireAuthenticatedUser(request);
+    const user = await getSessionUserFromRequest(request);
     if (!user?.id) {
       return NextResponse.json(
         { success: false, code: "AUTH_REQUIRED", message: "Sign in to use voice." },

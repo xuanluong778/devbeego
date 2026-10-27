@@ -3,6 +3,7 @@ import pool from "@/lib/db";
 import { ensureVerificationSchema } from "@/lib/auth/ensure-verification-schema";
 import { hashPassword, verifyOtpCode } from "@/lib/auth";
 import { findUserByEmail, findUserByPhone } from "@/lib/auth/find-user-by-identifier";
+import { authRateLimitResponse } from "@/lib/security/auth-rate-limit";
 
 async function verifyResetOtpByToken({ otpToken, otpCode }) {
   const [otpRows] = await pool.query(
@@ -34,6 +35,8 @@ async function verifyResetOtpByToken({ otpToken, otpCode }) {
 }
 
 export async function POST(request) {
+  const limited = await authRateLimitResponse(request, "auth_otp_verify", 20);
+  if (limited) return limited;
   try {
     const body = await request.json();
     const otpToken = typeof body.otp_token === "string" ? body.otp_token.trim() : "";

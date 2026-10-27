@@ -687,6 +687,11 @@ body.page-learn-path .beego-shell-main {
   background: linear-gradient(180deg, #ede9fe, #c4b5fd);
 }
 
+.beego-learn-node--open .beego-learn-node__circle {
+  background: #fff;
+  box-shadow: 0 4px 0 #86efac;
+}
+
 .beego-learn-node--locked .beego-learn-node__circle {
   background: var(--beego-learn-locked-bg);
   color: var(--beego-learn-locked);

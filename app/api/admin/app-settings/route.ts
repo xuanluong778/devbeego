@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import pool from "@/lib/db";
-import { requireAdminUser } from "@/lib/admin/require-admin";
+import { requireSystemOwner } from "@/lib/admin/require-admin";
 import { encryptSettingValue, getMasterSecret, hasMasterSecret } from "@/lib/runtime-settings/crypto";
 import {
   warmRuntimeSettingsCache,
@@ -19,7 +19,8 @@ function defForKey(key: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireAdminUser(request);
+    const admin = await requireSystemOwner(request);
+    if (admin instanceof NextResponse) return admin;
     if (!admin) {
       return NextResponse.json({ success: false, message: "Forbidden. Admin access only." }, { status: 403 });
     }
@@ -70,7 +71,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await requireAdminUser(request);
+    const admin = await requireSystemOwner(request);
+    if (admin instanceof NextResponse) return admin;
     if (!admin) {
       return NextResponse.json({ success: false, message: "Forbidden. Admin access only." }, { status: 403 });
     }

@@ -1,14 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import pool from "@/lib/db";
 import { ensurePaymentsTable } from "@/lib/payments/ensure-payments-table";
-import { requireAdminUser } from "@/lib/admin/require-admin";
+import { requireSystemOwner } from "@/lib/admin/require-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireAdminUser(request);
+    const admin = await requireSystemOwner(request);
+    if (admin instanceof NextResponse) return admin;
     if (!admin) {
       return NextResponse.json(
         { success: false, message: "Forbidden. Admin access only." },

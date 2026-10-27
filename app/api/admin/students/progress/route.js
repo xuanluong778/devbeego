@@ -21,7 +21,8 @@ async function ensureChatLogTable() {
 
 export async function GET(request) {
   try {
-    const currentUser = await requireAdminUser(request);
+    const currentUser = await requireAdminUser(request, "students.view");
+    if (currentUser instanceof NextResponse) return currentUser;
     if (!currentUser) {
       return NextResponse.json(
         { success: false, message: "Forbidden. Admin access only." },

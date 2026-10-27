@@ -4,7 +4,7 @@ import { ensureRoleSchema } from "@/lib/auth/ensure-role-schema";
 import { ensureUserProfileColumns } from "@/lib/users/ensure-user-profile-columns";
 import { ensureUserSessionsTable } from "@/lib/auth/ensure-session-schema";
 import { resolveSessionToken } from "@/lib/auth/resolve-session-token";
-import { isAdminUser, resolveRoleForEmail, type UserRole } from "@/lib/auth/user-role";
+import type { UserRole } from "@/lib/auth/user-role";
 
 export type SessionUser = {
   id: number;
@@ -49,6 +49,7 @@ export async function getSessionUserFromRequest(request: NextRequest): Promise<S
   }
   const row = rows[0];
   if (!row) return null;
+  if (Number(row.is_active ?? 1) !== 1) return null;
 
   try {
     await pool.query(`UPDATE user_sessions SET last_seen_at = NOW() WHERE token = ? LIMIT 1`, [token]);
@@ -56,17 +57,8 @@ export async function getSessionUserFromRequest(request: NextRequest): Promise<S
     /* optional column */
   }
 
-  let role = String(row.role || "user").toLowerCase() as UserRole;
+  const role = String(row.role || "user").toLowerCase() as UserRole;
   const email = row.email != null ? String(row.email) : null;
-  const expected = resolveRoleForEmail(email);
-  if (role !== expected) {
-    role = expected;
-    await pool.query("UPDATE users SET role = ? WHERE id = ?", [role, row.id]);
-  }
-  if (role !== "admin" && isAdminUser(email)) {
-    role = "admin";
-    await pool.query("UPDATE users SET role = 'admin' WHERE id = ?", [row.id]);
-  }
 
   return {
     id: Number(row.id),

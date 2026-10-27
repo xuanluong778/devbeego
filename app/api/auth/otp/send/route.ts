@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { sendAuthOtp, type SendOtpBody } from "@/lib/otp/service";
+import { authRateLimitResponse } from "@/lib/security/auth-rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  const limited = await authRateLimitResponse(request, "auth_otp_send", 8);
+  if (limited) return limited;
   try {
     let body: unknown;
     try {

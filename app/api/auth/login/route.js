@@ -62,7 +62,7 @@ export async function POST(request) {
       }
       const ph = candidates.map(() => "?").join(", ");
       const [rows] = await pool.query(
-        `SELECT id, name, email, phone, password_hash
+        `SELECT id, name, email, phone, password_hash, is_active
          FROM users
          WHERE TRIM(REPLACE(REPLACE(CONCAT(IFNULL(phone, '')), ' ', ''), '-', '')) IN (${ph})
          LIMIT 1`,
@@ -76,6 +76,9 @@ export async function POST(request) {
         { success: false, message: "Invalid email or password." },
         { status: 401 }
       );
+    }
+    if (Number(user.is_active) === 0) {
+      return NextResponse.json({ success: false, message: "Account blocked." }, { status: 403 });
     }
 
     const token = generateSessionToken();

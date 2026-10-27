@@ -59,6 +59,10 @@ export async function GET(request) {
       );
     }
 
+    if (Number(user.is_active) !== 1) {
+      return NextResponse.json({ success: false, message: "Account blocked." }, { status: 403 });
+    }
+
     const expectedRole = resolveRoleForEmail(user.email);
     if (String(user.role || "user") !== expectedRole) {
       await pool.query("UPDATE users SET role = ? WHERE id = ?", [expectedRole, user.id]);

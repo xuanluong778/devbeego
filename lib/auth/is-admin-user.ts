@@ -1,18 +1,15 @@
-/** Central admin allowlist — configure via ADMIN_EMAILS in .env (comma-separated). */
-
-export const DEFAULT_ADMIN_EMAILS = [
-  "xuanluong778@gmail.com",
-  "xuanluongmarketing@gmail.com",
-];
+/** Admin identity comes from users.staff_role and explicit grant, not from emails in source. */
 
 export function parseAdminEmails(): string[] {
   const raw = process.env.ADMIN_EMAILS?.trim() || process.env.ADMIN_EMAIL?.trim() || "";
-  const fromEnv = raw
+  return raw
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  if (fromEnv.length) return fromEnv;
-  return DEFAULT_ADMIN_EMAILS.map((e) => e.toLowerCase());
+}
+
+export function parseAdminEmailsFromEnvOnly(): string[] {
+  return parseAdminEmails();
 }
 
 export function isAdminUser(email: string | null | undefined): boolean {

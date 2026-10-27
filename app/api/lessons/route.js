@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { isDbConnectionError } from "@/lib/db-errors";
 import { normalizeMediaUrl } from "@/lib/media-url";
-import { requireAdminUser } from "@/lib/admin/require-admin";
+import { requireSystemOwner } from "@/lib/admin/require-admin";
 
 export async function GET() {
   try {
@@ -52,7 +52,8 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const admin = await requireAdminUser(request);
+    const admin = await requireSystemOwner(request);
+    if (admin instanceof NextResponse) return admin;
     if (!admin) {
       return NextResponse.json({ success: false, message: "Admin access required." }, { status: 403 });
     }

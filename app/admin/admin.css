@@ -244,6 +244,287 @@
   font-weight: 700;
 }
 
+.adm-success {
+  color: #166534;
+  font-weight: 700;
+  margin: 0.5rem 0;
+}
+
+.adm-empty {
+  text-align: center;
+  color: #64748b;
+  font-weight: 600;
+  padding: 1.5rem 0.5rem;
+}
+
+.adm-loading {
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.adm-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) 1fr;
+  min-height: 100vh;
+}
+
+.adm-sidebar {
+  background: #fff;
+  border-right: 1px solid #dbeafe;
+  padding: 1rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.adm-sidebar__brand a {
+  font-weight: 800;
+  color: #1d4ed8;
+  text-decoration: none;
+  font-size: 1.05rem;
+}
+
+.adm-sidebar__brand p {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.adm-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.adm-sidebar__link {
+  text-decoration: none;
+  color: #334155;
+  font-weight: 700;
+  font-size: 0.88rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+}
+
+.adm-sidebar__link.is-active {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.adm-sidebar__staff {
+  margin-top: auto;
+  font-size: 0.82rem;
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.adm-sidebar__back {
+  font-size: 0.82rem;
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.adm-main {
+  padding: 1rem 1rem 2rem;
+  max-width: 1200px;
+}
+
+.adm-main__head h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #1d4ed8;
+}
+
+.adm-main__head p {
+  margin: 0.25rem 0 0.75rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.adm-breadcrumb {
+  font-size: 0.85rem;
+  margin: 0 0 0.75rem;
+}
+
+.adm-breadcrumb a {
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.adm-toolbar--stack {
+  flex-wrap: wrap;
+}
+
+.adm-toolbar--between {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.adm-input--grow {
+  flex: 1;
+  min-width: 200px;
+}
+
+.adm-input--block {
+  display: block;
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.adm-textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  margin-top: 0.25rem;
+}
+
+.adm-form {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.adm-form h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: #1e40af;
+}
+
+.adm-form label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.adm-form--danger {
+  border-top: 1px dashed #fecaca;
+  padding-top: 1rem;
+}
+
+.adm-dl {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.adm-dl > div {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) 1fr;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.adm-dl dt {
+  margin: 0;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.adm-dl dd {
+  margin: 0;
+  color: #1e293b;
+}
+
+.adm-note-list,
+.adm-audit-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.adm-note-list li,
+.adm-audit-list li {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+  background: #f8fafc;
+}
+
+.adm-note-list p,
+.adm-audit-list p {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.adm-placeholder h2 {
+  margin: 0 0 0.5rem;
+  color: #1d4ed8;
+}
+
+.adm-path-editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.adm-catalog-list,
+.adm-path-items {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.adm-catalog-list li,
+.adm-path-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.86rem;
+}
+
+@media (max-width: 900px) {
+  .adm-path-editor {
+    grid-template-columns: 1fr;
+  }
+}
+
+.adm-pro-preview {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px dashed #93c5fd;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+@media (max-width: 900px) {
+  .adm-layout {
+    grid-template-columns: 1fr;
+  }
+  .adm-sidebar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    border-right: none;
+    border-bottom: 1px solid #dbeafe;
+  }
+  .adm-sidebar__nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .adm-sidebar__staff {
+    margin-top: 0;
+    width: 100%;
+  }
+}
+
 @media (max-width: 640px) {
   .adm-shell {
     padding: 0.75rem 0.65rem 1.5rem;

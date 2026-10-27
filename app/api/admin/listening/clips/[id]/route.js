@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
-import { requireAdminUser } from "@/lib/admin/require-admin";
+import { requireSystemOwner } from "@/lib/admin/require-admin";
 import { clipInputToDbFields, rowToListeningClip } from "@/lib/listening/clip-mapper";
 import { ensureListeningSchema } from "@/lib/listening/ensure-schema";
 import { normalizeMediaUrl } from "@/lib/media-url";
@@ -15,7 +15,8 @@ async function getClipById(id) {
 
 export async function PATCH(request, { params }) {
   try {
-    const admin = await requireAdminUser(request);
+    const admin = await requireSystemOwner(request);
+    if (admin instanceof NextResponse) return admin;
     if (!admin) {
       return NextResponse.json({ success: false, message: "Unauthorized." }, { status: 401 });
     }
@@ -143,7 +144,8 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const admin = await requireAdminUser(request);
+    const admin = await requireSystemOwner(request);
+    if (admin instanceof NextResponse) return admin;
     if (!admin) {
       return NextResponse.json({ success: false, message: "Unauthorized." }, { status: 401 });
     }

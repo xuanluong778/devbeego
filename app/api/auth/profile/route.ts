@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import pool from "@/lib/db";
 import { ensureUserProfileColumns } from "@/lib/users/ensure-user-profile-columns";
-
-const COOKIE_NAME = "session_token";
+import { getSessionUserFromRequest } from "@/lib/auth/get-session-user";
+import { assertMutationOrigin } from "@/lib/security/csrf-origin";
 
 function parseDob(v: unknown): string | null {
   if (v == null || v === "") return null;
@@ -15,19 +15,13 @@ function parseDob(v: unknown): string | null {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const token = request.cookies.get(COOKIE_NAME)?.value;
-    if (!token) {
-      return NextResponse.json({ success: false, message: "Not authenticated." }, { status: 401 });
+    const csrf = assertMutationOrigin(request);
+    if (!csrf.ok) {
+      return NextResponse.json({ success: false, message: csrf.message, code: csrf.code }, { status: 403 });
     }
-
-    const [rows] = await pool.query(
-      `SELECT u.id FROM user_sessions s INNER JOIN users u ON u.id = s.user_id
-       WHERE s.token = ? AND s.expires_at > NOW() LIMIT 1`,
-      [token]
-    );
-    const user = (rows as { id: number }[])[0];
+    const user = await getSessionUserFromRequest(request);
     if (!user) {
-      return NextResponse.json({ success: false, message: "Session expired." }, { status: 401 });
+      return NextResponse.json({ success: false, message: "Not authenticated." }, { status: 401 });
     }
 
     let body: { date_of_birth?: string | null };

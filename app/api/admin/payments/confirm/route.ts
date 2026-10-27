@@ -3,7 +3,7 @@ import pool from "@/lib/db";
 import { ensurePaymentsTable } from "@/lib/payments/ensure-payments-table";
 import { upgradeUserPlanFromBankTransfer } from "@/lib/subscriptions/subscription-service";
 import { normalizeBillingPeriod } from "@/lib/billing/plan-pricing";
-import { requireAdminUser } from "@/lib/admin/require-admin";
+import { requireSystemOwner } from "@/lib/admin/require-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +18,8 @@ type PaymentRow = {
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await requireAdminUser(request);
+    const admin = await requireSystemOwner(request);
+    if (admin instanceof NextResponse) return admin;
     if (!admin) {
       return NextResponse.json(
         { success: false, message: "Forbidden. Admin access only." },

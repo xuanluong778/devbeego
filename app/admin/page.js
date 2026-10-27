@@ -1,5 +1,6 @@
-import AdminDashboard from "@/components/admin/AdminDashboard";
+import { redirect } from "next/navigation";
 
-export default function AdminPage() {
-  return <AdminDashboard />;
+/** Trang /admin mặc định vào quản lý học viên. */
+export default function AdminIndexPage() {
+  redirect("/admin/students");
 }

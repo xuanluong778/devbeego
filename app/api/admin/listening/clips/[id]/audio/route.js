@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import pool from "@/lib/db";
-import { requireAdminUser } from "@/lib/admin/require-admin";
+import { requireSystemOwner } from "@/lib/admin/require-admin";
 import { rowToListeningClip } from "@/lib/listening/clip-mapper";
 import { ensureListeningSchema } from "@/lib/listening/ensure-schema";
 
@@ -34,7 +34,8 @@ function extForMime(mime, filename) {
 
 export async function POST(request, { params }) {
   try {
-    const admin = await requireAdminUser(request);
+    const admin = await requireSystemOwner(request);
+    if (admin instanceof NextResponse) return admin;
     if (!admin) {
       return NextResponse.json({ success: false, message: "Unauthorized." }, { status: 401 });
     }

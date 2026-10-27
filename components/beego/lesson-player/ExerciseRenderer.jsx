@@ -126,7 +126,7 @@ function ChoiceExercise({
   );
 }
 
-function ListeningControls({ exercise, allowSlow = false, showModel = false, showPlaybackError = false }) {
+function ListeningControls({ exercise, allowSlow = false, showModel = false, showPlaybackError = false, trackPlayback = false }) {
   const text = String(
     exercise.extensions?.gradingTarget ||
       exercise.extensions?.ttsText ||
@@ -138,18 +138,24 @@ function ListeningControls({ exercise, allowSlow = false, showModel = false, sho
       ""
   ).trim();
   const [playbackError, setPlaybackError] = useState("");
+  const [playingRate, setPlayingRate] = useState(0);
+  const playToken = useRef(0);
 
   const play = useCallback(
     (rate) => {
       if (!text) return;
+      const token = playToken.current + 1;
+      playToken.current = token;
       setPlaybackError("");
+      if (trackPlayback) setPlayingRate(rate);
       void playLessonTts({ text, url: exercise.audioUrl, lang: exercise.lang || "en", rate }).then((result) => {
-        if (!showPlaybackError) return;
+        if (playToken.current === token && trackPlayback) setPlayingRate(0);
+        if (!showPlaybackError || playToken.current !== token) return;
         const issue = listenFillPlaybackIssue(result);
         if (issue) setPlaybackError(issue);
       });
     },
-    [exercise.audioUrl, text, exercise.lang, showPlaybackError]
+    [exercise.audioUrl, text, exercise.lang, showPlaybackError, trackPlayback]
   );
 
   if (!text) {
@@ -162,12 +168,22 @@ function ListeningControls({ exercise, allowSlow = false, showModel = false, sho
 
   return (
     <div className={`beego-lesson-listen-wrap${allowSlow ? " beego-lesson-listen-wrap--tools" : ""}`}>
-      <button type="button" className="beego-lesson-listen-btn" onClick={() => play(1)}>
-        <span aria-hidden>🔊</span> Nghe
+      <button
+        type="button"
+        className={`beego-lesson-listen-btn${playingRate === 1 ? " is-playing" : ""}`}
+        aria-pressed={trackPlayback ? playingRate === 1 : undefined}
+        onClick={() => play(1)}
+      >
+        <span aria-hidden>🔊</span> {trackPlayback && playingRate === 1 ? "Đang phát" : "Nghe"}
       </button>
       {allowSlow ? (
-        <button type="button" className="beego-lesson-listen-btn" onClick={() => play(LISTEN_FILL_SLOW_RATE)}>
-          Nghe chậm
+        <button
+          type="button"
+          className={`beego-lesson-listen-btn${playingRate === LISTEN_FILL_SLOW_RATE ? " is-playing" : ""}`}
+          aria-pressed={trackPlayback ? playingRate === LISTEN_FILL_SLOW_RATE : undefined}
+          onClick={() => play(LISTEN_FILL_SLOW_RATE)}
+        >
+          {trackPlayback && playingRate === LISTEN_FILL_SLOW_RATE ? "Đang phát chậm" : "Nghe chậm"}
         </button>
       ) : null}
       {showModel ? (
@@ -183,7 +199,7 @@ function ListeningControls({ exercise, allowSlow = false, showModel = false, sho
   );
 }
 
-function SpeakingExercise({ exercise, answer, onAnswerChange, feedback }) {
+function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicClock = false }) {
   const gradingMode = String(exercise.extensions?.gradingMode || "");
   const isOpenPrompt = gradingMode === "communicative_rubric" || exercise.extensions?.pendingTeacherReview;
   // Listen-and-repeat: start with speaker only; reveal text + IPA on demand.
@@ -195,6 +211,8 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback }) {
           true
       );
   const [recording, setRecording] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const recordStarted = useRef(0);
   const [status, setStatus] = useState("");
   const [interim, setInterim] = useState("");
   const [heardText, setHeardText] = useState(() => String(answer?.transcript || "").trim());
@@ -232,8 +250,17 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback }) {
     setInterim("");
     setStatus("");
     setRecording(false);
+    setElapsedMs(0);
     setRevealed(!hideUntilHint);
   }, [exercise?.id, hideUntilHint]);
+
+  useEffect(() => {
+    if (!showMicClock || !recording) return undefined;
+    recordStarted.current = Date.now();
+    setElapsedMs(0);
+    const timer = setInterval(() => setElapsedMs(Date.now() - recordStarted.current), 250);
+    return () => clearInterval(timer);
+  }, [recording, showMicClock]);
 
   useEffect(() => {
     const fromAnswer = String(answer?.transcript || "").trim();
@@ -400,7 +427,13 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback }) {
           onClick={startRecord}
           disabled={recording || !!feedback}
         >
-          {recording ? "Đang nghe…" : heardText ? "🎤 Nói lại" : "🎤 Bắt đầu nói"}
+          {recording
+            ? showMicClock
+              ? `Đang nghe ${String(Math.floor(elapsedMs / 60000)).padStart(2, "0")}:${String(Math.floor((elapsedMs / 1000) % 60)).padStart(2, "0")}`
+              : "Đang nghe…"
+            : heardText
+              ? "🎤 Nói lại"
+              : "🎤 Bắt đầu nói"}
         </button>
       ) : (
         <p className="beego-lesson-question__hint">
@@ -528,7 +561,7 @@ function DialogueExercise({
                 {spoken ? (
                   <button
                     type="button"
-                    className="beego-lesson-listen-btn"
+                    className={`beego-lesson-listen-btn${playingId === turn.turnId ? " is-playing" : ""}`}
                     aria-label={`Nghe lượt của ${turn.speaker}`}
                     aria-pressed={playingId === turn.turnId}
                     onClick={() => playTurn(turn)}
@@ -578,6 +611,7 @@ export default function ExerciseRenderer({
   storySupportVi = "",
   revealCorrectId = null,
   onCheck,
+  livelyUi = false,
 }) {
   if (!exercise) return null;
 
@@ -586,6 +620,25 @@ export default function ExerciseRenderer({
   const visualPolicy = resolveLessonOptionVisualPolicy(exercise);
   const pictureChoice = Boolean(visualPolicy.pictureChoice && isPictureListeningExercise(exercise));
   const listenWordTiles = type === "translation" && exercise.extensions?.inputMode !== "text";
+
+  const passageRead = type === "passage_read";
+  const mascot = type === "story_comprehension" ? null : exercise.imageEmoji ? (
+    <div className="beego-lesson-question__visual" aria-hidden>
+      <span>{exercise.imageEmoji}</span>
+    </div>
+  ) : (
+    <div
+      className={[
+        "beego-lesson-question__mascot",
+        visualPolicy.compactDecorMascot ? "beego-lesson-question__mascot--compact" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      aria-hidden
+    >
+      <span className="beego-lesson-question__bee">🐝</span>
+    </div>
+  );
 
   return (
     <div
@@ -597,6 +650,7 @@ export default function ExerciseRenderer({
         .filter(Boolean)
         .join(" ")}
     >
+      {passageRead ? mascot : null}
       <ActivityBadge activityType={activityType} />
       <p className="beego-lesson-question__skill">{exercise.skillLabel}</p>
       {exercise.extensions?.evaluationTurn ? (
@@ -618,23 +672,7 @@ export default function ExerciseRenderer({
           : exercise.prompt}
       </h2>
 
-      {type === "story_comprehension" ? null : exercise.imageEmoji ? (
-        <div className="beego-lesson-question__visual" aria-hidden>
-          <span>{exercise.imageEmoji}</span>
-        </div>
-      ) : (
-        <div
-          className={[
-            "beego-lesson-question__mascot",
-            visualPolicy.compactDecorMascot ? "beego-lesson-question__mascot--compact" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          aria-hidden
-        >
-          <span className="beego-lesson-question__bee">🐝</span>
-        </div>
-      )}
+      {passageRead ? null : mascot}
 
       {type === "fill_blank" && exercise.sentenceTemplate ? (
         <p className="beego-lesson-question__sentence">{exercise.sentenceTemplate}</p>
@@ -696,16 +734,16 @@ export default function ExerciseRenderer({
       ) : null}
 
       {type === "listening_choice" && supported ? (
-        <ListeningControls exercise={exercise} allowSlow={pictureChoice} showModel={pictureChoice && !!feedback} />
+        <ListeningControls exercise={exercise} allowSlow={pictureChoice} showModel={pictureChoice && !!feedback} trackPlayback={livelyUi} />
       ) : null}
 
       {type === "listening_fill" && supported ? (
-        <ListeningControls exercise={exercise} allowSlow showPlaybackError />
+        <ListeningControls exercise={exercise} allowSlow showPlaybackError trackPlayback={livelyUi} />
       ) : null}
 
       {type === "listening_dictation" && supported ? (
         <>
-          <ListeningControls exercise={exercise} allowSlow showPlaybackError />
+          <ListeningControls exercise={exercise} allowSlow showPlaybackError trackPlayback={livelyUi} />
           <ListenDictationExercise
             exercise={exercise}
             answer={answer}
@@ -804,6 +842,7 @@ export default function ExerciseRenderer({
           lessonId={lessonId || exercise.lessonId}
           onAnswerChange={onAnswerChange}
           feedback={feedback}
+          showPlayback={livelyUi}
         />
       ) : null}
 
@@ -813,6 +852,7 @@ export default function ExerciseRenderer({
           answer={answer}
           onAnswerChange={onAnswerChange}
           feedback={feedback}
+          showMicClock={livelyUi}
         />
       ) : null}
     </div>

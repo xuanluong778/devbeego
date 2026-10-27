@@ -9,6 +9,7 @@ export default function LessonBottomBar({
   onToggleKeyboard,
   skipDisabled = false,
   skipLabel = "Bỏ qua",
+  gate1 = false,
 }) {
   return (
     <footer className="beego-lesson-bottombar">
@@ -28,6 +29,7 @@ export default function LessonBottomBar({
       <button
         type="button"
         className={`beego-lesson-bottombar__check${canCheck ? " beego-lesson-bottombar__check--active" : ""}`}
+        style={gate1 && canCheck ? { background: "#00DA70", color: "#111111", boxShadow: "0 4px 0 #009e52" } : undefined}
         onClick={onCheck}
         disabled={!canCheck}
       >

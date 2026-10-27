@@ -4,7 +4,7 @@ import fs from "fs/promises";
 import path from "path";
 import fallbackWords from "@/data/basic-1000-words.json";
 import { decodeVietnameseBuffer } from "@/lib/decode-vietnamese";
-import { requireAdminUser } from "@/lib/admin/require-admin";
+import { requireSystemOwner } from "@/lib/admin/require-admin";
 
 export const runtime = "nodejs";
 
@@ -313,7 +313,8 @@ async function runImport(onProgress) {
 
 export async function POST(request) {
   try {
-    const user = await requireAdminUser(request);
+    const user = await requireSystemOwner(request);
+    if (user instanceof NextResponse) return user;
     if (!user) {
       return NextResponse.json(
         { success: false, message: "Forbidden. Admin access only." },
