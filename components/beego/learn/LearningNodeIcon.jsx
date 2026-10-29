@@ -119,9 +119,8 @@ function IconSvg({ iconType }) {
       );
     case "check":
       return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="9" fill="currentColor" stroke="currentColor" />
-          <path d="M8 12.5l2.5 2.5L16 9" stroke="#fff" strokeWidth="2.5" />
+        <svg {...common} strokeWidth="2.8">
+          <path d="M5 12.5l4.5 4.5L19 7" />
         </svg>
       );
     default:

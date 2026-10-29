@@ -22,8 +22,9 @@ import { fetchLessonForPlayer } from "@/lib/beego/learn/fetch-lesson-for-player"
 import { postLearnExerciseResult } from "@/lib/beego/learn/post-exercise-result-client";
 import { stopLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
 import { playLessonSfx, stopLessonSfx } from "@/lib/beego/learn/lesson-sfx";
+import BeegoBee from "@/components/beego/learn/BeegoBee";
+import { isNativeApp } from "@/lib/beego/native-bridge";
 import { assessP1MasteryEvidence } from "@/lib/beego/learn/p1-g1-plan";
-import { gradeListenDictation } from "@/lib/beego/learn/listen-dictation";
 import { pickLoadingTip } from "@/lib/beego/learn/praise-messages";
 
 function masteryEvidenceForSession(lesson, attempts) {
@@ -50,17 +51,6 @@ function masteryEvidenceForSession(lesson, attempts) {
     text: met
       ? "Kết quả luyện tập trong phiên: phần nhận biết và phần vận dụng đều đúng. Đây không phải kết luận thành thạo, và transcript không chứng minh phát âm đạt."
       : "Kết quả luyện tập trong phiên: phần nhận biết hoặc phần vận dụng còn câu chưa đúng. Đây không phải kết luận thành thạo.",
-  };
-}
-
-function previewDictation(question, answer) {
-  if (question?.type !== "listening_dictation") return null;
-  const transcript = String(question.extensions?.transcript || question.ttsText || "").trim();
-  if (!transcript) return null;
-  const typed = answer && typeof answer === "object" ? answer.text ?? answer.value : answer;
-  return {
-    ok: gradeListenDictation(transcript, typed),
-    transcript,
   };
 }
 
@@ -94,6 +84,8 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   const [feedback, setFeedback] = useState(null);
   const [reveal, setReveal] = useState(null);
   const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState("");
+  const [elapsedSeconds, setElapsedSeconds] = useState(null);
   const [lives, setLives] = useState(3);
   const [correctCount, setCorrectCount] = useState(0);
   const [keyboardMode, setKeyboardMode] = useState(false);
@@ -111,6 +103,10 @@ export default function LessonPlayer({ lessonId, replay = false }) {
 
   const exerciseAttemptKeyRef = useRef(null);
   const exerciseResultSentRef = useRef(false);
+  const checkingRef = useRef(false);
+  const startedAtRef = useRef(0);
+  const stageRef = useRef(null);
+  const completeAwardAppliedRef = useRef("");
 
   const completeSubmitRef = useRef(false);
   const scoreAtFinishRef = useRef(0);
@@ -119,6 +115,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   const canPersistCompleteRef = useRef(false);
   const assessmentSessionIdRef = useRef(null);
   const [celebrate, setCelebrate] = useState(false);
+  const [completeAttempt, setCompleteAttempt] = useState(0);
   const fanfarePlayedRef = useRef(false);
   const evidenceAttemptsRef = useRef([]);
 
@@ -144,6 +141,10 @@ export default function LessonPlayer({ lessonId, replay = false }) {
     correctRef.current = 0;
     setCorrectCount(0);
     completeSubmitRef.current = false;
+    completeAwardAppliedRef.current = "";
+    startedAtRef.current = 0;
+    setElapsedSeconds(null);
+    setCheckError("");
     exerciseAttemptKeyRef.current = null;
     exerciseResultSentRef.current = false;
     canPersistCompleteRef.current = false;
@@ -160,6 +161,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
         setLoadError(result.message || "Không tải được bài học.");
         return;
       }
+      startedAtRef.current = Date.now();
       setLesson(result.lesson);
       setLives(result.lesson.lives ?? 3);
       setContentSource(result.source);
@@ -207,10 +209,8 @@ export default function LessonPlayer({ lessonId, replay = false }) {
       const n = total > 0 ? finalCorrect : 0;
       correctAtFinishRef.current = n;
       scoreAtFinishRef.current = total > 0 ? Math.round((n / total) * 100) : 0;
-      if (!fanfarePlayedRef.current) {
-        fanfarePlayedRef.current = true;
-        setCelebrate(true);
-        playLessonSfx("fanfare");
+      if (startedAtRef.current) {
+        setElapsedSeconds(Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)));
       }
       setPhase("complete");
     },
@@ -218,18 +218,10 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   );
 
   const handleCheck = useCallback(async () => {
-    if (!canCheck || checking) return;
+    if (!canCheck || checkingRef.current) return;
+    checkingRef.current = true;
     setChecking(true);
-    const localDictation = previewDictation(question, answer);
-    if (localDictation) {
-      setFeedback(localDictation.ok ? "correct" : "wrong");
-      setReveal({
-        correctAnswerText: localDictation.transcript,
-        explanation: null,
-        correctAnswerId: null,
-        storyVi: "",
-      });
-    }
+    setCheckError("");
 
     if (!exerciseAttemptKeyRef.current) {
       exerciseAttemptKeyRef.current =
@@ -252,7 +244,9 @@ export default function LessonPlayer({ lessonId, replay = false }) {
     try {
       if (!exerciseResultSentRef.current) {
         exerciseResultSentRef.current = true;
-        const result = await postLearnExerciseResult({
+        let result;
+        try {
+          result = await postLearnExerciseResult({
           attemptKey: exerciseAttemptKeyRef.current,
           lessonId: gradeLessonId,
           questionId: gradeQuestionId,
@@ -269,15 +263,21 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           replay,
           assessmentSessionId: assessmentSessionIdRef.current,
         });
+        } catch {
+          exerciseResultSentRef.current = false;
+          setCheckError("Mất kết nối. Câu trả lời vẫn giữ. Thử chấm lại.");
+          return;
+        }
 
         if (!result.ok) {
           exerciseResultSentRef.current = false;
-          setFeedback("wrong");
-          setReveal({
-            correctAnswerText: "Không chấm được — thử lại.",
-            explanation: result.message || null,
-            correctAnswerId: null,
-          });
+          setFeedback(null);
+          setReveal(null);
+          setCheckError(
+            result.status === 401
+              ? "Cần đăng nhập để chấm. Câu trả lời vẫn giữ."
+              : "Không chấm được. Câu trả lời vẫn giữ. Thử lại."
+          );
           return;
         }
 
@@ -312,9 +312,10 @@ export default function LessonPlayer({ lessonId, replay = false }) {
         if (question?.type !== "matching_pairs") playLessonSfx(ok ? "ding" : "soft");
       }
     } finally {
+      checkingRef.current = false;
       setChecking(false);
     }
-  }, [canCheck, checking, question, answer, lives, lessonId, lesson?.type, index, replay]);
+  }, [canCheck, question, answer, lives, lessonId, lesson?.type, index, replay]);
 
   const handleContinue = useCallback(() => {
     if (index >= total - 1) {
@@ -325,6 +326,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
     setAnswer(null);
     setFeedback(null);
     setReveal(null);
+    setCheckError("");
     exerciseAttemptKeyRef.current = null;
     exerciseResultSentRef.current = false;
   }, [index, total, goToCompletePhase]);
@@ -332,6 +334,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   const handleRetry = useCallback(() => {
     setFeedback(null);
     setReveal(null);
+    setCheckError("");
     setAnswer(null);
     exerciseAttemptKeyRef.current = null;
     exerciseResultSentRef.current = false;
@@ -348,6 +351,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
     setIndex((i) => i + 1);
     setAnswer(null);
     setReveal(null);
+    setCheckError("");
   }, [feedback, checking, index, total, goToCompletePhase, question?.required]);
 
   const handleExit = useCallback(() => {
@@ -367,7 +371,74 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   }, [index, phase]);
 
   useEffect(() => {
-    if (!gate1 || typeof window === "undefined" || !window.visualViewport) return undefined;
+    const node = stageRef.current;
+    if (!node || phase === "complete") return;
+    node.focus();
+  }, [index, phase, question?.id]);
+
+  useEffect(() => {
+    let timer = 0;
+    const onFocus = (event) => {
+      const el = event.target;
+      if (!(el instanceof HTMLElement)) return;
+      if (!el.closest(".beego-lesson-player")) return;
+      if (!el.matches("input, textarea")) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        el.scrollIntoView({ block: "center", inline: "nearest" });
+      }, 80);
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("focusin", onFocus);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isNativeApp()) return undefined;
+    let remove = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { App } = await import("@capacitor/app");
+        const sub = await App.addListener("backButton", () => {
+          handleExit();
+        });
+        if (cancelled) sub.remove();
+        else remove = () => sub.remove();
+      } catch {
+        /* web */
+      }
+    })();
+    return () => {
+      cancelled = true;
+      remove?.();
+    };
+  }, [handleExit]);
+
+  useEffect(() => {
+    const onHide = () => {
+      if (document.hidden) {
+        stopLessonTts();
+        stopLessonSfx();
+      }
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, []);
+
+  const retryCompleteSave = useCallback(() => {
+    if (completeSaving) return;
+    completeSubmitRef.current = false;
+    completeAwardAppliedRef.current = "";
+    setCompleteError("");
+    setCompleteGuest(false);
+    setCompleteAttempt((n) => n + 1);
+  }, [completeSaving]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return undefined;
     const viewport = window.visualViewport;
     const apply = () => {
       const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
@@ -381,7 +452,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
       viewport.removeEventListener("scroll", apply);
       document.documentElement.style.removeProperty("--beego-keyboard-inset");
     };
-  }, [gate1]);
+  }, []);
 
   useEffect(() => {
     if (question?.type !== "matching_pairs") return;
@@ -393,6 +464,13 @@ export default function LessonPlayer({ lessonId, replay = false }) {
     if (phase !== "complete") return;
     if (!canPersistCompleteRef.current) return;
     if (completeSubmitRef.current) return;
+    if (
+      completeAwardAppliedRef.current === "awarded" ||
+      completeAwardAppliedRef.current === "idempotent" ||
+      completeAwardAppliedRef.current === "blocked"
+    ) {
+      return;
+    }
     completeSubmitRef.current = true;
 
     let cancelled = false;
@@ -401,43 +479,62 @@ export default function LessonPlayer({ lessonId, replay = false }) {
     setCompleteError("");
 
     (async () => {
-      const result = await postLearningPathComplete(lessonId, {
-        score: scoreAtFinishRef.current,
-        assessmentSessionId: assessmentSessionIdRef.current,
-      });
+      let result;
+      try {
+        result = await postLearningPathComplete(lessonId, {
+          score: scoreAtFinishRef.current,
+          assessmentSessionId: assessmentSessionIdRef.current,
+        });
+      } catch {
+        if (cancelled) return;
+        completeSubmitRef.current = false;
+        setCompleteSaving(false);
+        setCompleteError("Mất kết nối. Tiến độ chưa được lưu.");
+        return;
+      }
       if (cancelled) return;
 
       setCompleteSaving(false);
 
       if (!result.ok) {
         if (result.status === 401) {
+          completeAwardAppliedRef.current = "blocked";
           setCompleteGuest(true);
           return;
         }
         if (result.code === "LESSON_LOCKED") {
+          completeAwardAppliedRef.current = "blocked";
           setCompleteError("Bài chưa mở khóa — hoàn thành bài trước trên lộ trình.");
           return;
         }
-        setCompleteError(result.message || "Không lưu được tiến độ.");
+        completeSubmitRef.current = false;
+        setCompleteError(result.message || "Không lưu được tiến độ. Chưa đồng bộ.");
         return;
       }
 
-      const data = result.data;
+      const data = result.data || {};
       const idempotent = Boolean(data.already_completed);
+      if (idempotent && completeAwardAppliedRef.current === "awarded") return;
+      if (!idempotent) completeAwardAppliedRef.current = "awarded";
+      else completeAwardAppliedRef.current = "idempotent";
       setAlreadyCompleted(idempotent);
       setXpAwarded(Number(data.xp_awarded ?? 0));
       setHoneyAwarded(Number(data.honey_awarded ?? 0));
       const prog = data.progress || data.path?.progress;
-      if (prog?.streak != null) {
-        setStreak(Number(prog.streak));
+      if (prog?.streak != null) setStreak(Number(prog.streak));
+      if (!fanfarePlayedRef.current) {
+        fanfarePlayedRef.current = true;
+        setCelebrate(true);
+        playLessonSfx("fanfare");
       }
       notifyLearningPathUpdated(data);
     })();
 
     return () => {
       cancelled = true;
+      if (!completeAwardAppliedRef.current) completeSubmitRef.current = false;
     };
-  }, [phase, lessonId]);
+  }, [phase, lessonId, completeAttempt]);
 
   useEffect(() => {
     if (phase !== "complete" || !isLessonSuitableForAiPractice(lesson)) {
@@ -464,7 +561,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
     return (
       <div className={`beego-lesson-player beego-lesson-player--loading${isGate1Lesson(null, lessonId) ? " beego-lesson-player--gate1" : ""}`} aria-busy="true">
         <span className="beego-lesson-loading__bee" aria-hidden>
-          🐝
+          <BeegoBee mood="encourage" />
         </span>
         <p className="beego-lesson-loading__title">Đang tải bài học…</p>
         {tip ? <p className="beego-lesson-loading__tip">{tip}</p> : null}
@@ -505,6 +602,8 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           celebrate={celebrate}
           gate1={gate1}
           replay={replay}
+          elapsedSeconds={elapsedSeconds}
+          onRetrySave={completeError || completeGuest ? retryCompleteSave : undefined}
           showAiPractice={aiPracticeOn}
           onAiPractice={() => setAiPanelOpen(true)}
           callSlot={
@@ -519,7 +618,7 @@ export default function LessonPlayer({ lessonId, replay = false }) {
   }
 
   return (
-    <div className={`beego-lesson-player${keyboardMode ? " beego-lesson-player--keyboard" : ""}${gate1 ? " beego-lesson-player--gate1" : ""}`}>
+    <div className={`beego-lesson-player${keyboardMode ? " beego-lesson-player--keyboard" : ""}${gate1 ? " beego-lesson-player--gate1" : ""}${checkError ? " has-check-error" : ""}`}>
       <LessonTopBar progress={progress} lives={lives} onExit={handleExit} stepLabel={stepLabel} />
 
       <main className="beego-lesson-player__main">
@@ -566,7 +665,12 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           </div>
         ) : null}
         {lesson.masteryRubric ? <LessonAim rubric={lesson.masteryRubric} /> : null}
-        <div key={question?.id || index} className={gate1 ? "beego-gate1-stage" : undefined}>
+        <div
+          key={question?.id || index}
+          ref={stageRef}
+          tabIndex={-1}
+          className={`beego-lesson-stage${gate1 ? " beego-gate1-stage" : ""}`}
+        >
         <ExerciseRenderer
           exercise={question}
           lessonId={lesson?.lessonId || lessonId}
@@ -592,6 +696,15 @@ export default function LessonPlayer({ lessonId, replay = false }) {
         ) : null}
       </main>
 
+      {checkError && !feedback ? (
+        <div className="beego-lesson-check-error" role="alert">
+          <p>{checkError}</p>
+          <button type="button" onClick={handleCheck} disabled={checking}>
+            {checking ? "Đang chấm..." : "Thử chấm lại"}
+          </button>
+        </div>
+      ) : null}
+
       {feedback ? (
         <LessonFeedbackBar
           correct={feedback === "correct"}
@@ -602,7 +715,6 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           continueDisabled={checking}
           praiseSeed={`${question?.id || index}-${correctCount}`}
           softPraise={Boolean(reveal?.softPraise)}
-          mascot={gate1}
         />
       ) : (
         <LessonBottomBar

@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { isNativeApp } from "@/lib/beego/native-bridge";
 import { bindBeegoAudioLifecycle, stopBeegoAudio, unlockBeegoAudio } from "@/lib/beego/audio-player";
+import { stopLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
+import { stopLessonSfx } from "@/lib/beego/learn/lesson-sfx";
 import { initNativePush } from "@/lib/beego/native-push";
 
 /**
@@ -61,8 +63,11 @@ export default function NativeBootstrap() {
           }
         });
         const sub = await App.addListener("appStateChange", ({ isActive }) => {
-          if (!isActive) stopBeegoAudio();
-          else unlockBeegoAudio();
+          if (!isActive) {
+            stopBeegoAudio();
+            stopLessonTts();
+            stopLessonSfx();
+          } else unlockBeegoAudio();
         });
         removeAppState = () => {
           try {

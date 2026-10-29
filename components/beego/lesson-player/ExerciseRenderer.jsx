@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import BeegoBee from "@/components/beego/learn/BeegoBee";
 import AnswerOption from "./AnswerOption";
 import MatchPairsExercise from "./MatchPairsExercise";
 import PassageReadExercise from "./PassageReadExercise";
@@ -8,6 +9,7 @@ import ListenDictationExercise from "./ListenDictationExercise";
 import TranslationAnswer from "./TranslationAnswer";
 import WordBankAnswer from "./WordBankAnswer";
 import { playLessonTts, stopLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
+import { stopLessonSfx } from "@/lib/beego/learn/lesson-sfx";
 import {
   isSpeechRecognitionSupported,
   startLessonSpeechCapture,
@@ -27,6 +29,13 @@ function ActivityBadge({ activityType }) {
       Hoạt động: {activityType.replace(/_/g, " ")}
     </p>
   );
+}
+
+function lessonBeeMood(question) {
+  const type = String(question?.type || "");
+  if (type.includes("listen")) return "listen";
+  if (type === "speaking" || type === "pronunciation" || type === "passage_read") return "speak";
+  return "encourage";
 }
 
 function ChoiceExercise({
@@ -126,7 +135,7 @@ function ChoiceExercise({
   );
 }
 
-function ListeningControls({ exercise, allowSlow = false, showModel = false, showPlaybackError = false, trackPlayback = false }) {
+function ListeningControls({ exercise, allowSlow = false, showModel = false, showPlaybackError = false }) {
   const text = String(
     exercise.extensions?.gradingTarget ||
       exercise.extensions?.ttsText ||
@@ -139,6 +148,7 @@ function ListeningControls({ exercise, allowSlow = false, showModel = false, sho
   ).trim();
   const [playbackError, setPlaybackError] = useState("");
   const [playingRate, setPlayingRate] = useState(0);
+  const [hasPlayed, setHasPlayed] = useState(false);
   const playToken = useRef(0);
 
   const play = useCallback(
@@ -147,15 +157,16 @@ function ListeningControls({ exercise, allowSlow = false, showModel = false, sho
       const token = playToken.current + 1;
       playToken.current = token;
       setPlaybackError("");
-      if (trackPlayback) setPlayingRate(rate);
+      setHasPlayed(true);
+      setPlayingRate(rate);
       void playLessonTts({ text, url: exercise.audioUrl, lang: exercise.lang || "en", rate }).then((result) => {
-        if (playToken.current === token && trackPlayback) setPlayingRate(0);
+        if (playToken.current === token) setPlayingRate(0);
         if (!showPlaybackError || playToken.current !== token) return;
         const issue = listenFillPlaybackIssue(result);
         if (issue) setPlaybackError(issue);
       });
     },
-    [exercise.audioUrl, text, exercise.lang, showPlaybackError, trackPlayback]
+    [exercise.audioUrl, text, exercise.lang, showPlaybackError]
   );
 
   if (!text) {
@@ -171,19 +182,23 @@ function ListeningControls({ exercise, allowSlow = false, showModel = false, sho
       <button
         type="button"
         className={`beego-lesson-listen-btn${playingRate === 1 ? " is-playing" : ""}`}
-        aria-pressed={trackPlayback ? playingRate === 1 : undefined}
+        aria-pressed={playingRate === 1}
         onClick={() => play(1)}
       >
-        <span aria-hidden>🔊</span> {trackPlayback && playingRate === 1 ? "Đang phát" : "Nghe"}
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+          <path fill="currentColor" d="M4 9.2v5.6h3.6L12 19V5L7.6 9.2H4z" />
+          <path fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M15.2 9.3a3.4 3.4 0 0 1 0 5.4M17.6 7a6 6 0 0 1 0 10" />
+        </svg>
+        {playingRate === 1 ? "Đang phát" : hasPlayed ? "Nghe lại" : "Nghe"}
       </button>
       {allowSlow ? (
         <button
           type="button"
           className={`beego-lesson-listen-btn${playingRate === LISTEN_FILL_SLOW_RATE ? " is-playing" : ""}`}
-          aria-pressed={trackPlayback ? playingRate === LISTEN_FILL_SLOW_RATE : undefined}
+          aria-pressed={playingRate === LISTEN_FILL_SLOW_RATE}
           onClick={() => play(LISTEN_FILL_SLOW_RATE)}
         >
-          {trackPlayback && playingRate === LISTEN_FILL_SLOW_RATE ? "Đang phát chậm" : "Nghe chậm"}
+          {playingRate === LISTEN_FILL_SLOW_RATE ? "Đang phát chậm" : "Nghe chậm"}
         </button>
       ) : null}
       {showModel ? (
@@ -211,6 +226,7 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
           true
       );
   const [recording, setRecording] = useState(false);
+  const [micPhase, setMicPhase] = useState("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
   const recordStarted = useRef(0);
   const [status, setStatus] = useState("");
@@ -250,6 +266,7 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
     setInterim("");
     setStatus("");
     setRecording(false);
+    setMicPhase("idle");
     setElapsedMs(0);
     setRevealed(!hideUntilHint);
   }, [exercise?.id, hideUntilHint]);
@@ -289,8 +306,10 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
   const startRecord = () => {
     if (feedback) return;
     stopLessonTts();
+    stopLessonSfx();
     setStatus("");
     setInterim("");
+    setMicPhase("listening");
     setRecording(true);
     try {
       ctrlRef.current?.stop?.();
@@ -305,6 +324,7 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
       },
       onResult: (transcript) => {
         setRecording(false);
+        setMicPhase("result");
         setInterim("");
         const heard = String(transcript || "").trim();
         // Keep last transcript visible even if empty recognition (show placeholder).
@@ -333,13 +353,23 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
       onError: (err) => {
         setRecording(false);
         setInterim("");
-        setStatus(err?.message || "Không dùng được micro. Chọn lại hoặc thử trình duyệt khác.");
+        const code = String(err?.code || err?.message || "");
+        const denied = code === "not-allowed" || code === "service-not-allowed";
+        setMicPhase(denied ? "denied" : "error");
+        setStatus(
+          denied
+            ? "Chưa có quyền micro. Hãy cho phép micro rồi thử lại."
+            : code === "audio-capture"
+              ? "Không tìm thấy micro."
+              : "Không dùng được micro. Thử lại."
+        );
         // Keep previous heardText so learner still sees what they said before.
         onAnswerChange(null);
       },
     });
     if (!ctrl) {
       setRecording(false);
+      setMicPhase("error");
       setStatus("Nhận giọng nói không khả dụng — nghe mẫu và thử lại trên Chrome/Android.");
     } else {
       ctrlRef.current = ctrl;
@@ -420,24 +450,36 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
           </button>
         ) : null}
       </div>
+      <p className="beego-lesson-speaking__phase" role="status">
+        {micPhase === "listening"
+          ? "Đang nghe"
+          : micPhase === "denied"
+            ? "Chưa cấp quyền micro"
+            : micPhase === "result"
+              ? "Đã nhận lời nói"
+              : micPhase === "error"
+                ? "Micro chưa dùng được"
+                : "Sẵn sàng nói"}
+      </p>
       {isSpeechRecognitionSupported() ? (
         <button
           type="button"
-          className="beego-lesson-listen-btn"
+          className={`beego-lesson-mic beego-lesson-mic--${micPhase}`}
           onClick={startRecord}
           disabled={recording || !!feedback}
+          aria-pressed={recording}
         >
           {recording
             ? showMicClock
               ? `Đang nghe ${String(Math.floor(elapsedMs / 60000)).padStart(2, "0")}:${String(Math.floor((elapsedMs / 1000) % 60)).padStart(2, "0")}`
               : "Đang nghe…"
             : heardText
-              ? "🎤 Nói lại"
-              : "🎤 Bắt đầu nói"}
+              ? "Nói lại"
+              : "Bắt đầu nói"}
         </button>
       ) : (
         <p className="beego-lesson-question__hint">
-          Micro không hỗ trợ — nghe mẫu và tự luyện; bài vẫn yêu cầu hoàn thành trên thiết bị hỗ trợ.
+          Micro không hỗ trợ trên trình duyệt này. Nghe mẫu rồi thử lại trên Chrome hoặc Android.
         </p>
       )}
       {displayHeard || recording ? (
@@ -554,7 +596,8 @@ function DialogueExercise({
                 {turn.avatar || "💬"}
               </span>
               <div className="beego-lesson-dialogue__bubble">
-                <p className="beego-lesson-dialogue__name">{turn.speaker}</p>
+                <p className="beego-lesson-dialogue__role">{mine ? "Lượt của bạn" : "Nhân vật"}</p>
+                <p className="beego-lesson-dialogue__name">{mine ? "Bạn" : turn.speaker}</p>
                 <p className="beego-lesson-dialogue__text">
                   {turn.pending && !spoken ? "…" : spoken}
                 </p>
@@ -636,7 +679,7 @@ export default function ExerciseRenderer({
         .join(" ")}
       aria-hidden
     >
-      <span className="beego-lesson-question__bee">🐝</span>
+      <BeegoBee mood={lessonBeeMood(exercise)} />
     </div>
   );
 
@@ -734,16 +777,16 @@ export default function ExerciseRenderer({
       ) : null}
 
       {type === "listening_choice" && supported ? (
-        <ListeningControls exercise={exercise} allowSlow={pictureChoice} showModel={pictureChoice && !!feedback} trackPlayback={livelyUi} />
+        <ListeningControls exercise={exercise} allowSlow={pictureChoice} showModel={pictureChoice && !!feedback}  />
       ) : null}
 
       {type === "listening_fill" && supported ? (
-        <ListeningControls exercise={exercise} allowSlow showPlaybackError trackPlayback={livelyUi} />
+        <ListeningControls exercise={exercise} allowSlow showPlaybackError  />
       ) : null}
 
       {type === "listening_dictation" && supported ? (
         <>
-          <ListeningControls exercise={exercise} allowSlow showPlaybackError trackPlayback={livelyUi} />
+          <ListeningControls exercise={exercise} allowSlow showPlaybackError  />
           <ListenDictationExercise
             exercise={exercise}
             answer={answer}

@@ -45,13 +45,7 @@ export default function LessonNode({ node, align, onClick, justCompleted = false
           <span
             className={`beego-learn-node__circle${isTest ? " beego-learn-node__circle--test" : ""}`}
           >
-            {isCompleted && !isTest ? (
-              <span className="beego-learn-node__check" aria-hidden>
-                ✓
-              </span>
-            ) : (
-              <LearningNodeIcon node={node} size={isTest ? "lg" : "md"} />
-            )}
+            <LearningNodeIcon node={node} size={isTest || isActive ? "lg" : "md"} />
           </span>
           {badge ? (
             <span

@@ -5,8 +5,20 @@ import UnitBanner from "./UnitBanner";
 import LessonNode from "./LessonNode";
 import GateCallButton from "./GateCallButton";
 
-/** Zig-zag lane: left → center → right → center → … (Duolingo-like) */
+/** Zig-zag lane: left → center → right → center → … */
 const ZIGZAG = ["left", "center", "right", "center"];
+
+function PathBend({ from, to }) {
+  const swingRight = to === "right" || (from === "left" && to === "center");
+  const d = swingRight
+    ? "M18 4 C 42 32, 78 4, 102 30"
+    : "M102 4 C 78 32, 42 4, 18 30";
+  return (
+    <svg className="beego-learn-bend" viewBox="0 0 120 36" aria-hidden>
+      <path d={d} />
+    </svg>
+  );
+}
 
 const LearningSection = forwardRef(function LearningSection(
   { section, onNodeClick, onGateCall, callEnabled = false, justCompletedId = "", isFirst, mounted = true, estimatedHeight = 0, onBecomeVisible },
@@ -69,10 +81,7 @@ const LearningSection = forwardRef(function LearningSection(
                 style={{ "--zigzag-i": i }}
               >
                 {i > 0 ? (
-                  <span
-                    className={`beego-learn-section__connector beego-learn-section__connector--${align}`}
-                    aria-hidden
-                  />
+                  <PathBend from={ZIGZAG[(i - 1) % ZIGZAG.length]} to={align} />
                 ) : null}
                 <LessonNode
                   node={node}

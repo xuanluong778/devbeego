@@ -1,47 +1,50 @@
 "use client";
 
 import { forwardRef } from "react";
-import Link from "next/link";
-import { formatGateLabel } from "@/lib/beego/learning-path";
+
+function StatIcon({ kind }) {
+  if (kind === "honey") {
+    return (
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+        <path fill="#FFC944" stroke="#C48A00" strokeWidth="1.4" d="M8 4h8l2 4-6 12L6 8l2-4z" />
+        <path d="M8 8h8" stroke="#C48A00" strokeWidth="1.2" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+      <path fill="#FF8A3D" d="M12 3c1 3 3 4 6 5-3 1-4 3-5 6-1-3-3-5-6-6 3-1 5-2 5-5z" />
+      <path fill="#FFC944" d="M12 10c.6 1.6 1.6 2.2 3.2 2.8-1.6.6-2.2 1.6-2.8 3.2-.6-1.6-1.6-2.6-3.2-3.2 1.6-.6 2.6-1.2 2.8-2.8z" />
+    </svg>
+  );
+}
 
 const LearnHeader = forwardRef(function LearnHeader(
-  { section, userName, onGuideClick },
+  { userName, honeyPoints = 0, streak = 0, loading = false, onGuideClick },
   ref
 ) {
-  if (!section) return null;
-
   const firstName = userName ? userName.split(/\s+/)[0] : null;
-  const description = section.sectionDescription || section.sectionTitle;
 
   return (
     <header ref={ref} className="beego-learn-header">
-      <div className="beego-learn-header__brand" aria-hidden />
       <div className="beego-learn-header__inner">
-        <p className="beego-learn-header__greeting beego-learn-header__greeting--desk">
-          {firstName ? `Xin chào, ${firstName}!` : "Lộ trình học Beego"}
+        <p className="beego-learn-header__greeting">
+          {firstName ? `Xin chào, ${firstName}` : "Lộ trình học"}
         </p>
-        <div className="beego-learn-header__row">
-          <Link
-            href="/progress"
-            className="beego-learn-header__back beego-learn-header__back--mobile"
-            aria-label="Quay lại"
-          >
-            ‹
-          </Link>
-          <div className="beego-learn-header__center">
-            <p className="beego-learn-header__gate">
-              {formatGateLabel(section)}
-              {section.level ? ` · ${section.level}` : ""}
-            </p>
-            <h1 className="beego-learn-header__topic">{section.topicTitle}</h1>
-          </div>
+        <div className="beego-learn-header__stats">
+          <span className="beego-learn-header__stat" title="Chuỗi ngày học">
+            <StatIcon kind="streak" />
+            <b>{loading ? "…" : streak}</b>
+            <span>ngày</span>
+          </span>
+          <span className="beego-learn-header__stat" title="Honey">
+            <StatIcon kind="honey" />
+            <b>{loading ? "…" : Number(honeyPoints || 0).toLocaleString("vi-VN")}</b>
+          </span>
           <button type="button" className="beego-learn-header__guide" onClick={onGuideClick}>
             Hướng dẫn
           </button>
         </div>
-        {description ? (
-          <p className="beego-learn-header__desc beego-learn-header__desc--mobile-only">{description}</p>
-        ) : null}
       </div>
     </header>
   );

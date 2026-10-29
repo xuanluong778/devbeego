@@ -310,8 +310,10 @@ export default function LearnPage() {
     <div className="beego-learn beego-learn--has-continue-dock" ref={learnRootRef}>
       <LearnHeader
         ref={headerRef}
-        section={activeSection}
         userName={userName}
+        honeyPoints={honeyPoints}
+        streak={streak}
+        loading={dashLoading}
         onGuideClick={() => setGuideOpen((v) => !v)}
       />
 
@@ -358,7 +360,10 @@ export default function LearnPage() {
               celebrate={goalCelebrate}
               loading={dashLoading}
             />
-            <BeegoMascotBubble message={mascotMessage} />
+            <BeegoMascotBubble
+              message={mascotMessage}
+              mood={justCompletedId ? "complete" : "encourage"}
+            />
             <InstallAppOffer variant="card" />
             <BeegoLearningPath
               sections={pathData.sections}

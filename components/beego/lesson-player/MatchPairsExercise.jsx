@@ -213,6 +213,8 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
               ) : (
                 <SoundWave playing={playing} />
               )}
+              {locked ? <span className="beego-lesson-match__pick">Đã ghép</span> : null}
+              {selected && !locked ? <span className="beego-lesson-match__pick">Đã chọn</span> : null}
             </div>
           );
         }
@@ -239,6 +241,8 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
             >
               <span className="beego-lesson-word-card__num">{order.left.length + index + 1}</span>
               <span className="beego-lesson-word-card__text">{rightShowsVi ? pair.vi : pair.en}</span>
+              {locked ? <span className="beego-lesson-match__pick">Đã ghép</span> : null}
+              {selected && !locked ? <span className="beego-lesson-match__pick">Đã chọn</span> : null}
             </button>
           );
         }
@@ -256,7 +260,9 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
               choose(side, itemId);
             }}
           >
-            {side === "left" ? pair.en : pair.vi}
+            <span>{side === "left" ? pair.en : pair.vi}</span>
+            {locked ? <span className="beego-lesson-match__pick">Đã ghép</span> : null}
+            {selected && !locked ? <span className="beego-lesson-match__pick">Đã chọn</span> : null}
           </button>
         );
       })}

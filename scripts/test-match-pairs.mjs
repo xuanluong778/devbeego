@@ -16,6 +16,7 @@ import {
   gradeMatchAnswer,
   initialMatchState,
   leftItemId,
+  pairIdFromItemId,
   pronunciationDistance,
   rightItemId,
 } from "../lib/beego/learn/match-pairs.js";
@@ -58,6 +59,9 @@ const other = match.pairs[1];
 state = applyMatchSelection(state, match.pairs, "left", leftItemId(first.pairId));
 state = applyMatchSelection(state, match.pairs, "left", leftItemId(other.pairId));
 assert(state.leftId === leftItemId(other.pairId), "unmatched choice can change");
+const toggled = applyMatchSelection(state, match.pairs, "left", leftItemId(other.pairId));
+assert(toggled.leftId == null && toggled.message.includes("bỏ"), "selecting the same item clears it");
+state = applyMatchSelection(toggled, match.pairs, "left", leftItemId(other.pairId));
 state = applyMatchSelection(state, match.pairs, "right", rightItemId(first.pairId));
 assert(state.mistakes === 1 && state.message.includes("Chưa đúng"), "wrong pair is explained");
 assert(state.leftId == null && state.rightId == null, "wrong pair clears the selection");

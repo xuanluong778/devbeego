@@ -192,6 +192,7 @@ export default function WordBankAnswer({ question, onChange, state, lined = fals
             aria-pressed={used.has(token.id)}
           >
             {token.text}
+            {used.has(token.id) ? <span className="beego-lesson-wordbank__used"> Đã dùng</span> : null}
           </button>
         ))}
       </div>
