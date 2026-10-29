@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import BeegoBee from "@/components/beego/learn/BeegoBee";
+import LessonListenBear from "./LessonListenBear";
 import AnswerOption from "./AnswerOption";
 import MatchPairsExercise from "./MatchPairsExercise";
 import PassageReadExercise from "./PassageReadExercise";
@@ -29,13 +29,6 @@ function ActivityBadge({ activityType }) {
       Hoạt động: {activityType.replace(/_/g, " ")}
     </p>
   );
-}
-
-function lessonBeeMood(question) {
-  const type = String(question?.type || "");
-  if (type.includes("listen")) return "listen";
-  if (type === "speaking" || type === "pronunciation" || type === "passage_read") return "speak";
-  return "encourage";
 }
 
 function ChoiceExercise({
@@ -665,22 +658,17 @@ export default function ExerciseRenderer({
   const listenWordTiles = type === "translation" && exercise.extensions?.inputMode !== "text";
 
   const passageRead = type === "passage_read";
-  const mascot = type === "story_comprehension" ? null : exercise.imageEmoji ? (
-    <div className="beego-lesson-question__visual" aria-hidden>
-      <span>{exercise.imageEmoji}</span>
-    </div>
-  ) : (
-    <div
-      className={[
-        "beego-lesson-question__mascot",
-        visualPolicy.compactDecorMascot ? "beego-lesson-question__mascot--compact" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      aria-hidden
-    >
-      <BeegoBee mood={lessonBeeMood(exercise)} />
-    </div>
+  const illustration =
+    type !== "story_comprehension" && exercise.imageEmoji ? (
+      <div className="beego-lesson-question__visual" aria-hidden>
+        <span>{exercise.imageEmoji}</span>
+      </div>
+    ) : null;
+  const decor = type === "story_comprehension" ? null : (
+    <LessonListenBear
+      key={exercise.id}
+      mood={feedback === "correct" ? "correct" : feedback === "wrong" ? "wrong" : "read"}
+    />
   );
 
   return (
@@ -693,7 +681,7 @@ export default function ExerciseRenderer({
         .filter(Boolean)
         .join(" ")}
     >
-      {passageRead ? mascot : null}
+      {passageRead ? illustration : null}
       <ActivityBadge activityType={activityType} />
       <p className="beego-lesson-question__skill">{exercise.skillLabel}</p>
       {exercise.extensions?.evaluationTurn ? (
@@ -715,7 +703,8 @@ export default function ExerciseRenderer({
           : exercise.prompt}
       </h2>
 
-      {passageRead ? null : mascot}
+      {passageRead ? null : illustration}
+      {decor}
 
       {type === "fill_blank" && exercise.sentenceTemplate ? (
         <p className="beego-lesson-question__sentence">{exercise.sentenceTemplate}</p>
@@ -751,6 +740,7 @@ export default function ExerciseRenderer({
           selected={Array.isArray(answer) ? answer : []}
           onChange={onAnswerChange}
           state={feedback}
+          speakOnPlace
         />
       ) : null}
 

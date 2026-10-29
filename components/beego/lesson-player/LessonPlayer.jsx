@@ -26,6 +26,12 @@ import BeegoBee from "@/components/beego/learn/BeegoBee";
 import { isNativeApp } from "@/lib/beego/native-bridge";
 import { assessP1MasteryEvidence } from "@/lib/beego/learn/p1-g1-plan";
 import { pickLoadingTip } from "@/lib/beego/learn/praise-messages";
+import {
+  clearLessonPlace,
+  lessonPlaceToRestore,
+  pageLoadId,
+  writeLessonPlace,
+} from "@/lib/beego/learn/lesson-place";
 
 function masteryEvidenceForSession(lesson, attempts) {
   const rubric = lesson?.masteryRubric;
@@ -168,10 +174,16 @@ export default function LessonPlayer({ lessonId, replay = false }) {
       const resume = result.lesson.resume;
       const questionCount = result.lesson.questions?.length || 0;
       const resumeCorrect = Number(resume?.correctCount) || 0;
+      let savedPlace = null;
+      try {
+        savedPlace = lessonPlaceToRestore(sessionStorage, lessonId, replay, questionCount, pageLoadId());
+      } catch {
+        savedPlace = null;
+      }
       if (replay) {
         canPersistCompleteRef.current = false;
         setAlreadyCompleted(Boolean(resume?.completed));
-        setIndex(0);
+        setIndex(savedPlace ? savedPlace.index : 0);
         setPhase("playing");
       } else if (resume?.completed) {
         canPersistCompleteRef.current = false;
@@ -180,6 +192,11 @@ export default function LessonPlayer({ lessonId, replay = false }) {
         correctAtFinishRef.current = resumeCorrect;
         scoreAtFinishRef.current = questionCount ? Math.round((resumeCorrect / questionCount) * 100) : 0;
         setPhase("complete");
+      } else if (savedPlace?.phase === "playing") {
+        canPersistCompleteRef.current = true;
+        correctRef.current = resumeCorrect;
+        setCorrectCount(resumeCorrect);
+        setIndex(savedPlace.index);
       } else {
         canPersistCompleteRef.current = true;
         const startIndex = Number(resume?.startIndex) || 0;
@@ -203,6 +220,19 @@ export default function LessonPlayer({ lessonId, replay = false }) {
       cancelled = true;
     };
   }, [lessonId, replay]);
+
+  useEffect(() => {
+    if (loadState !== "ready" || typeof window === "undefined") return;
+    try {
+      writeLessonPlace(sessionStorage, lessonId, replay, {
+        index,
+        phase,
+        loadId: pageLoadId(),
+      });
+    } catch {
+      /* private mode */
+    }
+  }, [loadState, lessonId, replay, index, phase]);
 
   const goToCompletePhase = useCallback(
     (finalCorrect) => {
@@ -361,9 +391,14 @@ export default function LessonPlayer({ lessonId, replay = false }) {
     if (window.confirm(message)) {
       stopLessonTts();
       stopLessonSfx();
+      try {
+        clearLessonPlace(sessionStorage, lessonId, replay);
+      } catch {
+        /* ignore */
+      }
       router.push("/");
     }
-  }, [router, replay]);
+  }, [router, replay, lessonId]);
 
   useEffect(() => {
     stopLessonTts();

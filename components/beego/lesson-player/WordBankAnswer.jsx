@@ -69,7 +69,9 @@ export default function WordBankAnswer({ question, onChange, state, lined = fals
 
   const putBack = (id) => {
     if (locked) return;
+    const text = bankRef.current.tokens.find((token) => token.id === id)?.text || "";
     commit(returnToken(bankRef.current, id));
+    if (speakOnPlace && text) playLessonTts({ text, lang: "en" });
   };
 
   const onPlacedPointerDown = (event, id) => {

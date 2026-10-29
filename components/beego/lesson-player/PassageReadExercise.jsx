@@ -81,6 +81,8 @@ export default function PassageReadExercise({ exercise, lessonId, onAnswerChange
   const [blobUrl, setBlobUrl] = useState("");
   const [picked, setPicked] = useState(null);
   const [playingRate, setPlayingRate] = useState(0);
+  const [readMark, setReadMark] = useState(null);
+  const passageRef = useRef(null);
   const recRef = useRef(null);
   const startedRef = useRef(0);
   const tickRef = useRef(0);
@@ -108,13 +110,34 @@ export default function PassageReadExercise({ exercise, lessonId, onAnswerChange
     const token = ++playGen.current;
     stopLessonTts();
     setPlayingRate(rate);
+    setReadMark({ sentenceIndex: 0, throughWord: -1 });
     try {
-      for (const row of sentences) {
+      for (let sentenceIndex = 0; sentenceIndex < sentences.length; sentenceIndex += 1) {
         if (token !== playGen.current || phaseRef.current === "recording") return;
-        await playLessonTts({ text: row.text, lang: "en-US", rate });
+        const row = sentences[sentenceIndex];
+        const wordCount = Math.max(1, sentenceTokens(row).filter((token) => /[A-Za-z]/.test(token.text)).length);
+        setReadMark({ sentenceIndex, throughWord: 0 });
+        await playLessonTts({
+          text: row.text,
+          lang: "en-US",
+          rate,
+          onProgress: (ratio) => {
+            if (token !== playGen.current) return;
+            const throughWord = Math.min(wordCount - 1, Math.max(0, Math.floor(Number(ratio) * wordCount)));
+            setReadMark((prev) => (
+              prev && prev.sentenceIndex === sentenceIndex && prev.throughWord === throughWord
+                ? prev
+                : { sentenceIndex, throughWord }
+            ));
+          },
+        });
+        if (token === playGen.current) setReadMark(null);
       }
     } finally {
-      if (token === playGen.current) setPlayingRate(0);
+      if (token === playGen.current) {
+        setPlayingRate(0);
+        setReadMark(null);
+      }
     }
   };
 
@@ -198,6 +221,7 @@ export default function PassageReadExercise({ exercise, lessonId, onAnswerChange
     setResult(null);
     setPicked(null);
     playGen.current += 1;
+    setReadMark(null);
     stopLessonTts();
     onAnswerChange?.(null);
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -265,6 +289,11 @@ export default function PassageReadExercise({ exercise, lessonId, onAnswerChange
     return () => document.removeEventListener("visibilitychange", onHide);
   }, []);
 
+  useEffect(() => {
+    const node = passageRef.current?.querySelector(".beego-passage__word.is-now");
+    node?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [readMark]);
+
   const flatTokens = sentences.flatMap((row, sentenceIndex) =>
     sentenceTokens(row).map((token, tokenIndex) => ({ ...token, sentenceIndex, tokenIndex }))
   );
@@ -272,7 +301,7 @@ export default function PassageReadExercise({ exercise, lessonId, onAnswerChange
   let flatCursor = 0;
 
   return (
-    <div className="beego-passage">
+    <div className="beego-passage" ref={passageRef}>
       <div className="beego-passage__toolbar">
         <button type="button" className={playingRate === 1 ? "is-playing" : ""} aria-pressed={showPlayback ? playingRate === 1 : undefined} onClick={() => play(1)} disabled={phase === "recording" || phase === "scoring"}>{showPlayback && playingRate === 1 ? "Đang phát" : "Nghe mẫu"}</button>
         <button type="button" className={playingRate === 0.75 ? "is-playing" : ""} aria-pressed={showPlayback ? playingRate === 0.75 : undefined} onClick={() => play(0.75)} disabled={phase === "recording" || phase === "scoring"}>{showPlayback && playingRate === 0.75 ? "Đang phát chậm" : "Nghe chậm"}</button>
@@ -294,13 +323,21 @@ export default function PassageReadExercise({ exercise, lessonId, onAnswerChange
                   if (/^\s+$/.test(token.text) || !/[A-Za-z]/.test(token.text)) {
                     return <span key={`${sentenceIndex}-${tokenIndex}`}>{token.text}</span>;
                   }
+                  const wordOrdinal = tokens.slice(0, tokenIndex).filter((part) => /[A-Za-z]/.test(part.text)).length;
+                  const now = Boolean(readMark && sentenceIndex === readMark.sentenceIndex && wordOrdinal === readMark.throughWord);
                   const bad = mark?.status === "bad";
+                  const className = [
+                    "beego-passage__word",
+                    bad ? "beego-passage__word--bad" : "",
+                    now ? "is-now" : "",
+                  ].filter(Boolean).join(" ");
                   return (
                     <span key={`${sentenceIndex}-${tokenIndex}`}>
                       {tokenIndex > 0 ? " " : null}
                       <button
                         type="button"
-                        className={bad ? "beego-passage__word beego-passage__word--bad" : "beego-passage__word"}
+                        className={className}
+                        aria-current={now ? "true" : undefined}
                         onClick={() => setPicked({ token, mark, index: mine })}
                       >
                         {token.text}

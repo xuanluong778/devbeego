@@ -212,6 +212,28 @@ body.page-lesson-player .page-content {
   color: var(--beego-ink);
 }
 
+.beego-lesson-bear {
+  width: min(100%, 420px);
+  height: 152px;
+  margin: 0 auto 12px;
+}
+
+.beego-lesson-bear__frame {
+  display: block;
+  width: 100%;
+  height: 152px;
+  border: 0;
+  background: transparent;
+  color-scheme: normal;
+}
+
+.beego-lesson-bear--celebrate,
+.beego-lesson-bear--celebrate .beego-lesson-bear__frame,
+.beego-lesson-bear--sigh,
+.beego-lesson-bear--sigh .beego-lesson-bear__frame {
+  height: 220px;
+}
+
 .beego-lesson-question__visual,
 .beego-lesson-question__mascot {
   display: grid;
@@ -966,6 +988,13 @@ body.page-lesson-player .page-content {
   color: inherit;
   cursor: pointer;
   border-radius: 4px;
+}
+.beego-passage button.beego-passage__word.is-now {
+  background: #00E173;
+  box-shadow: none;
+  color: #10261c;
+  outline: 2px solid #067a3d;
+  outline-offset: 1px;
 }
 .beego-passage__word--bad {
   color: #b91c1c;
