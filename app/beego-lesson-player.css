@@ -2674,6 +2674,63 @@ body.page-lesson-player .page-content {
   line-height: 1.35;
 }
 
+.beego-call-stage__coach {
+  width: 100%;
+  max-width: 420px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: rgb(16 18 48 / 78%);
+  border: 1px solid rgb(94 240 255 / 18%);
+  color: #eef3ff;
+  text-align: left;
+}
+
+.beego-call-stage__coach small {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--call-cyan);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.beego-call-stage__coach p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.beego-call-stage__coach span {
+  margin-left: 8px;
+  color: var(--call-muted);
+}
+
+.beego-call-stage__coach div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.beego-call-stage__coach button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: #58cc02;
+  color: #143300;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.beego-call-stage__coach button:disabled {
+  opacity: 0.5;
+}
+
+.beego-call-stage__points {
+  margin: 0 0 12px;
+  padding-left: 1.2em;
+}
+
 .beego-call-stage__caption {
   position: relative;
   width: 100%;
@@ -2970,9 +3027,11 @@ body.page-lesson-player .page-content {
   color: #fff;
   font-size: 12px;
   font-weight: 900;
-  letter-spacing: 1.2px;
+  letter-spacing: 0.2px;
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
+  max-width: 9.5rem;
 }
 
 .beego-call-stage__history {

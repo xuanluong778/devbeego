@@ -6,7 +6,8 @@ import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 import { useStreamingTtsPlayer } from "@/hooks/useStreamingTtsPlayer";
 import { learnCallMediaStillAllowed, learnCallSocketCloseKind } from "@/lib/beego/learn/ai-call-access";
 import { LEARN_CALL_TTS_STALL_MS, createLearnAudioCache, createLearnPlaybackController } from "@/lib/beego/learn/learn-call-playback";
-import { LEARN_TALK_RECOGNITION_TIMEOUT_MS, createLearnTalkController, learnCallRemainingView } from "@/lib/beego/learn/learn-call-talk";
+import { LEARN_CALL_EMPTY_LISTEN, LEARN_TALK_RECOGNITION_TIMEOUT_MS, createLearnTalkController, learnCallRemainingView, learnCallSpeakControl } from "@/lib/beego/learn/learn-call-talk";
+import { playLessonTts, stopLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
 import {
   applyTranscriptEvent,
   createTranscript,
@@ -43,6 +44,9 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   const [captionsOn, setCaptionsOn] = useState(true);
   const [ipaExpanded, setIpaExpanded] = useState(false);
   const [replyHints, setReplyHints] = useState([]);
+  const [coach, setCoach] = useState(null);
+  const [coachBusy, setCoachBusy] = useState("");
+  const practiceRef = useRef("");
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
   const [transcript, setTranscript] = useState(createTranscript);
@@ -217,9 +221,14 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
         listeningRef.current = true;
         requestRef.current = applied.requestId;
         dropAudioRef.current = false;
-        sendJsonRef.current({ type: "recognition_start", requestId: applied.requestId });
+        const practiceWord = String(practiceRef.current || "").trim();
+        sendJsonRef.current({
+          type: "recognition_start",
+          requestId: applied.requestId,
+          ...(practiceWord ? { practice: true, reference: practiceWord } : {}),
+        });
         setPhase("listening");
-        setNotice("");
+        setNotice(practiceWord ? `Đang nghe. Hãy nói: ${practiceWord}` : "");
       } catch (error) {
         stopMic();
         const applied = talkRef.current.mediaReady({ generation: decision.generation, running: false });
@@ -254,12 +263,14 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
       await openTalkMedia(decision);
       return;
     }
+    stopLessonTts();
     if (decision.action === "empty_audio") {
       listeningRef.current = false;
       stopMic();
       sendJsonRef.current({ type: "interrupt", requestId: decision.requestId, reason: "no_audio" });
       setPhase("ready");
-      setNotice("Chưa có tiếng. Hãy nhấn để nói lại.");
+      setNotice(LEARN_CALL_EMPTY_LISTEN);
+      practiceRef.current = "";
       return;
     }
     if (decision.action === "submit") {
@@ -340,6 +351,39 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
         finish("error", message);
         return;
       }
+      if (msg.type === "listen_retry") {
+        stopMic();
+        listeningRef.current = false;
+        talkRef.current.notePracticeDone();
+        setPhase("ready");
+        setNotice(String(msg.notice || LEARN_CALL_EMPTY_LISTEN));
+        practiceRef.current = "";
+        return;
+      }
+      if (msg.type === "pronunciation_coach") {
+        const items = Array.isArray(msg.items) ? msg.items.slice(0, 2) : [];
+        if (items.length) setCoach(items[0]);
+        else if (msg.notice) setNotice(String(msg.notice));
+        return;
+      }
+      if (msg.type === "practice_result") {
+        stopMic();
+        listeningRef.current = false;
+        talkRef.current.notePracticeDone();
+        setPhase("ready");
+        practiceRef.current = "";
+        const nextItem = msg.coach?.items?.[0];
+        if (nextItem) {
+          setCoach(nextItem);
+          setCoachBusy("");
+          setNotice("Bạn vừa luyện lại. Có thể nghe mẫu hoặc quay lại hội thoại.");
+        } else {
+          setCoach(null);
+          setCoachBusy("");
+          setNotice(String(msg.notice || "Bạn có thể quay lại hội thoại."));
+        }
+        return;
+      }
       const rid = Number(msg.requestId) || 0;
       if (rid && rid !== requestRef.current) return;
       if (msg.type === "interrupt" || msg.type === "interrupt_ack") {
@@ -362,6 +406,14 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
           talkTimerRef.current = 0;
         }
         const text = String(msg.text || "").trim();
+        if (msg.practice || practiceRef.current) {
+          talkRef.current.notePracticeDone();
+          listeningRef.current = false;
+          stopMic();
+          setPhase("ready");
+          setNotice("Đang đối chiếu phát âm với mẫu.");
+          return;
+        }
         pushTranscript({ type: "final_transcript", requestId: rid, text });
         const result = talkRef.current.noteFinal(text);
         if (result.ignored) return;
@@ -369,7 +421,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
         stopMic();
         if (result.action === "empty_transcript") {
           setPhase("ready");
-          setNotice("Chưa nghe thấy câu nào. Hãy nhấn để nói lại.");
+          setNotice(LEARN_CALL_EMPTY_LISTEN);
           return;
         }
         setPhase("thinking");
@@ -385,6 +437,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
         return;
       }
       if (msg.type === "ai_done") {
+        stopLessonTts();
         pushTranscript({ type: "ai_done", requestId: rid, text: String(msg.text || ""), closing: msg.closing === true });
         const hints = Array.isArray(msg.replyHints)
           ? msg.replyHints
@@ -456,6 +509,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
       clearStall();
       if (u8[0] === 0x02) audioCacheRef.current.append(rid, pcm);
       ttsPlayingRef.current = true;
+      stopLessonTts();
       setMouthOn(true);
       talkRef.current.noteSpeaking();
       setPhase("speaking");
@@ -513,6 +567,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   }, [closeInfo, finish, lastError, readyState]);
 
   const replay = () => {
+    stopLessonTts();
     if (closedRef.current || readyState !== "open") return;
     const lastTutor = transcriptLastTutor(transcriptRef.current);
     if (!lastTutor || phase === "listening" || phase === "transcribing" || phase === "thinking") return;
@@ -541,7 +596,24 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     setPhase("speaking");
   };
 
+  const playCoachSample = () => {
+    const word = String(coach?.sampleText || coach?.word || "").trim();
+    if (!word || phase === "listening" || phase === "speaking" || phase === "transcribing" || phase === "thinking") return;
+    setCoachBusy("sample");
+    playLessonTts({ text: word, lang: "en" }).finally(() => setCoachBusy((current) => (current === "sample" ? "" : current)));
+  };
+
+  const startCoachPractice = () => {
+    const word = String(coach?.word || "").trim();
+    if (!word || phase !== "ready") return;
+    stopLessonTts();
+    practiceRef.current = word;
+    setCoachBusy("practice");
+    onPrimary();
+  };
+
   const endCall = () => {
+    stopLessonTts();
     listeningRef.current = false;
     ttsPlayingRef.current = false;
     player.interrupt();
@@ -611,40 +683,20 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   });
   const sceneClass = ["listening", "thinking", "speaking", "transcribing"].includes(phase) ? `is-${phase}` : "is-idle";
   const closing = transcriptHasClosing(transcript);
-  const speakLabel =
-    closing && phase !== "ended" && phase !== "error"
-      ? "ĐANG KẾT THÚC…"
-      : phase === "listening"
-      ? "GỬI CÂU TRẢ LỜI"
-      : phase === "speaking"
-        ? "NGẮT LỜI"
-        : phase === "transcribing"
-          ? "ĐANG NHẬN DẠNG…"
-          : phase === "thinking"
-            ? "ĐANG SUY NGHĨ…"
-            : "NHẤN ĐỂ NÓI";
+  const speakControl = learnCallSpeakControl(phase, { closing });
+  const speakLabel = phase === "mic" ? "Cho phép micro" : speakControl.label;
   const statusLabel =
     phase === "connecting"
       ? "Đang kết nối…"
-      : phase === "listening"
-        ? "Gia sư đang lắng nghe"
-        : phase === "transcribing"
-          ? "Đang nhận dạng…"
-          : phase === "thinking"
-            ? "Đang suy nghĩ…"
-            : phase === "speaking"
-              ? closing
-                ? "Gia sư đang chào kết thúc"
-                : mouthOn
-                ? "Gia sư đang nói"
-                : "Gia sư đang chuẩn bị tiếng"
-              : phase === "mic"
-                ? "Cần quyền micro"
-                : phase === "error"
-                  ? "Lỗi kết nối"
-                  : phase === "ended"
-                    ? "Cuộc gọi đã kết thúc"
-                    : "Đến lượt bạn nói";
+      : phase === "mic"
+        ? "Cần quyền micro"
+        : phase === "error"
+          ? "Lỗi kết nối"
+          : phase === "ended"
+            ? "Cuộc gọi đã kết thúc"
+            : phase === "speaking" && !closing && !mouthOn
+              ? "Gia sư đang chuẩn bị tiếng. Bấm để ngắt lời nếu bạn muốn nói."
+              : speakControl.hint || "Đến lượt bạn. Bấm để nói.";
   const captionText = caption || statusLabel;
   const speakDisabled =
     closing ||
@@ -843,6 +895,27 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                 </ul>
               </div>
             ) : null}
+            {!ended && coach?.word ? (
+              <div className="beego-call-stage__coach" aria-label="Luyện phát âm">
+                <small>Luyện 1 điểm</small>
+                <p>
+                  <strong>{coach.word}</strong>
+                  {coach.phoneme ? <span>/{coach.phoneme}/</span> : null}
+                </p>
+                {coach.hintVi ? <p>{coach.hintVi}</p> : null}
+                <div>
+                  <button type="button" onClick={playCoachSample} disabled={phase !== "ready" || coachBusy === "sample"}>
+                    Nghe mẫu
+                  </button>
+                  <button type="button" onClick={startCoachPractice} disabled={phase !== "ready"}>
+                    Luyện lại
+                  </button>
+                  <button type="button" onClick={() => { stopLessonTts(); setCoach(null); }}>
+                    Bỏ qua
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
           <nav className="beego-call-stage__controls" aria-label="Điều khiển cuộc gọi">
             <button type="button" className="beego-call-stage__side" onClick={replay} disabled={replayDisabled} aria-label="Nghe lại câu gia sư">
@@ -854,7 +927,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
               </span>
               <span aria-hidden="true">Nghe lại</span>
             </button>
-            <button type="button" className={`beego-call-stage__speak${phase === "listening" ? " is-listening" : ""}`} onClick={onPrimary} disabled={speakDisabled}>
+            <button type="button" className={`beego-call-stage__speak${phase === "listening" ? " is-listening" : ""}`} onClick={onPrimary} disabled={speakDisabled} aria-label={speakLabel}>
               <span className="beego-call-stage__mic" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
                   <path d="M12 15a4 4 0 0 0 4-4V5a4 4 0 0 0-8 0v6a4 4 0 0 0 4 4zm-7-4h2a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.93V21h3v2H8v-2h3v-3.07A7 7 0 0 1 5 11z" />
@@ -957,6 +1030,20 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
             </h1>
             <p>{notice || "Kết quả bài học không đổi."}</p>
             {serverSummary?.practiceNote ? <p>{serverSummary.practiceNote}</p> : null}
+            {serverSummary?.communicationNote ? <p>{serverSummary.communicationNote}</p> : null}
+            {Array.isArray(serverSummary?.practicePoints) && serverSummary.practicePoints.length ? (
+              <ul className="beego-call-stage__points">
+                {serverSummary.practicePoints.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="beego-call-stage__note">Chưa có điểm luyện phát âm từ Azure cho phiên này.</p>
+            )}
+            {Array.isArray(serverSummary?.replayPhrases) && serverSummary.replayPhrases.length ? (
+              <p>Có thể nghe lại: {serverSummary.replayPhrases.map((item) => `“${item}”`).join(", ")}</p>
+            ) : null}
+            {serverSummary?.grammarNote ? <p className="beego-call-stage__note">{serverSummary.grammarNote}</p> : null}
             {serverSummary?.nextPractice ? <p>{serverSummary.nextPractice}</p> : null}
             {!practiced && phase !== "error" && !serverSummary?.practiceNote ? (
               <p>Lần sau hãy nhấn nút nói và trả lời gia sư một câu ngắn.</p>

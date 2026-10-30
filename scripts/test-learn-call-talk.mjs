@@ -2,7 +2,7 @@
  * Learn push-to-talk controller. No browser, microphone, or production gateway.
  */
 import assert from "node:assert/strict";
-import { createLearnTalkController, createLearnUtterance, learnCallRemainingView } from "../lib/beego/learn/learn-call-talk.js";
+import { LEARN_CALL_EMPTY_LISTEN, createLearnTalkController, createLearnUtterance, learnCallRemainingView, learnCallSpeakControl } from "../lib/beego/learn/learn-call-talk.js";
 
 const talk = createLearnTalkController();
 assert.equal(talk.hello({ azure: true }).action, "wait_for_press");
@@ -69,6 +69,39 @@ timeoutTalk.notePcm(10);
 assert.equal(timeoutTalk.press().phase, "transcribing");
 assert.equal(timeoutTalk.noteTimeout().action, "timeout");
 assert.equal(timeoutTalk.snapshot().phase, "ready");
+assert.equal(timeoutTalk.press().action, "arm_listen", "after a timeout the learner can press to speak again");
+
+const burst = createLearnTalkController();
+burst.hello({ azure: true });
+const burstArm = burst.press();
+assert.equal(burst.press().ignored, true, "a second press while arming does not open another turn");
+burst.mediaReady({ generation: burstArm.generation, running: true });
+burst.notePcm(40);
+assert.equal(burst.press().action, "submit");
+assert.equal(burst.press().ignored, true, "presses while sending are ignored");
+assert.equal(burst.noteFinal("Hello there").action, "one_reply");
+assert.equal(burst.snapshot().phase, "thinking");
+assert.equal(burst.press().ignored, true, "presses while the tutor is thinking are ignored");
+burst.noteSpeaking();
+const barge = burst.press();
+assert.equal(barge.action, "interrupt_listen");
+assert.equal(burst.press().ignored, true, "a second interrupt does not start another listen");
+
+assert.deepEqual(
+  ["ready", "listening", "speaking"].map((phase) => learnCallSpeakControl(phase).label),
+  ["Bấm để nói", "Bấm để gửi", "Bấm để ngắt lời"],
+);
+assert.ok(learnCallSpeakControl("listening").hint.includes("bấm để gửi"));
+assert.ok(learnCallSpeakControl("speaking").hint.includes("ngắt lời"));
+assert.equal(LEARN_CALL_EMPTY_LISTEN, "Mình chưa nghe rõ, bạn thử lại nhé");
+const practiceTalk = createLearnTalkController();
+practiceTalk.hello({ azure: true });
+const practiceArm = practiceTalk.press();
+practiceTalk.mediaReady({ generation: practiceArm.generation, running: true });
+practiceTalk.notePcm(320);
+practiceTalk.press();
+assert.equal(practiceTalk.notePracticeDone().action, "practice_done");
+assert.equal(practiceTalk.snapshot().phase, "ready");
 
 const resumed = createLearnTalkController();
 resumed.hello({ azure: true, requestId: 5 });

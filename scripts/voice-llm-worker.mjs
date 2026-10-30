@@ -146,6 +146,7 @@ async function streamOpenAIChat({ messages, onToken, signal, maxTokens = 512 }) 
       if (payload === "[DONE]") continue;
       try {
         const j = JSON.parse(payload);
+        if (j.choices?.[0]?.finish_reason === "length") onToken("", { truncated: true });
         const delta = j.choices?.[0]?.delta?.content;
         if (delta) onToken(delta);
       } catch (_e) {}
@@ -179,6 +180,7 @@ const worker = new Worker(
 
     const ac = new AbortController();
     let acc = "";
+    let truncated = false;
     const userId = await lookupUserId(sid);
     const plan = await lookupPlan(sid);
     const ymd = utcYmd();
@@ -199,7 +201,9 @@ const worker = new Worker(
       messages,
       signal: ac.signal,
       maxTokens: learnJob ? learnCallMaxReplyTokens(learn.maxTokens ?? LEARN_CALL_MAX_REPLY_TOKENS) : 512,
-      onToken: async (tok) => {
+      onToken: async (tok, meta) => {
+        if (meta?.truncated) truncated = true;
+        if (!tok) return;
         if (await isCancelled(sid, rid)) {
           ac.abort();
           pubJson(sid, { type: "interrupt_ack", requestId: rid, reason: "cancelled" });
@@ -230,7 +234,7 @@ const worker = new Worker(
       redis.expire(keyUsageMonth(userId, ym), 60 * 60 * 24 * 40).catch(() => {});
     }
     // learn: 1 tells the gateway this reply used the Learn prompt; an older worker omits it.
-    const marker = learnJob ? { learn: 1 } : {};
+    const marker = learnJob ? { learn: 1, ...(truncated ? { truncated: true } : {}) } : {};
     pubJson(sid, { type: "ai_done", requestId: rid, text: acc, ...marker });
     // Enqueue TTS in separate queue via Redis key (gateway will do in phase 1.5).
     pubJson(sid, { type: "llm_done_for_tts", requestId: rid, text: acc, ...marker });

@@ -37,12 +37,17 @@ import {
   LEARN_CALL_MEMORY_MAX_ENTRIES,
   learnCallDifficulty,
   learnCallHasClosing,
+  learnCallHelpKind,
+  learnCallLastTutorQuestion,
   learnCallReplyHints,
   learnCallShapeReply,
+  learnCallTutorSelfAnswer,
   learnCallTurnDirective,
   learnCallTurnPlan,
+  learnCallUnclearHelp,
 } from "../lib/beego/learn/learn-call-tutor.js";
-import { LEARN_TALK_FINAL_WAIT_MS, LEARN_TALK_SEGMENT_FLUSH_MS, createLearnUtterance } from "../lib/beego/learn/learn-call-talk.js";
+import { LEARN_CALL_EMPTY_LISTEN, LEARN_TALK_FINAL_WAIT_MS, LEARN_TALK_SEGMENT_FLUSH_MS, createLearnUtterance } from "../lib/beego/learn/learn-call-talk.js";
+import { learnCallCoachMessage } from "../lib/beego/learn/learn-call-coach.js";
 import { learnTranscriptSnapshot } from "../lib/beego/learn/learn-call-transcript.js";
 import { learnCallTeacher } from "../lib/beego/learn/learn-call-teachers.js";
 import {
@@ -473,11 +478,15 @@ local items = redis.call('LRANGE', KEYS[1], 0, tonumber(ARGV[7]) - 1)
 for i, raw in ipairs(items) do
   local ok, item = pcall(cjson.decode, raw)
   if ok and type(item) == 'table' and item.role == 'user' and tonumber(item.requestId) == tonumber(ARGV[1]) then
-    item.pronunciationScore = tonumber(ARGV[2])
+    if ARGV[2] ~= '' then item.pronunciationScore = tonumber(ARGV[2]) end
     if ARGV[3] ~= '' then item.accuracyScore = tonumber(ARGV[3]) end
     if ARGV[4] ~= '' then item.fluencyScore = tonumber(ARGV[4]) end
     if ARGV[5] ~= '' then item.completenessScore = tonumber(ARGV[5]) end
     if ARGV[6] ~= '' then item.prosodyScore = tonumber(ARGV[6]) end
+    if ARGV[8] ~= '' then
+      local decoded, coach = pcall(cjson.decode, ARGV[8])
+      if decoded then item.coachItems = coach end
+    end
     item.pronunciationSource = 'azure'
     redis.call('LSET', KEYS[1], i - 1, cjson.encode(item))
     return 1
@@ -488,23 +497,25 @@ return 0`;
 async function markLearnPronunciation(sessionId, requestId, scores) {
   const rid = normalizeRequestId(requestId);
   const pronunciationScore = Number(scores?.pronunciationScore);
-  if (!rid || !Number.isFinite(pronunciationScore)) return false;
+  const coachItems = Array.isArray(scores?.coachItems) ? scores.coachItems.slice(0, 2) : [];
+  if (!rid || (!Number.isFinite(pronunciationScore) && !coachItems.length)) return false;
   const changed = await redis.eval(
     MARK_PRONUNCIATION_LUA,
     1,
     kMem(sessionId),
     String(rid),
-    String(Math.round(pronunciationScore)),
+    Number.isFinite(pronunciationScore) ? String(Math.round(pronunciationScore)) : "",
     scores?.accuracyScore != null ? String(Math.round(Number(scores.accuracyScore))) : "",
     scores?.fluencyScore != null ? String(Math.round(Number(scores.fluencyScore))) : "",
     scores?.completenessScore != null ? String(Math.round(Number(scores.completenessScore))) : "",
     scores?.prosodyScore != null ? String(Math.round(Number(scores.prosodyScore))) : "",
-    String(LEARN_CALL_MEMORY_MAX_ENTRIES)
+    String(LEARN_CALL_MEMORY_MAX_ENTRIES),
+    coachItems.length ? JSON.stringify(coachItems) : ""
   );
   return Number(changed) === 1;
 }
 
-function scoreLearnUtterancePronunciation(ws, { sessionId, requestId, text, pcmBuffer }) {
+function scoreLearnUtterancePronunciation(ws, { sessionId, requestId, text, pcmBuffer, practice = false }) {
   if (!ws?.learnPrompt || !USE_AZURE) return Promise.resolve(null);
   const reference = String(text || "").trim();
   if (!reference || !pcmBuffer?.byteLength) return Promise.resolve(null);
@@ -515,16 +526,26 @@ function scoreLearnUtterancePronunciation(ws, { sessionId, requestId, text, pcmB
     pcmBuffer,
     referenceText: reference,
   }).then(async (scores) => {
-    if (!scores) return null;
-    await markLearnPronunciation(sessionId, requestId, scores);
+    if (!scores) {
+      if (practice) {
+        safeSend(ws, { type: "practice_result", requestId, notice: LEARN_CALL_EMPTY_LISTEN, items: [] });
+      }
+      return null;
+    }
+    if (!practice) await markLearnPronunciation(sessionId, requestId, scores);
+    const coach = learnCallCoachMessage(scores.words || []);
     safeSend(ws, {
-      type: "pronunciation_score",
+      type: practice ? "practice_result" : "pronunciation_score",
       requestId,
       pronunciationScore: scores.pronunciationScore,
       accuracyScore: scores.accuracyScore,
       fluencyScore: scores.fluencyScore,
       completenessScore: scores.completenessScore,
+      ...(coach ? { coach } : {}),
     });
+    if (!practice && coach?.items?.length) {
+      safeSend(ws, { ...coach, requestId });
+    }
     return scores;
   });
   return trackLearnPronunciation(ws, job);
@@ -553,6 +574,9 @@ async function markAssistantPlayback(sessionId, requestId, playback) {
 
 function kLearnReply(sessionId, requestId) {
   return `voice:learn-call-reply:${sessionId}:${requestId}`;
+}
+function kLearnShaped(sessionId, requestId) {
+  return `voice:learn-call-shaped:${sessionId}:${requestId}`;
 }
 function kLearnHeard(sessionId) {
   return `voice:learn-call-heard:${sessionId}`;
@@ -637,6 +661,56 @@ async function queueLearnTutorTurn(ws, { sessionId, requestId, text, memory }) {
     { removeOnComplete: 1000, removeOnFail: 500 }
   );
   return plan;
+}
+
+function learnShapeForTurn(ws, raw, { closing = false, truncated = false, memory = [] } = {}) {
+  const plan = learnCallTurnPlan({
+    memory,
+    remainingMs: learnRemainingMs(ws),
+    topicCtx: learnTopicCtx(ws),
+  });
+  const level = ws.learnDifficulty || LEARN_CALL_DEFAULT_DIFFICULTY;
+  const next =
+    plan?.nextAngle?.[level] ||
+    plan?.nextAngle?.easy ||
+    plan?.covered?.next?.angles?.[0]?.[level] ||
+    plan?.covered?.next?.angles?.[0]?.easy ||
+    "";
+  const ctx = learnTopicCtx(ws) || {};
+  const lastQuestion = learnCallLastTutorQuestion(memory);
+  const helpText =
+    plan?.unclear === true
+      ? learnCallUnclearHelp({
+          question: lastQuestion,
+          samples: learnCallReplyHints(lastQuestion, {
+            topic: ctx.topic || ctx.title || "",
+            title: ctx.lessonTitle || "",
+            sectionId: ctx.sectionId || "",
+            difficulty: ws.learnDifficulty,
+          }),
+        })
+      : "";
+  const selfAnswer = plan?.asksTutor
+    ? learnCallTutorSelfAnswer(plan?.asksTutorFacet, plan?.teacherName || ctx.teacherName)
+    : "";
+  return learnCallShapeReply(raw, {
+    closing,
+    difficulty: ws.learnDifficulty,
+    truncated,
+    unclear: plan?.unclear === true,
+    unclearTurns: plan?.unclearTurns || 0,
+    helpText,
+    asksTutor: plan?.asksTutor === true,
+    selfAnswer,
+    nextQuestion: closing || plan?.unclear || plan?.helpKind === "repeat" ? "" : next,
+  });
+}
+
+/** Caption and TTS share one shaped string, even if both worker events arrive together. */
+async function learnShapedText(sessionId, requestId, fresh) {
+  const key = kLearnShaped(sessionId, requestId);
+  if (fresh) await redis.set(key, fresh, "EX", 60 * 60, "NX");
+  return (await redis.get(key)) || fresh || "";
 }
 
 function learnHintsForReply(ws, text) {
@@ -766,6 +840,9 @@ async function startAzureStt(ws, requestId) {
   const pushStream = sdk.AudioInputStream.createPushStream(format);
   const audioConfig = sdk.AudioConfig.fromStreamInput(pushStream);
   const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_KEY, AZURE_REGION);
+  // Learn Call is English practice: bilingual AutoDetect often picks vi-VN for accented
+  // English and produces Vietnamese gibberish. Help in Vietnamese is handled from the
+  // transcript (English phrases or romanized không hiểu), not a second STT language.
   speechConfig.speechRecognitionLanguage = "en-US";
   const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
   const sid = ws.sessionId;
@@ -1008,6 +1085,7 @@ wss.on("connection", async (ws, req) => {
     }
     ws.learnDifficulty = learnCallDifficulty(learnCtx.difficulty) || LEARN_CALL_DEFAULT_DIFFICULTY;
     ws.learnVoice = learnCallTeacher(learnCtx.teacher).voice;
+    ws.learnTeacher = learnCallTeacher(learnCtx.teacher);
     ws.learnTopicCtx = {
       topic: String(learnCtx.topic || learnCtx.title || ""),
       title: String(learnCtx.title || ""),
@@ -1015,6 +1093,7 @@ wss.on("connection", async (ws, req) => {
       sectionId: String(learnCtx.sectionId || ""),
       practiceGoal: String(learnCtx.practiceGoal || ""),
       topicKey: String(learnCtx.topicKey || ""),
+      teacherName: String(learnCallTeacher(learnCtx.teacher).spokenName || "Beego"),
       avoidUntilClosing: Array.isArray(learnCtx.avoidUntilClosing) ? learnCtx.avoidUntilClosing : [],
     };
     ws.learnPrompt = learnAiCallLevelOnePrompt({ ...learnCtx, difficulty: ws.learnDifficulty });
@@ -1215,7 +1294,12 @@ wss.on("connection", async (ws, req) => {
         return;
       }
       const closing = rid === ws.learnClosingRid;
-      const text = learnCallShapeReply(msg.text, { closing, difficulty: ws.learnDifficulty });
+      const memory = await getLearnMemory(sessionId);
+      const text = await learnShapedText(
+        sessionId,
+        rid,
+        learnShapeForTurn(ws, msg.text, { closing, truncated: msg.truncated === true, memory })
+      );
       if (!text) return;
       if ((await redis.set(kLearnReply(sessionId, rid), "1", "EX", 60 * 60, "NX")) !== "OK") return;
       const cancelled =
@@ -1239,7 +1323,12 @@ wss.on("connection", async (ws, req) => {
       if (msg.type === "ai_done") {
         if (msg.learn !== 1) return;
         const closing = rid === ws.learnClosingRid;
-        const text = learnCallShapeReply(msg.text, { closing, difficulty: ws.learnDifficulty });
+        const memory = await getLearnMemory(sessionId);
+        const text = await learnShapedText(
+          sessionId,
+          rid,
+          learnShapeForTurn(ws, msg.text, { closing, truncated: msg.truncated === true, memory })
+        );
         if (text) {
           const replyHints = closing ? [] : learnHintsForReply(ws, text);
           safeSend(ws, {
@@ -1349,28 +1438,38 @@ wss.on("connection", async (ws, req) => {
     if (t === "recognition_start") {
       const rid = normalizeRequestId(msg?.requestId);
       if (!rid) return;
+      const listenGen = (ws.learnListenGen = (ws.learnListenGen || 0) + 1);
       if (ws.learnPrompt && ws.learnClosingRid) {
         await endLearnSocket(ws, "lesson_complete");
         return;
       }
 
       const okRate = await enforceRateLimit({ userId: ws.userId, plan: ws.userPlan });
+      if (listenGen !== ws.learnListenGen) return;
       if (!okRate) {
         safeSend(ws, { type: "error", requestId: rid, message: "Rate limit exceeded. Try again shortly." });
         return;
       }
 
       const okQuota = await enforceCaps({ ws, requestId: rid, scope: "stt" });
-      if (!okQuota) return;
+      if (!okQuota || listenGen !== ws.learnListenGen) return;
 
       ws.currentRequestId = rid;
       if (ws.learnPrompt) {
         ws.learnPcm = createLearnPcmBuffer();
         ws.learnUtterance = createLearnUtterance(rid);
+        const reference = String(msg.reference || msg.practiceWord || "").trim().slice(0, 40);
+        ws.learnPractice = msg.practice && reference ? { requestId: rid, reference } : null;
       }
       await redis.hset(kSess(sessionId), { currentRequestId: String(rid) });
       await setCancelled(sessionId, rid); // cancel any previous request keys quickly
       await redis.del(kCancel(sessionId, rid)); // clear cancel for this rid (fresh)
+      if (listenGen !== ws.learnListenGen) {
+        if (ws.currentRequestId && ws.currentRequestId !== rid) {
+          await redis.hset(kSess(sessionId), { currentRequestId: String(ws.currentRequestId) });
+        }
+        return;
+      }
       if (USE_AZURE) {
         await startAzureStt(ws, rid);
       } else {
@@ -1402,9 +1501,27 @@ wss.on("connection", async (ws, req) => {
           if (result.duplicate) return;
           const pcmSnapshot = ws.learnPcm?.toBuffer?.() || Buffer.alloc(0);
           ws.learnPcm?.clear?.();
+          const practice = ws.learnPractice?.requestId === rid ? ws.learnPractice : null;
+          ws.learnPractice = null;
+          if (!result.text) {
+            safeSend(ws, { type: "listen_retry", requestId: rid, notice: LEARN_CALL_EMPTY_LISTEN, practice: Boolean(practice) });
+            safeSend(ws, { type: "final_transcript", requestId: rid, text: "", practice: Boolean(practice) });
+            return;
+          }
+          if (practice) {
+            safeSend(ws, { type: "final_transcript", requestId: rid, text: result.text, practice: true });
+            scoreLearnUtterancePronunciation(ws, {
+              sessionId,
+              requestId: rid,
+              text: practice.reference,
+              pcmBuffer: pcmSnapshot,
+              practice: true,
+            });
+            return;
+          }
           safeSend(ws, { type: "final_transcript", requestId: rid, text: result.text });
-          if (!result.text) return;
-          pushLearnTurn(sessionId, "user", result.text, { requestId: rid })
+          const kind = learnCallHelpKind(result.text);
+          pushLearnTurn(sessionId, "user", result.text, { requestId: rid, kind })
             .then(() => {
               scoreLearnUtterancePronunciation(ws, {
                 sessionId,

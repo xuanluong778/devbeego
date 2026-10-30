@@ -19,7 +19,15 @@ import {
   learnCallLearningNotes,
   learnCallLessonFocus,
   learnCallMaxReplyTokens,
+  learnCallAsksAboutTutor,
+  learnCallHelpKind,
+  learnCallTutorSelfAnswer,
+  learnCallDropIncompleteTail,
+  learnCallRepairThought,
   learnCallReplyHints,
+  learnCallTranscriptUnclear,
+  learnCallUnclearHelp,
+  learnCallUnclearStreak,
   learnCallShapeReply,
   learnCallLearnerIsStuck,
   learnCallLearnerWantsToStop,
@@ -70,11 +78,11 @@ assert.deepEqual(
   ["I'm a student.", "I'm a teacher."],
 );
 const prompt = learnCallTutorPrompt(ctx);
-for (const part of ["Chào hỏi", "Hỏi tên một người", "What is your name", "name", "CONTEXT FROM THE SYSTEM", "- Level: Easy", "Difficulty: Easy (A0", "Topic practice goal (primary)", "Never raise the difficulty", "What's your name?", "WHEN THE LEARNER IS STUCK", "explain briefly in Vietnamese", "do not move to a new question", "Speech recognition can be wrong", "CORRECTING MISTAKES", "An orange juice", "no audio pronunciation score", "ENCOURAGEMENT", "Do not claim progress without evidence", "natural conversation on the topic practice goal", "do not pretend to remember earlier sessions", "Output only the words you will say aloud", "Do not ask about these until the closing turn", "Do you like to say goodbye", LEARN_CALL_NO_CALL_HISTORY]) {
+for (const part of ["Chào hỏi", "Hỏi tên một người", "What is your name", "name", "CONTEXT FROM THE SYSTEM", "- Level: Easy", "Difficulty: Easy (A0", "Topic practice goal (primary)", "Never raise the difficulty", "What's your name?", "WHEN THE LEARNER IS STUCK", "explain briefly in Vietnamese", "do not move to a new question", "Speech recognition can be wrong", "CORRECTING MISTAKES", "An orange juice", "Do not comment on pronunciation from the transcript", "ENCOURAGEMENT", "Do not claim progress without evidence", "natural conversation on the topic practice goal", "do not pretend to remember earlier sessions", "Output only the words you will say aloud", "Do not ask about these until the closing turn", "Do you like to say goodbye", LEARN_CALL_NO_CALL_HISTORY]) {
   assert.ok(prompt.includes(part), `prompt has ${part}`);
 }
 assert.equal(learnAiCallLevelOnePrompt(ctx), prompt, "gateway prompt is the tutor prompt");
-assert.ok(!/score|grade/i.test(prompt.replace("Do not give scores", "").replace("no audio pronunciation score", "")), "no grading in prompt");
+assert.ok(!/score|grade/i.test(prompt.replace("Do not give scores", "").replace("Do not comment on pronunciation from the transcript", "")), "no grading in prompt");
 
 assert.deepEqual([...LEARN_CALL_DIFFICULTY_KEYS], ["easy", "medium", "hard"]);
 assert.equal(LEARN_CALL_DEFAULT_DIFFICULTY, "easy");
@@ -121,7 +129,7 @@ for (const key of LEARN_CALL_DIFFICULTY_KEYS) {
   for (const other of LEARN_CALL_DIFFICULTY_KEYS.filter((k) => k !== key)) {
     assert.ok(!p.includes(levelMarkers[other][0]), `${key} prompt has no ${other} rules`);
   }
-  assert.ok(!/score|grade/i.test(p.replace("Do not give scores", "").replace("no audio pronunciation score", "")), `${key}: no grading`);
+  assert.ok(!/score|grade/i.test(p.replace("Do not give scores", "").replace("Do not comment on pronunciation from the transcript", "")), `${key}: no grading`);
 }
 assert.ok(levelPrompts.easy.includes("Never raise the difficulty during this Easy call") && !levelPrompts.easy.includes("even at Hard"), "Easy never auto-raises");
 assert.ok(levelPrompts.hard.includes("make your English and questions simpler, even at Hard"), "a stuck learner gets help at Hard too");
@@ -162,7 +170,7 @@ assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1 }, "easy").inclu
 assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1 }, "easy").includes("Do not raise the difficulty"));
 assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1 }, "medium").includes("one basic open question that follows on from it"));
 assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1 }, "hard").includes("a reason, an example, a comparison, or an opinion"));
-assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1, stuckTurns: 2 }, "hard").includes("two choices"), "hard helps a stuck learner");
+assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1, stuckTurns: 2 }, "hard").includes("sentence frame"), "hard helps a stuck learner");
 assert.ok(learnCallTurnDirective({ mode: "greet" }, "easy").includes("do not ask about goodbye"));
 assert.ok(learnCallTurnDirective({ mode: "greet" }, "hard").includes("short explanation or opinion"));
 for (const key of LEARN_CALL_DIFFICULTY_KEYS) {
@@ -179,7 +187,7 @@ for (const key of LEARN_CALL_DIFFICULTY_KEYS) {
   assert.ok(learnCallTurnDirective({ mode: "closing" }, key).includes("Do not claim mastery"), `${key} closing praise is grounded`);
 }
 
-assert.deepEqual(LEARN_CALL_DIFFICULTY_KEYS.map((k) => LEARN_CALL_DIFFICULTIES[k].maxReplyTokens), [80, 160, 200]);
+assert.deepEqual(LEARN_CALL_DIFFICULTY_KEYS.map((k) => LEARN_CALL_DIFFICULTIES[k].maxReplyTokens), [140, 160, 200]);
 assert.equal(learnCallMaxReplyTokens(undefined), LEARN_CALL_MAX_REPLY_TOKENS);
 assert.equal(learnCallMaxReplyTokens("abc"), LEARN_CALL_MAX_REPLY_TOKENS);
 assert.equal(learnCallMaxReplyTokens(160), 160);
@@ -219,8 +227,9 @@ assert.equal(learnCallTurnPlan({ memory: twoTurns, remainingMs: LEARN_CALL_MIN_R
 assert.equal(learnCallTurnPlan({ memory: [tutor(5, "Bye!", "pending", { closing: true }), ...fourTurns], remainingMs: 60_000 }).mode, "closed");
 assert.ok(learnCallTurnDirective({ mode: "closing" }).includes("Do not ask any question"));
 assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 2 }).includes("short follow-up on the same topic"));
-assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 2, stuckTurns: 1 }, "easy").includes("explain briefly in Vietnamese"));
-assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 2, stuckTurns: 2 }, "easy").includes("model answer"));
+assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 2, stuckTurns: 1 }, "easy").includes("keyword hint"));
+assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 2, stuckTurns: 2 }, "easy").includes("sentence frame"));
+assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 2, stuckTurns: 3 }, "easy").includes("smaller piece"));
 
 const messages = buildLearnCallMessages({
   system: prompt,
@@ -263,9 +272,10 @@ const stuckMemory = [
 assert.equal(learnCallTurnPlan({ memory: stuckMemory, remainingMs: 100_000 }).stuckTurns, 2);
 assert.equal(learnCallTurnPlan({ memory: [{ role: "user", content: "Tea, please.", requestId: 4 }, ...stuckMemory], remainingMs: 100_000 }).stuckTurns, 0, "a real answer resets the stuck count");
 assert.equal(learnCallTurnPlan({ memory: [{ role: "user", content: "Milk tea.", requestId: 2 }, stuckMemory[3]], remainingMs: 100_000 }).stuckTurns, 0);
-assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 2, stuckTurns: 2 }, "hard").includes("two choices"), "hard: stuck twice gets choices");
+assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 2, stuckTurns: 2 }, "hard").includes("sentence frame"), "hard: stuck twice gets a frame");
 const planFor = (content) => learnCallTurnPlan({ memory: [{ role: "user", content, requestId: 2 }, stuckMemory[3]], remainingMs: 100_000 });
-for (const ask of ["Can you explain in Vietnamese?", "Giải thích bằng tiếng Việt được không?", "Vietnamese please", "In Vietnamese?", "Tiếng Việt?"]) {
+for (const ask of ["Can you explain in Vietnamese?", "Giải thích bằng tiếng Việt được không?", "Vietnamese please", "In Vietnamese?", "Tiếng Việt?", "khong hieu", "Không hiểu."]) {
+  assert.equal(learnCallHelpKind(ask), "vietnamese", `Vietnamese help kind: ${ask}`);
   assert.ok(planFor(ask).wantsVietnamese, `Vietnamese request: ${ask}`);
   assert.ok(learnCallTurnDirective(planFor(ask), "hard").includes("one short Vietnamese sentence"));
 }
@@ -276,7 +286,7 @@ assert.ok(
   !learnCallTurnPlan({ memory: [{ role: "user", content: "Milk tea.", requestId: 3 }, { role: "user", content: "Explain in Vietnamese", requestId: 2 }], remainingMs: 100_000 }).wantsVietnamese,
   "only the latest answer counts",
 );
-assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1, stuckTurns: 1 }, "medium").includes("simpler words"));
+assert.ok(learnCallTurnDirective({ mode: "ask", learnerTurns: 1, stuckTurns: 1 }, "medium").includes("keyword hint"));
 assert.ok(!learnCallTurnDirective({ mode: "ask", learnerTurns: 1, stuckTurns: 0 }, "easy").includes("stuck 0"));
 const greetingTopic = { topic: "Chào hỏi", sectionId: "p1-g1", lessonTitle: "Hỏi tên một người" };
 const afterName = learnCallTurnPlan({
@@ -396,6 +406,147 @@ const silent = learnAiCallSummary({ memory: [tutor(1, "Hello! What is your name?
 assert.equal(silent.practiced, false, "no learner line is not a practice success");
 assert.equal(silent.learnerTurns, 0);
 assert.equal(silent.durationSeconds, 30);
+
+const goodPlan = learnCallTurnPlan({
+  memory: [
+    { role: "user", content: "I'm good.", requestId: 2 },
+    { role: "assistant", content: "Hello. How are you?", requestId: 1 },
+  ],
+  remainingMs: 100_000,
+  topicCtx: greetingTopic,
+});
+assert.ok(goodPlan.covered.answered.includes("greeting"), "I'm good answers the greeting");
+assert.ok(!goodPlan.covered.answered.includes("name"), "I'm good is not a name");
+assert.equal(goodPlan.nextFacet, "name");
+assert.equal(goodPlan.unclear, false);
+const homeHints = learnCallReplyHints("Nice. You are 20 years old. Where do you live?", { topic: "Chào hỏi", difficulty: "easy" });
+assert.ok(homeHints.length > 0 && homeHints.every((hint) => hint.facet === "home"), "hints follow the last question");
+assert.ok(homeHints.every((hint) => !/\b20\b|years old/i.test(hint.en)));
+assert.equal(
+  learnCallShapeReply("Your name is Lan.", { nextQuestion: "How old are you?" }),
+  "Your name is Lan. How old are you?",
+);
+assert.equal(
+  learnCallShapeReply("Your name is Lan. How old are you?", { nextQuestion: "Where do you live?" }),
+  "Your name is Lan. How old are you?",
+);
+assert.equal(learnCallDropIncompleteTail("Where do you live in Han"), "Where do you live in");
+assert.equal(learnCallDropIncompleteTail("Where do you live?"), "Where do you live?");
+const repaired = learnCallShapeReply("Nice to meet you tod", { truncated: true, nextQuestion: "What's your name?" });
+assert.ok(!/\btod\b/.test(repaired), repaired);
+assert.ok(repaired.endsWith("What's your name?"), repaired);
+const junk = learnCallTurnPlan({
+  memory: [
+    { role: "user", content: "xkqzz", requestId: 2 },
+    { role: "assistant", content: "How are you?", requestId: 1 },
+  ],
+  remainingMs: 100_000,
+  topicCtx: greetingTopic,
+});
+assert.equal(junk.unclear, true);
+assert.equal(learnCallTranscriptUnclear("I'm good."), false);
+assert.ok(learnCallTurnDirective(junk, "easy").includes("Could you say that again"));
+assert.equal(learnCallShapeReply("Hmm.", { unclear: true }), "Hmm. Could you say that again?");
+assert.equal(learnCallRepairThought("Where do you"), "");
+assert.equal(learnCallRepairThought("Could you tell me your"), "");
+assert.equal(learnCallShapeReply("Where do you", { nextQuestion: "What's your name?" }), "What's your name?");
+assert.equal(learnCallShapeReply("Could you tell me your", { nextQuestion: "What's your name?" }), "What's your name?");
+assert.equal(
+  learnCallShapeReply("Hello. Where do you", { truncated: true, nextQuestion: "Where do you live?" }),
+  "Hello. Where do you live?",
+);
+assert.equal(
+  learnCallShapeReply("Nice to meet you. Where do you live in Han", { truncated: true }),
+  "Nice to meet you. Where do you live?",
+);
+assert.equal(learnCallShapeReply("Where do you live?", { truncated: true, nextQuestion: "What's your name?" }), "Where do you live?");
+const andYou = learnCallTurnPlan({
+  memory: [
+    { role: "user", content: "I'm good, and you?", requestId: 2 },
+    { role: "assistant", content: "Hello. How are you?", requestId: 1 },
+  ],
+  remainingMs: 100_000,
+  topicCtx: greetingTopic,
+});
+assert.equal(andYou.unclear, false);
+assert.equal(andYou.asksTutor, true);
+assert.equal(learnCallAsksAboutTutor("and you?"), true);
+assert.equal(learnCallAsksAboutTutor("My name is Lan, and you?"), true);
+assert.equal(learnCallAsksAboutTutor("My name is Lan. How are you?"), true);
+assert.equal(learnCallAsksAboutTutor("My name is LAN and you."), true);
+assert.equal(learnCallTranscriptUnclear("I am 20."), false);
+assert.equal(learnCallTranscriptUnclear("20"), false);
+assert.ok(andYou.covered.answered.includes("greeting"));
+assert.equal(andYou.nextFacet, "name");
+assert.equal(andYou.asksTutorFacet, "greeting");
+assert.ok(learnCallTurnDirective(andYou, "easy").includes("I'm good, thank you."));
+assert.equal(learnCallTutorSelfAnswer("greeting", "Emma"), "I'm good, thank you.");
+assert.equal(learnCallTutorSelfAnswer("name", "Emma"), "I'm Emma.");
+assert.equal(learnCallTutorSelfAnswer("age", "Beego"), "I'm Beego, your English tutor.");
+assert.ok(!/\b\d{1,2}\b|years old/i.test(learnCallTutorSelfAnswer("age", "Beego")));
+assert.equal(
+  learnCallShapeReply("I'm good, thank you. And you?", { asksTutor: true, selfAnswer: "I'm good, thank you.", nextQuestion: "What's your name?" }),
+  "I'm good, thank you. What's your name?",
+);
+assert.equal(
+  learnCallShapeReply("Nice to meet you, Lan! How old are you?", { asksTutor: true, selfAnswer: "I'm Emma.", nextQuestion: "How old are you?" }),
+  "I'm Emma. Nice to meet you, Lan! How old are you?",
+);
+const nameBack = learnCallTurnPlan({
+  memory: [
+    { role: "user", content: "My name is Lan, and you?", requestId: 2 },
+    { role: "assistant", content: "What's your name?", requestId: 1 },
+  ],
+  remainingMs: 100_000,
+  topicCtx: { ...greetingTopic, teacherName: "Emma" },
+});
+assert.equal(nameBack.asksTutor, true);
+assert.equal(nameBack.asksTutorFacet, "name");
+assert.ok(learnCallTurnDirective(nameBack, "easy").includes("I'm Emma."));
+assert.ok(!learnCallTurnDirective(nameBack, "easy").includes("I'm good, thank you."));
+const ageBack = learnCallTurnPlan({
+  memory: [
+    { role: "user", content: "I'm 20, and you?", requestId: 2 },
+    { role: "assistant", content: "How old are you?", requestId: 1 },
+  ],
+  remainingMs: 100_000,
+  topicCtx: greetingTopic,
+});
+assert.equal(ageBack.asksTutorFacet, "age");
+assert.ok(learnCallTurnDirective(ageBack, "easy").includes("your English tutor"));
+assert.ok(!/\b\d{1,2}\b/.test(learnCallTurnDirective(ageBack, "easy").split("your English tutor")[0].slice(-80)));
+assert.equal(learnCallHelpKind("bỏ qua"), "skip");
+assert.equal(learnCallHelpKind("Can you repeat?"), "repeat");
+assert.equal(learnCallHelpKind("My name is Lan."), "content");
+assert.equal(learnCallHelpKind("xkqzz"), "unclear");
+assert.equal(
+  learnCallShapeReply("Could you say that again?", { nextQuestion: "Where do you live?" }),
+  "Where do you live?",
+);
+const unclearTwice = learnCallTurnPlan({
+  memory: [
+    { role: "user", content: "xkqzz", requestId: 4 },
+    { role: "assistant", content: "Could you say that again?", requestId: 3 },
+    { role: "user", content: "xkqzz", requestId: 2 },
+    { role: "assistant", content: "What's your name?", requestId: 1 },
+  ],
+  remainingMs: 100_000,
+  topicCtx: greetingTopic,
+});
+assert.equal(unclearTwice.unclearTurns, 2);
+assert.ok(learnCallTurnDirective(unclearTwice, "easy").includes("Do not say"));
+assert.ok(!learnCallTurnDirective(unclearTwice, "easy").includes("Ask one short check"));
+const help = learnCallUnclearHelp({
+  question: "What's your name?",
+  samples: [
+    { en: "My name is Lan." },
+    { en: "I'm Minh." },
+  ],
+});
+assert.equal(help, "You can say: My name is Lan, or I'm Minh. What's your name?");
+assert.equal(learnCallShapeReply("Could you say that again?", { unclear: true, unclearTurns: 2, helpText: help }), help);
+assert.equal(learnCallShapeReply("Hmm.", { unclear: true, unclearTurns: 1 }), "Hmm. Could you say that again?");
+assert.ok(learnCallTutorPrompt(ctx).includes("Do not end a turn by only repeating their information"));
 
 console.log(JSON.stringify({
   patterns: focus.patterns.length,

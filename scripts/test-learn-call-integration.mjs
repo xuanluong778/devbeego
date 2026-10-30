@@ -20,7 +20,7 @@ import {
   learnAiCallGateKey,
   learnAiCallSessionKey,
 } from "../lib/beego/learn/ai-call-access.js";
-import { learnCallContextFromLesson } from "../lib/beego/learn/learn-call-tutor.js";
+import { learnCallContextFromLesson, learnCallTranscriptUnclear } from "../lib/beego/learn/learn-call-tutor.js";
 import { getLessonContentById } from "../lib/beego/learn/get-lesson-content.js";
 
 const env = loadLearnCallTestEnv();
@@ -30,7 +30,7 @@ const llmQueue = new Queue(process.env.VOICE_LLM_QUEUE || "voice-llm", { connect
 const ttsQueue = new Queue(process.env.VOICE_TTS_QUEUE || "voice-tts", { connection: new Redis(env.REDIS_URL, { maxRetriesPerRequest: null }) });
 const only = new Set(process.argv.slice(2));
 const clipDir = process.env.LEARN_CALL_CLIP_DIR || `${os.tmpdir()}/learn-call-it-clips`;
-const lesson = getLessonContentById("p1-g1-n01");
+const lesson = getLessonContentById("g01l01");
 const results = [];
 const metrics = {};
 let uid = 900000300;
@@ -71,10 +71,10 @@ async function seed(sid, userId, { maxMinutes = 2, memory = [] } = {}) {
     JSON.stringify({
       userId,
       lessonId: lesson.lessonId,
-      sectionId: "p1-g1",
       title: lesson.title,
       objective: lesson.objective,
-      ...learnCallContextFromLesson(lesson, { topicTitle: lesson.title }),
+      ...learnCallContextFromLesson(lesson, { topicTitle: "Chào hỏi", sectionId: "p1-g1" }),
+      sectionId: "p1-g1",
       level: 1,
       maxMinutes,
     }),
@@ -475,6 +475,172 @@ const scenarios = {
     const c2 = await connect(sid, token);
     await waitClosed(c2, 3000);
     check(S, "cannot reconnect after the deadline", !c2.msgs.some((m) => m.type === "hello"), c2.closed);
+  },
+
+  /** Greeting, name, “and you?”, then the next place question. Real Azure STT and the Learn workers. */
+  async acceptance() {
+    const S = "acceptance";
+    const userId = (uid += 1);
+    const sid = `it-accept-${Date.now()}`;
+    await seed(sid, userId, { maxMinutes: 3 });
+    const c = await connect(sid, tokenFor(userId, sid));
+    await waitFor(c, (m) => m.type === "hello", 5000, "hello");
+    const greet = await tutorTurn(c, 1);
+    const greetText = await sameText(S, c, 1);
+    check(S, "greeting is one whole question", /[.!?]"?$/.test(greetText) && (greetText.match(/\?/g) || []).length === 1, greetText);
+    check(S, "greeting does not end on a cut frame", !/\b(?:where do you|tell me your|who do you live)\??$/i.test(greetText), greetText);
+    send(c, { type: "playback_ack", kind: "turn", playback: "complete", requestId: 1, playbackId: 1 });
+
+    send(c, { type: "recognition_start", requestId: 2 });
+    send(c, { type: "recognition_start", requestId: 3 });
+    await waitFor(c, (m) => m.type === "recognition_started" && m.requestId === 3, 10000, "rapid-start");
+    const goodAudio = await clip("I'm good.");
+    const goodFrames = Buffer.concat([Buffer.alloc(3200), goodAudio, Buffer.alloc(3200 * 6)]);
+    for (let i = 0; i < goodFrames.length; i += 3200) {
+      c.ws.send(goodFrames.subarray(i, i + 3200));
+      await sleep(100);
+    }
+    send(c, { type: "recognition_end", requestId: 3 });
+    const goodFinal = await waitFor(c, (m) => m.type === "final_transcript" && (m.requestId === 2 || m.requestId === 3), 15000, "rapid-final");
+    check(S, "only the latest press produces a transcript", goodFinal.requestId === 3, goodFinal);
+    check(S, "the replaced press does not get its own transcript", !c.msgs.some((m) => m.type === "final_transcript" && m.requestId === 2));
+    check(S, "I'm good is heard as a greeting, not a name", /\bgood\b/i.test(goodFinal.text) && !/\bmy name is\b/i.test(goodFinal.text), goodFinal.text);
+    const nameTurn = await tutorTurn(c, 3);
+    const nameText = await sameText(S, c, 3);
+    check(S, "after I'm good the tutor asks the name", /\bname\b/i.test(nameText) && (nameText.match(/\?/g) || []).length === 1, nameText);
+    const nameHints = nameTurn.done.replyHints || [];
+    check(S, "name hints match the name question", nameHints.length > 0 && nameHints.every((hint) => hint.facet === "name") && nameHints.every((hint) => !/\byears old\b|\b20\b/i.test(hint.en)), nameHints);
+    send(c, { type: "playback_ack", kind: "turn", playback: "complete", requestId: 3, playbackId: 3 });
+
+    const back = await speak(c, 4, await clip("My name is Lan, and you?"));
+    check(S, "name and reciprocal question are heard", /\blan\b/i.test(back.final.text) && /\byou\b/i.test(back.final.text), back.final.text);
+    const backTurn = await tutorTurn(c, 4);
+    const backText = await sameText(S, c, 4);
+    check(S, "tutor answers and you, then asks one new question", /\b(?:i'm|i am) (?:beego|emma|james|mina)\b/i.test(backText) && !/\band you\?/i.test(backText) && !/\b\d{1,2}\s+years old\b/i.test(backText) && (backText.match(/\?/g) || []).length === 1, { heard: back.final.text, reply: backText });
+    send(c, { type: "playback_ack", kind: "turn", playback: "complete", requestId: 4, playbackId: 4 });
+
+    const age = await speak(c, 5, await clip("I am twenty."));
+    check(S, "age answer is heard", /\b(?:twenty|20)\b/i.test(age.final.text), age.final.text);
+    const homeTurn = await tutorTurn(c, 5);
+    const homeText = await sameText(S, c, 5);
+    check(S, "after age the tutor asks where they live", /\bwhere\b/i.test(homeText) && /\blive|from\b/i.test(homeText), homeText);
+    const homeHints = homeTurn.done.replyHints || [];
+    check(S, "hints follow the home question, not the age just given", homeHints.length > 0 && homeHints.every((hint) => hint.facet === "home") && homeHints.every((hint) => !/\b20\b|years old/i.test(hint.en)), homeHints);
+    send(c, { type: "playback_ack", kind: "turn", playback: "complete", requestId: 5, playbackId: 5 });
+
+    const home = await speak(c, 6, await clip("I live in Hanoi."));
+    check(S, "home answer is heard", /\bhanoi\b/i.test(home.final.text), home.final.text);
+    const afterHome = await tutorTurn(c, 6);
+    const afterText = await sameText(S, c, 6);
+    check(S, "tutor does not ask the home question again", !/\bwhere do you live\b/i.test(afterText), afterText);
+    check(S, "no second audio stream for the home reply", c.msgs.filter((m) => m.type === "tts_end" && m.requestId === 6 && m.kind !== "replay").length === 1);
+    noSttError(S, c);
+    send(c, { type: "end_call" });
+    await waitFor(c, (m) => m.type === "call_ended", 5000, "call_ended");
+  },
+
+  /** Two nonsense utterances. If Azure keeps them unclear, the second reply must offer help. */
+  async unclear() {
+    const S = "unclear";
+    const userId = (uid += 1);
+    const sid = `it-unclear-${Date.now()}`;
+    await seed(sid, userId, { maxMinutes: 2 });
+    const c = await connect(sid, tokenFor(userId, sid));
+    await waitFor(c, (m) => m.type === "hello", 5000, "hello");
+    await tutorTurn(c, 1);
+    send(c, { type: "playback_ack", kind: "turn", playback: "complete", requestId: 1, playbackId: 1 });
+    const first = await speak(c, 2, await clip("xkqzz"));
+    if (!String(first.final.text || "").trim()) {
+      await sleep(1500);
+      check(S, "unrecognized audio does not start a tutor turn", !c.msgs.some((m) => m.type === "ai_done" && m.requestId === 2));
+      check(S, "empty transcript asks the learner to try again", c.msgs.some((m) => m.type === "listen_retry" && String(m.notice || "").includes("chưa nghe rõ")), c.msgs.filter((m) => m.type === "listen_retry"));
+      console.log(JSON.stringify({ unclearHeard: [first.final.text], stillUnclear: false, note: "Azure returned an empty transcript" }));
+      noSttError(S, c);
+      send(c, { type: "end_call" });
+      await waitFor(c, (m) => m.type === "call_ended", 5000, "call_ended");
+      return;
+    }
+    const firstReply = await tutorTurn(c, 2);
+    send(c, { type: "playback_ack", kind: "turn", playback: "complete", requestId: 2, playbackId: 2 });
+    const second = await speak(c, 3, await clip("xkqzz"));
+    const secondReply = await tutorTurn(c, 3);
+    await sameText(S, c, 3);
+    const stillUnclear = learnCallTranscriptUnclear(first.final.text) && learnCallTranscriptUnclear(second.final.text);
+    check(
+      S,
+      "a second unclear transcript gets help instead of the same repeat",
+      !stillUnclear || !/^could you say that again\??$/i.test(secondReply.done.text.trim()),
+      { first: first.final.text, second: second.final.text, reply: secondReply.done.text, stillUnclear }
+    );
+    console.log(JSON.stringify({ unclearHeard: [first.final.text, second.final.text], stillUnclear, reply: secondReply.done.text, firstReply: firstReply.done.text }));
+    noSttError(S, c);
+    send(c, { type: "end_call" });
+    await waitFor(c, (m) => m.type === "call_ended", 5000, "call_ended");
+  },
+
+  /** Learn STT stays en-US so English answers are not forced into Vietnamese. */
+  async englishStt() {
+    const S = "englishStt";
+    const userId = (uid += 1);
+    const sid = `it-en-stt-${Date.now()}`;
+    await seed(sid, userId, { maxMinutes: 2 });
+    const c = await connect(sid, tokenFor(userId, sid));
+    await waitFor(c, (m) => m.type === "hello", 5000, "hello");
+    await tutorTurn(c, 1);
+    send(c, { type: "playback_ack", kind: "turn", playback: "complete", requestId: 1, playbackId: 1 });
+    const said = await speak(c, 2, await clip("I am twenty years old."));
+    const heard = String(said.final.text || "");
+    console.log(JSON.stringify({ englishHeard: heard }));
+    check(
+      S,
+      "English speech is not transcribed as Vietnamese",
+      heard.trim().length > 0 && !/[ăâđêôơưạảãẹẻẽịỉĩọỏõụủũỳỵỷỹ]/i.test(heard) && !/\bmột\b|\bmá\b|\bbây giờ\b/i.test(heard.toLowerCase()),
+      heard,
+    );
+    noSttError(S, c);
+    send(c, { type: "end_call" });
+    await waitFor(c, (m) => m.type === "call_ended", 5000, "call_ended");
+  },
+
+  /** Vietnamese help via English STT phrase, not bilingual AutoDetect. */
+  async vietnamese() {
+    const S = "vietnamese";
+    const userId = (uid += 1);
+    const sid = `it-vi-${Date.now()}`;
+    await seed(sid, userId, { maxMinutes: 2 });
+    const c = await connect(sid, tokenFor(userId, sid));
+    await waitFor(c, (m) => m.type === "hello", 5000, "hello");
+    await tutorTurn(c, 1);
+    send(c, { type: "playback_ack", kind: "turn", playback: "complete", requestId: 1, playbackId: 1 });
+    const said = await speak(c, 2, await clip("Can you explain in Vietnamese please."));
+    const heard = String(said.final.text || "");
+    console.log(JSON.stringify({ vietnameseHeard: heard }));
+    const vi = /vietnamese|tiếng việt|tieng viet|explain/i.test(heard);
+    check(S, "Azure en-US STT keeps an English Vietnamese-help line", vi, heard);
+    if (heard.trim()) {
+      const reply = await tutorTurn(c, 2);
+      await sameText(S, c, 2);
+      check(S, "tutor explains in Vietnamese then asks in English", /[ăâđêôơưạảãẹẻẽịỉĩọỏõụủũỳỵỷỹấầẩẫậắằẳẵặếềểễệốồổỗộớờởỡợứừửữự]/i.test(reply.done.text) && reply.done.text.includes("?"), reply.done.text);
+    }
+    noSttError(S, c);
+    send(c, { type: "end_call" });
+    await waitFor(c, (m) => m.type === "call_ended", 5000, "call_ended");
+  },
+
+  /** The call deadline fires while recognition is still open. */
+  async micopen() {
+    const S = "micopen";
+    const userId = (uid += 1);
+    const sid = `it-mic-${Date.now()}`;
+    await seed(sid, userId, { maxMinutes: 0.15 });
+    const c = await connect(sid, tokenFor(userId, sid));
+    await waitFor(c, (m) => m.type === "hello", 5000, "hello");
+    send(c, { type: "recognition_start", requestId: 2 });
+    await waitFor(c, (m) => m.type === "recognition_started" && m.requestId === 2, 10000, "recognition_started");
+    const ended = await waitFor(c, (m) => m.type === "call_ended", 20000, "call_ended");
+    check(S, "deadline while the mic is open ends with time_limit", ended.reason === "time_limit", ended.reason);
+    const users = (await memory(sid)).filter((item) => item.role === "user");
+    check(S, "an open mic at the deadline does not store a learner turn", users.length === 0, users);
   },
 
   /** Near the deadline the tutor closes; the closing ack ends the call with lesson_complete. */
