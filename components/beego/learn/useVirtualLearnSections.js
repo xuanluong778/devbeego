@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-const NODE_STEP_PX = 96;
+const NODE_STEP_PX = 124;
 const BANNER_PX = 120;
 const BUFFER = 2;
 

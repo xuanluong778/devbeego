@@ -34,29 +34,56 @@ import {
 } from "@/lib/beego/learn/lesson-place";
 
 function masteryEvidenceForSession(lesson, attempts) {
+  const rows = Array.isArray(attempts) ? attempts : [];
+  const missing = [];
+  const weakSkills = [];
+  for (const item of rows) {
+    if (item?.correct) continue;
+    const skill = String(item.skill || "").trim();
+    if (skill && !weakSkills.includes(skill)) weakSkills.push(skill);
+    for (const word of item.missing || []) {
+      const text = String(word || "").trim();
+      if (text && !missing.includes(text)) missing.push(text);
+    }
+  }
+  const practice = [
+    ...missing.map((word) => `Luyện thêm từ/cụm: ${word}`),
+    ...weakSkills.map((skill) => `Kỹ năng cần ôn: ${skill}`),
+  ];
   const rubric = lesson?.masteryRubric;
-  if (!rubric) return null;
-  if (!attempts?.length) {
+  const numbered = rows.filter((item) => Number(item.activity) > 0);
+  if (rubric && numbered.length) {
+    const result = assessP1MasteryEvidence(numbered);
+    const expected = { recognition: 0, application: 0 };
+    for (const question of lesson.questions || []) {
+      const role = question?.extensions?.evidenceRole;
+      if (role === "recognition" || role === "application") expected[role] += 1;
+    }
+    const complete =
+      result.recognitionCount === expected.recognition &&
+      result.applicationCount === expected.application;
+    const met = result.mastered && complete;
     return {
-      status: "absent",
-      text: "Kết quả luyện tập trong phiên: lượt này chưa có câu luyện. Trạng thái hoàn thành không đổi.",
+      status: met ? "met" : "not_met",
+      text: met
+        ? "Đã hoàn thành các lượt nhận biết và vận dụng trong phiên. Đây chưa phải kết luận đã làm chủ, và máy chưa chấm phát âm từng âm."
+        : "Bạn đã đi qua bài. Hoàn thành không có nghĩa là đã làm chủ các từ trọng tâm.",
+      practice,
     };
   }
-  const result = assessP1MasteryEvidence(attempts);
-  const expected = { recognition: 0, application: 0 };
-  for (const question of lesson.questions || []) {
-    const role = question?.extensions?.evidenceRole;
-    if (role === "recognition" || role === "application") expected[role] += 1;
+  if (!rows.length) {
+    return {
+      status: "absent",
+      text: "Chưa có câu nào được chấm trong phiên này. Hoàn thành bài không có nghĩa là đã làm chủ.",
+      practice: [],
+    };
   }
-  const complete =
-    result.recognitionCount === expected.recognition &&
-    result.applicationCount === expected.application;
-  const met = result.mastered && complete;
   return {
-    status: met ? "met" : "not_met",
-    text: met
-      ? "Kết quả luyện tập trong phiên: phần nhận biết và phần vận dụng đều đúng. Đây không phải kết luận thành thạo, và transcript không chứng minh phát âm đạt."
-      : "Kết quả luyện tập trong phiên: phần nhận biết hoặc phần vận dụng còn câu chưa đúng. Đây không phải kết luận thành thạo.",
+    status: practice.length ? "not_met" : "met",
+    text: practice.length
+      ? "Bài có thể được tính là đã hoàn thành. Các mục dưới đây vẫn cần luyện thêm, nên chưa gọi là đã làm chủ."
+      : "Các câu đã chấm trong phiên đều đúng. Hoàn thành bài vẫn chưa phải kết luận đã làm chủ phát âm.",
+    practice,
   };
 }
 
@@ -338,7 +365,12 @@ export default function LessonPlayer({ lessonId, replay = false }) {
           }
         }
         const activity = Number(question?.extensions?.activity);
-        if (activity) evidenceAttemptsRef.current.push({ activity, correct: ok });
+        evidenceAttemptsRef.current.push({
+          activity: Number.isFinite(activity) && activity > 0 ? activity : 0,
+          correct: ok,
+          skill: String(question?.skillLabel || ""),
+          missing: Array.isArray(answer?.focusMissing) ? answer.focusMissing : [],
+        });
         if (question?.type !== "matching_pairs") playLessonSfx(ok ? "ding" : "soft");
       }
     } finally {

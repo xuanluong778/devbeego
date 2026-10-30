@@ -155,7 +155,10 @@ async function gradeExerciseServerSide({ lessonId, questionId, answer, sourceLes
         code: "ANSWER_REQUIRED",
       };
     }
-    speakScored = scoreSpeakingAttempt(ex, transcript);
+    speakScored = scoreSpeakingAttempt(ex, transcript, {
+      variantId: answer?.reviewVariantId,
+      practiceChunk: answer?.practiceChunk,
+    });
     isCorrect = Boolean(speakScored.passed);
   } else {
     if (answer == null) {

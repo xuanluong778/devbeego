@@ -320,6 +320,9 @@ body.page-learn-path .beego-shell-main {
   flex-direction: column;
   align-items: stretch;
   position: relative;
+  width: min(100%, 420px);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .beego-learn-section__path::before {
@@ -2572,6 +2575,48 @@ body.page-learn-path .beego-shell-main {
   background: rgba(255, 255, 255, 0.22);
 }
 
+.beego-learn-path .beego-learn-section__path > div,
+.beego-learn-path .beego-learn-section__step {
+  width: 100%;
+}
+
+.beego-learn-path .beego-learn-section__step {
+  align-items: stretch;
+  margin-bottom: 0;
+}
+
+.beego-learn-path .beego-learn-node-wrap {
+  box-sizing: border-box;
+  width: 100%;
+  justify-content: flex-start;
+  padding: 6px 0 10px;
+  padding-left: clamp(0px, calc(var(--s-x, 50%) - 36px), calc(100% - 108px));
+}
+
+.beego-learn-path .beego-learn-section__step .beego-learn-node,
+.beego-learn-path .beego-learn-section__step .beego-learn-gate-call {
+  margin-left: 0;
+  padding: 2px 4px 0;
+  gap: 4px;
+}
+
+.beego-learn-path .beego-learn-bend {
+  position: relative;
+  width: 100%;
+  height: 32px;
+  margin: 2px 0 0;
+  display: block;
+}
+
+.beego-learn-path .beego-learn-bend__dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: #d7e0d4;
+}
+
 .beego-learn-path .beego-learn-node {
   min-width: 44px;
   min-height: 44px;
@@ -2956,7 +3001,68 @@ body.page-learn-path .beego-shell-main {
   }
 }
 
+/* One bee sits in the open side and slides across when the other side is wider. */
+.beego-learn-path-bee {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  width: 220px;
+  height: 156px;
+  pointer-events: none;
+  visibility: hidden;
+  transition: transform 680ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.beego-learn-path-bee.is-ready {
+  visibility: visible;
+}
+
+.beego-learn-path-bee__pace {
+  width: 100%;
+  height: 100%;
+  animation: beego-bee-pace 3.6s ease-in-out infinite;
+}
+
+.beego-learn-path-bee--right .beego-learn-path-bee__pace {
+  animation-name: beego-bee-pace-back;
+}
+
+@keyframes beego-bee-pace {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(12px);
+  }
+}
+
+@keyframes beego-bee-pace-back {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-12px);
+  }
+}
+
+.beego-learn-path-bee__frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .beego-learn-path-bee,
+  .beego-learn-path-bee__pace {
+    animation: none;
+    transition: none;
+  }
+
   .beego-learn-path .beego-learn-node__circle,
   .beego-learn-path .beego-learn-node--active .beego-learn-node__circle,
   .beego-learn-path .beego-learn-node--just-done .beego-learn-node__circle,

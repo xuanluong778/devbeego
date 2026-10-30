@@ -15,6 +15,7 @@ import {
   startLessonSpeechCapture,
 } from "@/lib/beego/learn/adapters/lesson-speech";
 import { scoreSpeakingAttempt } from "@/lib/beego/learn/exercise-check";
+import LessonAiConversation from "./LessonAiConversation";
 import { SUPPORTED_EXERCISE_TYPES } from "@/lib/beego/learn/normalize-lesson-exercises";
 import { resolveLessonOptionVisualPolicy } from "@/lib/beego/learn/lesson-option-visual-policy";
 import { isPictureListeningExercise } from "@/lib/beego/learn/listen-picture-choice";
@@ -226,6 +227,9 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
   const [interim, setInterim] = useState("");
   const [heardText, setHeardText] = useState(() => String(answer?.transcript || "").trim());
   const [revealed, setRevealed] = useState(!hideUntilHint);
+  const [coach, setCoach] = useState(null);
+  const [chunkOn, setChunkOn] = useState("");
+  const missesRef = useRef(0);
   const ctrlRef = useRef(null);
   // Never invent "Hello" — open prompts have empty speakTarget on purpose.
   const target = String(
@@ -240,18 +244,24 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
   const focusWords = Array.isArray(exercise.extensions?.focusWords)
     ? exercise.extensions.focusWords.map((w) => String(w || "").trim()).filter(Boolean)
     : [];
+  const chunks = Array.isArray(exercise.extensions?.practiceChunks)
+    ? exercise.extensions.practiceChunks.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  const activeChunk =
+    chunkOn && chunks.some((item) => item.toLowerCase() === chunkOn.toLowerCase()) ? chunkOn : "";
+  const shownTarget = activeChunk || target;
   const ipa = String(exercise.ipa || exercise.extensions?.ipa || "").trim();
   const meaningVi = String(
     exercise.meaningVi || exercise.extensions?.translation || exercise.extensions?.meaningVi || ""
   ).trim();
   // Keep target visible once spoken (so learner can compare with what they said).
   const showWord =
-    !isOpenPrompt && (revealed || Boolean(feedback) || Boolean(heardText));
-  const expectedForMic = isOpenPrompt ? speakingHint || focusWords.join(" ") : target;
+    !isOpenPrompt && (revealed || Boolean(feedback) || Boolean(heardText) || Boolean(activeChunk));
+  const expectedForMic = isOpenPrompt ? speakingHint || focusWords.join(" ") : shownTarget;
   const displayHeard = recording && interim ? interim : heardText;
   const wordMarks =
-    !isOpenPrompt && target && heardText && !recording
-      ? buildWordMarks(target, heardText)
+    !isOpenPrompt && shownTarget && heardText && !recording
+      ? buildWordMarks(shownTarget, heardText)
       : [];
 
   useEffect(() => {
@@ -262,6 +272,9 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
     setMicPhase("idle");
     setElapsedMs(0);
     setRevealed(!hideUntilHint);
+    setCoach(null);
+    setChunkOn("");
+    missesRef.current = 0;
   }, [exercise?.id, hideUntilHint]);
 
   useEffect(() => {
@@ -290,8 +303,8 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
     };
   }, []);
 
-  const playModel = () => {
-    const ttsText = target || speakingHint;
+  const playModel = (text) => {
+    const ttsText = String(text || activeChunk || target || speakingHint || "").trim();
     if (!ttsText) return;
     void playLessonTts({ text: ttsText, lang: "en" });
   };
@@ -323,8 +336,25 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
         // Keep last transcript visible even if empty recognition (show placeholder).
         setHeardText(heard);
         setRevealed(true);
-        const scored = scoreSpeakingAttempt(exercise, heard);
-        if (scored.softPass || scored.recordedOnly) {
+        const scored = scoreSpeakingAttempt(exercise, heard, {
+          variantId: exercise.extensions?.reviewVariantId,
+          practiceChunk: activeChunk,
+        });
+        if (!scored.passed && !scored.uncertain && !activeChunk) {
+          missesRef.current += 1;
+          if (missesRef.current >= 3 && chunks.length) {
+            const missed = (scored.focusMissing || []).find((word) =>
+              chunks.some((item) => item.toLowerCase() === String(word).toLowerCase())
+            );
+            setChunkOn(missed || chunks[0]);
+          }
+        }
+        setCoach(scored);
+        if (scored.uncertain) {
+          setStatus(scored.feedbackVi);
+        } else if (scored.notPronunciationAssessment) {
+          setStatus(scored.feedbackVi || (scored.passed ? "Đủ từ trọng tâm." : "Hãy luyện từ còn thiếu."));
+        } else if (scored.softPass || scored.recordedOnly) {
           setStatus(
             scored.passed
               ? `${scored.feedbackVi || "Đạt yêu cầu từ trọng tâm."} Nhấn Kiểm tra để tiếp tục.`
@@ -341,6 +371,8 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
           softPass: Boolean(scored.softPass || scored.recordedOnly),
           feedbackVi: scored.feedbackVi || "",
           focusMissing: scored.focusMissing || [],
+          practiceChunk: scored.practiceChunk || "",
+          reviewVariantId: exercise.extensions?.reviewVariantId || "",
         });
       },
       onError: (err) => {
@@ -389,7 +421,7 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
               <button
                 type="button"
                 className="beego-lesson-speaking__sample"
-                onClick={playModel}
+                onClick={() => playModel()}
                 aria-label="Nghe câu gợi ý"
               >
                 Gợi ý (đổi chi tiết, đừng chép nguyên): {speakingHint}
@@ -400,16 +432,16 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
           <button
             type="button"
             className="beego-lesson-listen-word__bubble"
-            onClick={playModel}
+            onClick={() => playModel()}
             aria-label="Nghe mẫu"
-            disabled={!target}
+            disabled={!shownTarget}
           >
             <svg viewBox="0 0 24 24" aria-hidden>
               <path fill="currentColor" d="M4 9.2v5.6h3.6L12 19V5L7.6 9.2H4z" />
               <path fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M15.2 9.3a3.4 3.4 0 0 1 0 5.4" />
             </svg>
             <span className="beego-lesson-listen-word__said">
-              {target || "—"}
+              {shownTarget || "—"}
               <span className="beego-lesson-listen-word__dots" />
             </span>
           </button>
@@ -417,7 +449,7 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
           <button
             type="button"
             className="beego-lesson-speaking__speaker-only"
-            onClick={playModel}
+            onClick={() => playModel()}
             aria-label="Nghe mẫu — chữ đang ẩn"
             disabled={!target}
           >
@@ -454,6 +486,28 @@ function SpeakingExercise({ exercise, answer, onAnswerChange, feedback, showMicC
                 ? "Micro chưa dùng được"
                 : "Sẵn sàng nói"}
       </p>
+      {coach && !isOpenPrompt ? (
+        <div className="beego-lesson-speaking__coach">
+          <p>{coach.feedbackVi}</p>
+          {activeChunk ? <p>Đang luyện cụm ngắn: {activeChunk}</p> : null}
+          {(coach.focusMissing || []).map((word) => (
+            <button
+              key={word}
+              type="button"
+              className="beego-lesson-listen-btn"
+              onClick={() => playModel(word)}
+            >
+              Nghe: {word}
+            </button>
+          ))}
+          <button type="button" className="beego-lesson-listen-btn" onClick={() => playModel()}>
+            Nghe mẫu
+          </button>
+          <button type="button" className="beego-lesson-listen-btn" onClick={startRecord} disabled={recording || !!feedback}>
+            Thử lại
+          </button>
+        </div>
+      ) : null}
       {isSpeechRecognitionSupported() ? (
         <button
           type="button"
@@ -629,6 +683,49 @@ function DialogueExercise({
   );
 }
 
+function GreetingAiOffer({ lessonId }) {
+  const [enabled, setEnabled] = useState(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let cancel = false;
+    fetch("/api/learn/chat/status", { cache: "no-store" })
+      .then(async (res) => {
+        const json = await res.json().catch(() => ({}));
+        if (!cancel) setEnabled(Boolean(res.ok && json?.data?.enabled));
+      })
+      .catch(() => {
+        if (!cancel) setEnabled(false);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, []);
+  if (enabled == null) return null;
+  if (!enabled) {
+    return (
+      <p className="beego-lesson-question__hint">
+        AI chưa sẵn sàng. Hãy tự viết 1–2 câu ở ô bên dưới.
+      </p>
+    );
+  }
+  return (
+    <div className="beego-lesson-speaking__coach">
+      <button type="button" className="beego-lesson-listen-btn" onClick={() => setOpen(true)}>
+        Nói một hội thoại ngắn với AI
+      </button>
+      {open ? (
+        <LessonAiConversation
+          lessonId={lessonId}
+          onClose={() => {
+            stopLessonTts();
+            setOpen(false);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function UnknownExercise({ exercise }) {
   return (
     <p className="beego-lesson-question__hint">
@@ -746,6 +843,7 @@ export default function ExerciseRenderer({
 
       {type === "translation" && supported ? (
         <>
+          {exercise.extensions?.offerAiDialogue ? <GreetingAiOffer lessonId={lessonId} /> : null}
           <TranslationAnswer
             exercise={exercise}
             answer={answer}

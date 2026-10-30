@@ -5,18 +5,30 @@ import UnitBanner from "./UnitBanner";
 import LessonNode from "./LessonNode";
 import GateCallButton from "./GateCallButton";
 
-/** Zig-zag lane: left → center → right → center → … */
-const ZIGZAG = ["left", "center", "right", "center"];
+/** A round S, eight lessons per loop, like the Duolingo path. */
+function laneX(index) {
+  const turn = (index % 8) / 8;
+  return Math.round(50 + Math.sin(turn * Math.PI * 2) * 32);
+}
 
 function PathBend({ from, to }) {
-  const swingRight = to === "right" || (from === "left" && to === "center");
-  const d = swingRight
-    ? "M18 4 C 42 32, 78 4, 102 30"
-    : "M102 4 C 78 32, 42 4, 18 30";
+  const start = Number(from);
+  const end = Number(to);
+  const dots = [0.28, 0.5, 0.72].map((t) => {
+    const x = start + (end - start) * t;
+    const y = 8 + Math.sin(t * Math.PI) * 7;
+    return (
+      <span
+        key={t}
+        className="beego-learn-bend__dot"
+        style={{ left: `${x}%`, top: `${y}px` }}
+      />
+    );
+  });
   return (
-    <svg className="beego-learn-bend" viewBox="0 0 120 36" aria-hidden>
-      <path d={d} />
-    </svg>
+    <div className="beego-learn-bend" aria-hidden>
+      {dots}
+    </div>
   );
 }
 
@@ -71,28 +83,27 @@ const LearningSection = forwardRef(function LearningSection(
 
       <div className="beego-learn-section__path" role="list">
         {section.nodes.map((node, i) => {
-          const align = ZIGZAG[i % ZIGZAG.length];
+          const x = laneX(i);
           const showCall = callEnabled && i === 3;
+          const callX = laneX(i + 0.5);
           return (
             <div key={node.lessonId}>
               <div
-                className={`beego-learn-section__step beego-learn-section__step--${align}`}
+                className="beego-learn-section__step"
                 role="listitem"
-                style={{ "--zigzag-i": i }}
+                style={{ "--s-x": `${x}%` }}
               >
-                {i > 0 ? (
-                  <PathBend from={ZIGZAG[(i - 1) % ZIGZAG.length]} to={align} />
-                ) : null}
+                {i > 0 ? <PathBend from={laneX(i - 1)} to={x} /> : null}
                 <LessonNode
                   node={node}
-                  align={align}
+                  align="s"
                   onClick={onNodeClick}
                   justCompleted={justCompletedId === node.lessonId}
                 />
               </div>
               {showCall ? (
-                <div className="beego-learn-section__step beego-learn-section__step--center" role="listitem">
-                  <span className="beego-learn-section__connector beego-learn-section__connector--center" aria-hidden />
+                <div className="beego-learn-section__step" role="listitem" style={{ "--s-x": `${callX}%` }}>
+                  <PathBend from={x} to={callX} />
                   <GateCallButton section={section} onOpen={onGateCall} />
                 </div>
               ) : null}

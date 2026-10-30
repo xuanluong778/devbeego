@@ -100,9 +100,16 @@ export default function LessonCompleteScreen({
           )}
         </ul>
         {masteryEvidence ? (
-          <p className={`beego-lesson-evidence beego-lesson-evidence--${masteryEvidence.status}`}>
-            {masteryEvidence.text}
-          </p>
+          <div className={`beego-lesson-evidence beego-lesson-evidence--${masteryEvidence.status}`}>
+            <p>{masteryEvidence.text}</p>
+            {Array.isArray(masteryEvidence.practice) && masteryEvidence.practice.length ? (
+              <ul>
+                {masteryEvidence.practice.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ) : null}
         <p className="beego-lesson-complete__msg">
           {saving

@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import LearningSection from "./LearningSection";
+import LearnPathWalker from "./LearnPathWalker";
 import { useVirtualLearnSections } from "./useVirtualLearnSections";
 
 export default function BeegoLearningPath({
@@ -27,6 +28,7 @@ export default function BeegoLearningPath({
 
   return (
     <div className="beego-learn-path">
+      <LearnPathWalker />
       {sections.map((section, i) => {
         const mounted = i >= visible.start && i <= visible.end;
         return (
