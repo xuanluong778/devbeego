@@ -3120,10 +3120,11 @@ body.page-lesson-player .page-content {
   display: grid;
   place-items: center;
   border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
   background: linear-gradient(135deg, #7cf7ff, #29c5e8);
   color: #07152c;
-  box-shadow: 0 4px 18px rgba(41, 197, 232, 0.4);
-  transition: transform 0.15s ease, box-shadow 0.25s ease, filter 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(94, 240, 255, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
 .beego-call-stage__mic svg {
@@ -3134,31 +3135,27 @@ body.page-lesson-player .page-content {
 
 .beego-call-stage__speak:hover:not(:disabled) .beego-call-stage__mic {
   transform: translateY(-1px);
-  box-shadow:
-    0 0 25px rgba(94, 240, 255, 0.85),
-    0 0 50px rgba(94, 240, 255, 0.45);
-  filter: brightness(1.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 6px rgba(94, 240, 255, 0.45);
 }
 
 .beego-call-stage__speak:active:not(:disabled) .beego-call-stage__mic {
   transform: scale(0.97);
-  box-shadow:
-    0 0 30px rgba(94, 240, 255, 0.95),
-    0 0 60px rgba(94, 240, 255, 0.6);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 8px rgba(94, 240, 255, 0.5);
 }
 
 .beego-call-stage__speak.is-listening .beego-call-stage__mic {
   background: linear-gradient(135deg, #a7ffda, #3ee08f);
   color: #042416;
+  border-color: rgba(255, 255, 255, 0.35);
   animation: beego-mic-glow 1.4s ease-in-out infinite alternate;
 }
 
 @keyframes beego-mic-glow {
   0% {
-    box-shadow: 0 0 15px rgba(94, 240, 255, 0.6), 0 0 30px rgba(94, 240, 255, 0.3);
+    box-shadow: 0 0 0 1px rgba(62, 224, 143, 0.3), 0 0 4px rgba(62, 224, 143, 0.25);
   }
   100% {
-    box-shadow: 0 0 32px rgba(94, 240, 255, 0.95), 0 0 64px rgba(94, 240, 255, 0.6), 0 0 85px rgba(94, 240, 255, 0.35);
+    box-shadow: 0 0 0 2px rgba(62, 224, 143, 0.5), 0 0 8px rgba(62, 224, 143, 0.4);
   }
 }
 
