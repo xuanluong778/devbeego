@@ -405,7 +405,7 @@ body.page-lesson-player .page-content {
 
 .beego-lesson-match__cols {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
 }
 
@@ -413,6 +413,7 @@ body.page-lesson-player .page-content {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .beego-lesson-match__item {
@@ -433,13 +434,21 @@ body.page-lesson-player .page-content {
 }
 
 .beego-lesson-match--audio .beego-lesson-match__cols {
-  gap: 22px 32px;
+  gap: 10px 12px;
+  width: 100%;
   max-width: 680px;
   margin: 8px auto 0;
+  /* Fixed narrow track for listen controls; meanings take the rest. */
+  grid-template-columns: minmax(0, 8.75rem) minmax(0, 1fr);
 }
 
 .beego-lesson-match--audio .beego-lesson-match__col {
   gap: 12px;
+  min-width: 0;
+}
+
+.beego-lesson-match--audio .beego-lesson-match__col:first-child {
+  max-width: 8.75rem;
 }
 
 .beego-lesson-audio-card,
@@ -459,6 +468,23 @@ body.page-lesson-player .page-content {
 
 .beego-lesson-audio-card {
   cursor: pointer;
+  min-width: 0;
+  position: relative;
+  padding-right: 8px;
+}
+
+.beego-lesson-match--audio .beego-lesson-audio-card {
+  width: 100%;
+  max-width: 8.75rem;
+  padding-right: 4px;
+}
+
+.beego-lesson-audio-card__body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .beego-lesson-audio-card__num,
@@ -498,10 +524,11 @@ body.page-lesson-player .page-content {
 .beego-lesson-audio-card__wave {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   height: 22px;
   min-width: 0;
-  flex: 1;
+  flex: 0 1 40px;
+  max-width: 44px;
   overflow: hidden;
   color: #2f9bff;
   pointer-events: none;
@@ -597,10 +624,52 @@ body.page-lesson-player .page-content {
   font-size: 1.05rem;
   font-weight: 650;
   cursor: pointer;
+  min-width: 0;
 }
 
 .beego-lesson-word-card__text {
   color: #374151;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.beego-lesson-match--audio .beego-lesson-match__pick--badge {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  margin: 0;
+  padding: 1px 5px;
+  border-radius: 999px;
+  border: 1px solid #86efac;
+  background: #ecfdf3;
+  font-size: 0.58rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.beego-lesson-match--audio .beego-lesson-audio-card__play {
+  min-height: 36px;
+}
+
+.beego-lesson-match--audio .beego-lesson-audio-card__num,
+.beego-lesson-match--audio .beego-lesson-word-card__num {
+  width: 26px;
+  height: 26px;
+  font-size: 0.78rem;
+}
+
+.beego-lesson-match--audio .beego-lesson-audio-card,
+.beego-lesson-match--audio .beego-lesson-word-card {
+  gap: 8px;
+  min-height: 52px;
+  padding: 6px 8px 6px 6px;
+}
+
+.beego-lesson-match--audio .beego-lesson-word-card {
+  font-size: 0.95rem;
 }
 
 .beego-lesson-word-card.is-locked .beego-lesson-word-card__text {
@@ -2637,6 +2706,47 @@ body.page-lesson-player .page-content {
   border: 1px solid rgb(94 240 255 / 18%);
   color: #eef3ff;
   text-align: left;
+  animation: beego-hints-fade 0.2s ease-out;
+}
+
+@keyframes beego-hints-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.beego-call-stage__hints-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.beego-call-stage__hints-head small {
+  margin-bottom: 0 !important;
+}
+
+.beego-call-stage__hints-close {
+  border: none;
+  background: transparent;
+  color: var(--call-cyan);
+  opacity: 0.7;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: opacity 0.15s ease;
+}
+
+.beego-call-stage__hints-close:hover {
+  opacity: 1;
 }
 
 .beego-call-stage__hints small {
@@ -2739,7 +2849,7 @@ body.page-lesson-player .page-content {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 14px 18px;
+  padding: 12px 14px;
   border-radius: 20px;
   border: 1px solid var(--call-line);
   background: var(--call-card);
@@ -2752,17 +2862,24 @@ body.page-lesson-player .page-content {
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 2px;
+  display: inline-block;
+  padding: 0 54px;
+  min-height: 22px;
+  line-height: 22px;
 }
 
 .beego-call-stage__caption-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-  font-size: 18px;
+  display: block;
+  width: 100%;
+  font-size: 17px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.4;
   overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  text-overflow: clip;
+  max-height: 200px;
+  overflow-y: auto;
   transition: opacity 0.18s ease;
 }
 
@@ -2771,12 +2888,56 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage__caption.has-ipa {
-  padding-right: 58px;
+  /* Cleared so text utilizes full card width */
+}
+
+.beego-call-stage__caption.has-hint {
+  /* Cleared so text utilizes full card width */
 }
 
 .beego-call-stage__caption.is-ipa-open {
   padding-right: 18px;
+  padding-left: 18px;
   padding-top: 36px;
+}
+
+.beego-call-stage__hint-btn {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 2;
+  min-width: 48px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #5ef0ff55;
+  border-radius: 999px;
+  background: #5ef0ff14;
+  color: var(--call-cyan);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+}
+
+.beego-call-stage__hint-btn:hover {
+  background: #5ef0ff24;
+  border-color: #5ef0ff99;
+}
+
+.beego-call-stage__hint-btn[aria-pressed="true"] {
+  background: #5ef0ff33;
+  border-color: #5ef0ff;
+  color: #eaffff;
+  box-shadow: 0 0 10px rgba(94, 240, 255, 0.35);
+}
+
+.beego-call-stage__hint-btn:active {
+  transform: scale(0.96);
 }
 
 .beego-call-stage__ipa {
@@ -3539,7 +3700,9 @@ body.page-lesson-player .page-content {
 
   .beego-call-stage__caption-text {
     font-size: 16px;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: unset;
+    max-height: 150px;
+    overflow-y: auto;
   }
 
   .beego-call-stage__side {
@@ -3621,7 +3784,9 @@ body.page-lesson-player .page-content {
 
   .beego-call-stage__caption-text {
     font-size: 15px;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: unset;
+    max-height: 130px;
+    overflow-y: auto;
   }
 
   .beego-call-stage__status {
@@ -3773,6 +3938,26 @@ body.page-lesson-player .page-content {
   .beego-lesson-options--grid {
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+  }
+
+  .beego-lesson-match--audio .beego-lesson-match__cols {
+    gap: 8px 10px;
+    grid-template-columns: minmax(0, 7.75rem) minmax(0, 1fr);
+  }
+
+  .beego-lesson-match--audio .beego-lesson-match__col:first-child,
+  .beego-lesson-match--audio .beego-lesson-audio-card {
+    max-width: 7.75rem;
+  }
+
+  .beego-lesson-match--audio .beego-lesson-audio-card__wave {
+    flex-basis: 34px;
+    max-width: 38px;
+  }
+
+  .beego-lesson-match--audio .beego-lesson-audio-card__icon {
+    width: 22px;
+    height: 22px;
   }
 }
 

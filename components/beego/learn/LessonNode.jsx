@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { getActiveNodeBadge, getNodeType } from "@/lib/beego/learning-path";
 import { isTestNode } from "@/lib/beego/learning-path-build";
-import LearningNodeIcon from "./LearningNodeIcon";
+import { getGate01LessonIcon } from "@/lib/beego/learn/gate-01-icons";
+import LearningNodeIcon, { LearningNodeStatusBadge } from "./LearningNodeIcon";
 import LearnNodeTooltip from "./LearnNodeTooltip";
 
 export default function LessonNode({ node, align, onClick, justCompleted = false }) {
@@ -14,7 +15,8 @@ export default function LessonNode({ node, align, onClick, justCompleted = false
   const isCompleted = node.status === "completed" || node.status === "skipped";
   const isTest = isTestNode(node);
   const badge = getActiveNodeBadge(node);
-  const showTitle = isActive || isCompleted || (!isLocked && !isActive);
+  const artwork = getGate01LessonIcon(node.lessonId);
+  const showTitle = artwork || isActive || isCompleted || (!isLocked && !isActive);
 
   return (
     <div className={`beego-learn-node-wrap beego-learn-node-wrap--${align}`}>
@@ -31,6 +33,7 @@ export default function LessonNode({ node, align, onClick, justCompleted = false
             isTest ? "beego-learn-node--test" : "",
             isActive ? "beego-learn-node--current" : "",
             justCompleted ? "beego-learn-node--just-done" : "",
+            artwork ? "beego-learn-node--gate-01" : "",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -46,6 +49,7 @@ export default function LessonNode({ node, align, onClick, justCompleted = false
             className={`beego-learn-node__circle${isTest ? " beego-learn-node__circle--test" : ""}`}
           >
             <LearningNodeIcon node={node} size={isTest || isActive ? "lg" : "md"} />
+            {artwork ? <LearningNodeStatusBadge status={node.status} /> : null}
           </span>
           {badge ? (
             <span

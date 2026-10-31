@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useVoiceWebSocket } from "@/hooks/useVoiceWebSocket";
 import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 import { useStreamingTtsPlayer } from "@/hooks/useStreamingTtsPlayer";
@@ -15,6 +15,8 @@ import {
   transcriptHasClosing,
   transcriptLastTutor,
 } from "@/lib/beego/learn/learn-call-transcript";
+import { learnCallReplyHints } from "@/lib/beego/learn/learn-call-topics";
+import { getAnswerSuggestions } from "@/lib/lessons/speaking-suggestions";
 import LearnCallCharacter from "./LearnCallCharacter";
 import LearnCallIpa from "./LearnCallIpa";
 
@@ -44,6 +46,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   const [captionsOn, setCaptionsOn] = useState(true);
   const [ipaExpanded, setIpaExpanded] = useState(false);
   const [replyHints, setReplyHints] = useState([]);
+  const [hintsOpen, setHintsOpen] = useState(false);
   const [coach, setCoach] = useState(null);
   const [coachBusy, setCoachBusy] = useState("");
   const practiceRef = useRef("");
@@ -676,6 +679,38 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   }
   const canReplay = Boolean(transcriptLastTutor(transcript));
 
+  const effectiveHints = useMemo(() => {
+    if (replyHints.length) return replyHints;
+    const currentTutor = (captionRole === "tutor" ? caption : "") || transcriptLastTutor(transcript);
+    if (!currentTutor) {
+      return [
+        { en: "Hello!", vi: "Xin chào!" },
+        { en: "I'm ready to learn.", vi: "Tôi sẵn sàng học rồi." },
+      ];
+    }
+    const fallback = learnCallReplyHints(currentTutor, {
+      topic: offer?.topic || offer?.title || "",
+      title: offer?.title || "",
+      sectionId: offer?.sectionId || "",
+      difficulty: offer?.limits?.difficulty || "easy",
+    });
+    if (Array.isArray(fallback) && fallback.length) {
+      return fallback.slice(0, 2);
+    }
+    const generic = getAnswerSuggestions(currentTutor);
+    if (Array.isArray(generic) && generic.length) {
+      return generic.slice(0, 2).map((s) => ({ en: s, vi: "" }));
+    }
+    return [
+      { en: "I understand.", vi: "Tôi hiểu rồi." },
+      { en: "Could you repeat that?", vi: "Bạn có thể nhắc lại không?" },
+    ];
+  }, [replyHints, transcript, caption, captionRole, offer]);
+
+  useEffect(() => {
+    setHintsOpen(false);
+  }, [caption]);
+
   const clockView = learnCallRemainingView({
     startedAt: clock?.startedAt,
     deadlineAt: clock?.deadlineAt,
@@ -865,9 +900,22 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
             </div>
             {captionsOn ? (
               <div
-                className={`beego-call-stage__caption${captionRole === "tutor" && caption ? " has-ipa" : ""}${ipaExpanded ? " is-ipa-open" : ""}`}
+                className={`beego-call-stage__caption${captionRole === "tutor" && caption ? " has-ipa" : ""}${!ended ? " has-hint" : ""}${ipaExpanded ? " is-ipa-open" : ""}`}
                 aria-live="polite"
               >
+                {!ended ? (
+                  <button
+                    type="button"
+                    className="beego-call-stage__hint-btn"
+                    aria-pressed={hintsOpen}
+                    aria-expanded={hintsOpen}
+                    aria-controls="beego-call-reply-hints"
+                    onClick={() => setHintsOpen((prev) => !prev)}
+                    title={hintsOpen ? "Ẩn gợi ý trả lời" : "Hiện gợi ý trả lời"}
+                  >
+                    Gợi Ý
+                  </button>
+                ) : null}
                 <small>{captionRole === "user" ? "BẠN" : tutorLabel}</small>
                 <span className="beego-call-stage__caption-text">{captionText}</span>
                 <LearnCallIpa
@@ -882,11 +930,21 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                 <span>Bấm Phụ đề để xem lời gia sư.</span>
               </div>
             )}
-            {!ended && replyHints.length ? (
-              <div className="beego-call-stage__hints" aria-label="Gợi ý trả lời">
-                <small>Gợi ý trả lời</small>
+            {!ended && hintsOpen ? (
+              <div className="beego-call-stage__hints" id="beego-call-reply-hints" aria-label="Gợi ý trả lời">
+                <div className="beego-call-stage__hints-head">
+                  <small>Gợi ý trả lời</small>
+                  <button
+                    type="button"
+                    className="beego-call-stage__hints-close"
+                    onClick={() => setHintsOpen(false)}
+                    aria-label="Đóng gợi ý"
+                  >
+                    ✕
+                  </button>
+                </div>
                 <ul>
-                  {replyHints.map((hint) => (
+                  {effectiveHints.map((hint) => (
                     <li key={hint.en}>
                       <strong>{hint.en}</strong>
                       {hint.vi ? <span>{hint.vi}</span> : null}

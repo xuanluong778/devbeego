@@ -195,26 +195,32 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
                 }
               }}
             >
-              <span className="beego-lesson-audio-card__num">{index + 1}</span>
-              <button
-                type="button"
-                className="beego-lesson-audio-card__play"
-                aria-label={`Nghe âm ${index + 1}`}
-                aria-pressed={playing}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  playCue(itemId, pair.en);
-                }}
-              >
-                <SpeakerIcon />
-              </button>
-              {showAudioText ? (
-                <span className="beego-lesson-audio-card__text">{pair.en}</span>
-              ) : (
-                <SoundWave playing={playing} />
-              )}
-              {locked ? <span className="beego-lesson-match__pick">Đã ghép</span> : null}
-              {selected && !locked ? <span className="beego-lesson-match__pick">Đã chọn</span> : null}
+              <span className="beego-lesson-audio-card__body">
+                <span className="beego-lesson-audio-card__num">{index + 1}</span>
+                <button
+                  type="button"
+                  className="beego-lesson-audio-card__play"
+                  aria-label={`Nghe âm ${index + 1}`}
+                  aria-pressed={playing}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    playCue(itemId, pair.en);
+                  }}
+                >
+                  <SpeakerIcon />
+                </button>
+                {showAudioText ? (
+                  <span className="beego-lesson-audio-card__text">{pair.en}</span>
+                ) : (
+                  <SoundWave playing={playing} />
+                )}
+              </span>
+              {locked ? (
+                <span className="beego-lesson-match__pick beego-lesson-match__pick--badge">Đã ghép</span>
+              ) : null}
+              {selected && !locked ? (
+                <span className="beego-lesson-match__pick beego-lesson-match__pick--badge">Đã chọn</span>
+              ) : null}
             </div>
           );
         }

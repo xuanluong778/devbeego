@@ -1,0 +1,32 @@
+Hãy thêm bộ icon 3D cửa 1 vào lộ trình Beego. Đọc hướng dẫn repository nếu có, kiểm tra git status và bảo toàn thay đổi hiện tại. Thực hiện sửa code và kiểm thử, không chỉ hướng dẫn.
+
+1. Đọc LessonNode.jsx, LearningNodeIcon.jsx, GateCallButton.jsx, catalog cửa học và CSS liên quan. Xác minh mã thực tế. Chỉ đổi hình trình bày cửa 1; không đổi ID, thứ tự bài, nội dung, điều kiện khóa, tiến độ, XP, Honey, auth hoặc cửa khác.
+
+2. Copy ảnh trong gói vào public/uploads/lesson-icons/gate-01/. Dùng manifest.json và bảng sau để ánh xạ theo lessonId, không dựa vào vị trí hay tìm theo chữ gần giống:
+g01l01 → 01-chao-lan-dau.png → Chào lần đầu
+g01l02 → 02-noi-ten.png → Nói tên
+g01l03 → 03-hoi-ten.png → Hỏi tên
+g01l04 → 04-on-loi-chao.png → Ôn lời chào
+g01l05 → 05-gap-giao-vien.png → Gặp giáo viên
+g01l06 → 06-gap-ban-moi.png → Gặp bạn mới
+g01l07 → 07-chao-buoi-sang.png → Chào buổi sáng
+g01l08 → 08-on-vai-giao-tiep.png → Ôn vai giao tiếp
+g01l09 → 09-gioi-thieu-ban.png → Giới thiệu bạn
+g01l10 → 10-nho-nhac-lai.png → Nhờ nhắc lại
+g01l11 → 11-danh-van-ten.png → Đánh vần tên
+g01l12 → 12-on-hoi-thoai.png → Ôn hội thoại
+g01l13 → 13-cam-on.png → Cảm ơn
+g01l14 → 14-xin-loi.png → Xin lỗi
+g01l15 → 15-tam-biet.png → Tạm biệt
+g01l16 → 16-tu-gioi-thieu.png → Tự giới thiệu
+g01exam → 17-thi-vuot-cua.png → Thi vượt cửa
+
+3. Nút Gọi gia sư AI của cửa 1: dùng 19-gau-goi-gia-su-ai.png. Đây là nút tính năng hiện có, không tạo lessonId giả. File 18-gia-su-ai.png là phương án ong robot thay thế, không hiển thị cả hai.
+
+4. Giữ nút bài học hiện có và cơ chế click/focus/tooltip. Icon khoảng 44–52px trong nút 72–80px, object-fit:contain, kích thước cố định. Tinh chỉnh bằng giao diện mobile thật. Nút hoàn thành vẫn giữ icon nội dung và thêm huy hiệu ✓ nhỏ ở góc; bài đang học có viền sáng nhẹ; bài khóa có ổ khóa và màu dịu. Không thay toàn bộ icon thành dấu ✓. Giữ tên bài dễ đọc; không phủ huy hiệu lên điểm nhận diện của ảnh.
+
+5. Ảnh trang trí dùng alt rỗng khi button đã có aria-label phù hợp. Chỉ tải sớm icon cần nhìn thấy, các icon còn lại lazy-load. Có fallback icon cũ nếu ảnh lỗi, tránh vòng lặp onError. Không thêm thư viện animation; chỉ nhún nhẹ bài đang học hoặc phản hồi khi hover/tap, tôn trọng prefers-reduced-motion.
+
+6. Nếu ảnh gốc quá lớn, tạo bản WebP tối ưu dùng cho hiển thị mobile, giữ alpha và ảnh PNG gốc. So sánh chất lượng lông/viền ở kích thước hiển thị thực, không làm nhòe icon. Giữ đúng mapping và fallback sau chuyển định dạng.
+
+7. Kiểm tra 16 bài và bài thi cửa 1, nút gọi AI; trạng thái hoàn thành/đang học/khóa; bàn phím; mobile 360–390px; ảnh lỗi; các cửa khác không đổi. Không tự commit, push hoặc deploy production. Báo file đã sửa, mapping, kiểm thử và URL dev để xem.

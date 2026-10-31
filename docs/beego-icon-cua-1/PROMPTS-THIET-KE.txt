@@ -1,0 +1,60 @@
+Built-in image_gen used. Every icon was generated separately with actual transparent alpha.
+Style prompt: One premium 3D lesson icon, designer toy soft matte clay, rounded chunky forms, expressive friendly face, honey yellow + mint turquoise + pastel lavender + cream, soft upper-left lighting, three-quarter view, clear silhouette at 48px, transparent background, no text or watermark.
+
+01-chao-lan-dau.png | Chào lần đầu
+Subject: Adorable honey-yellow waving mitten hand with turquoise cuff and lavender speech bubble.
+
+02-noi-ten.png | Nói tên
+Subject: a cute smiling turquoise name badge with honey-yellow strap, raised portrait medallion of a little friendly yellow face and two short blank lavender embossed lines (not letters). Humorous portrait winks. Identity/name introduction icon.
+
+03-hoi-ten.png | Hỏi tên
+Subject: two chubby speech bubbles, honey-yellow one in front asking with curious raised eyebrow, small mint one behind smiling. One tiny lavender question-mark sculpture above, elegant simple conversational naming icon.
+
+04-on-loi-chao.png | Ôn lời chào
+Subject: a honey-yellow friendly smiling speech bubble hugged by two thick mint and lavender curved arrows forming a refresh loop. Tiny friendly eyes on bubble, one simple sparkling accent. Reviewing greetings icon.
+
+05-gap-giao-vien.png | Gặp giáo viên
+Subject: a tiny rounded mint classroom board with a smiling golden-yellow pencil teacher beside it wearing small round lavender spectacles. Board has one simple cream star symbol, no writing. Meeting a teacher icon.
+
+06-gap-ban-moi.png | Gặp bạn mới
+Subject: two friendly round character portrait busts side by side, one honey-yellow with mint shirt and one lavender with cream shirt, smiling at each other, small mint star between them. Chunky toy-like faces, simple silhouettes. Meeting a new friend icon.
+
+07-chao-buoi-sang.png | Chào buổi sáng
+Subject: a plump honey-yellow sun with a funny cheerful just-woken-up face peeking over a soft mint cloud, six rounded short rays and one tiny lavender sparkle. Good morning greeting icon.
+
+08-on-vai-giao-tiep.png | Ôn vai giao tiếp
+Subject: two happy rounded chat bubbles one mint one honey-yellow connected by two short lavender curved swap arrows, arranged as a clear exchange-turn symbol. One bubble has a cheeky eyebrow. Communication role review icon.
+
+09-gioi-thieu-ban.png | Giới thiệu bạn
+Subject: a cute honey-yellow portrait bust gently presenting a smaller lavender friend portrait medallion with a tiny mint curved introduction arrow. Warm friendly expressive toy faces. Introducing a friend icon.
+
+10-nho-nhac-lai.png | Nhờ nhắc lại
+Subject: one adorable mint ear listening beside a honey-yellow smiling chat bubble with a single thick lavender repeat arrow curling around it. Clear listen-again symbol, no letters. Asking someone to repeat icon.
+
+11-danh-van-ten.png | Đánh vần tên
+Subject: three chunky rounded honey-yellow mint lavender alphabet-learning cubes stacked playfully, each cube marked with a simple geometric shape (circle triangle star), NOT letters. Front honey-yellow cube has friendly eyes and tiny smile. Spelling practice icon.
+
+12-on-hoi-thoai.png | Ôn hội thoại
+Subject: an adorable open honey-yellow book with mint pages shaped into two small blank speech bubbles, a lavender curved refresh arrow wrapping the corner. Tiny friendly eyes on book spine, charming conversation review symbol.
+
+13-cam-on.png | Cảm ơn
+Subject: a big plump honey-yellow heart with smiling grateful face, held from below by two simple mint mitten hands like an offering, one small lavender sparkle. Cute restrained thankful expression, gratitude icon.
+
+14-xin-loi.png | Xin lỗi
+Subject: an adorable lavender speech bubble with a shy apologetic face, inward raised eyebrows, rosy cheeks and small gentle smile, hugging a tiny honey-yellow heart with mint mitten hands. Friendly 'oops, sorry' emotion, no tears or sadness drama.
+
+15-tam-biet.png | Tạm biệt
+Subject: a small cheerful honey-yellow face peeking from a rounded mint doorway, one tiny lavender mitten waving goodbye beside the door, one simple cream star above. Clear farewell icon, all pieces compact.
+
+16-tu-gioi-thieu.png | Tự giới thiệu
+Subject: a honey-yellow smiling microphone with mint stand and a small lavender self-portrait badge tucked beside it, friendly confident expressive face on microphone head, one tiny cream sparkle. Speaking to introduce yourself icon.
+
+17-thi-vuot-cua.png | Thi vượt cửa
+Subject: a chubby honey-yellow trophy cup with joyful cheeky face, mint handles and lavender ribbon medal with one raised cream star, no pedestal. Bold aspirational friendly final gate challenge icon.
+
+18-gia-su-ai.png | Gia sư AI
+Subject: a tiny adorable honey-yellow and mint bee robot head wearing rounded lavender headset with microphone, two stubby antennae, expressive friendly cocoa eyes, small white wing accents. Premium cute AI tutor call icon.
+
+19-gau-goi-gia-su-ai.png | Gấu gọi gia sư AI
+Subject: Brown bear sitting, holding a video-call smartphone and waving; turquoise scarf, transparent background.
+

@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { getNodeIconType } from "@/lib/beego/learning-node-icons";
+import { getGate01LessonIcon } from "@/lib/beego/learn/gate-01-icons";
 
 function IconSvg({ iconType }) {
   const common = {
@@ -133,17 +135,51 @@ function IconSvg({ iconType }) {
 }
 
 /**
- * @param {{ node: object, size?: 'sm'|'md'|'lg' }} props
+ * @param {{ node: object, size?: 'sm'|'md'|'lg', artwork?: { src: string } }} props
  */
-export default function LearningNodeIcon({ node, size = "md" }) {
+export default function LearningNodeIcon({ node, size = "md", artwork = getGate01LessonIcon(node.lessonId) }) {
   const iconType = getNodeIconType(node);
+  const [failedSource, setFailedSource] = useState(null);
+  const imageRef = useRef(null);
+  const showArtwork = artwork && failedSource !== artwork.src;
+
+  useEffect(() => {
+    // An image can fail before hydration attaches onError (cached error / fast 404).
+    const image = imageRef.current;
+    if (image?.complete && image.naturalWidth === 0) setFailedSource(artwork.src);
+  }, [artwork?.src]);
 
   return (
     <span
-      className={`beego-learn-node-icon beego-learn-node-icon--${iconType} beego-learn-node-icon--${size} beego-learn-node-icon--${node.status}`}
+      className={`beego-learn-node-icon beego-learn-node-icon--${iconType} beego-learn-node-icon--${size} beego-learn-node-icon--${node.status}${artwork ? " beego-learn-node-icon--artwork" : ""}`}
       title={node.title}
     >
-      <IconSvg iconType={iconType} />
+      {showArtwork ? (
+        <img
+          ref={imageRef}
+          src={artwork.src}
+          alt=""
+          aria-hidden="true"
+          width={52}
+          height={52}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailedSource(artwork.src)}
+        />
+      ) : <IconSvg iconType={iconType} />}
+    </span>
+  );
+}
+
+export function LearningNodeStatusBadge({ status }) {
+  const locked = status === "locked";
+  if (!locked && status !== "completed" && status !== "skipped") return null;
+  return (
+    <span
+      className={`beego-learn-node__artwork-status${locked ? " beego-learn-node__artwork-status--locked" : ""}`}
+      aria-hidden="true"
+    >
+      <IconSvg iconType={locked ? "lock" : "check"} />
     </span>
   );
 }
