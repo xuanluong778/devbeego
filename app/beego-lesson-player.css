@@ -2315,30 +2315,29 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage__scene {
+  position: relative;
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto minmax(150px, 1fr) auto auto auto;
-  grid-template-areas:
-    "header"
-    "meta"
-    "robot"
-    "dock"
-    "controls"
-    "history";
-  justify-items: center;
-  gap: 10px;
-  padding: 10px 18px 14px;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .beego-call-stage__header {
-  grid-area: header;
   width: 100%;
-  display: grid;
-  grid-template-columns: 44px 1fr 44px;
+  max-width: 420px;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  z-index: 5;
+  margin-bottom: 2px;
 }
 
 .beego-call-stage__close,
@@ -2388,75 +2387,11 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage__brand {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1;
-}
-
-.beego-call-stage__logo {
-  position: relative;
-  font-family: var(--font-heading, Nunito, sans-serif);
-  font-size: 26px;
-  font-weight: 900;
-  letter-spacing: -0.5px;
-}
-
-.beego-call-stage__logo > span {
-  color: #a98bff;
-}
-
-.beego-call-stage__logo svg {
-  position: absolute;
-  right: -5px;
-  top: -9px;
-  width: 20px;
-  height: 14px;
-  fill: #c9b8ff;
-  opacity: 0.9;
-}
-
-.beego-call-stage__brand small {
-  margin-top: 4px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 3px;
-  color: var(--call-cyan);
+  display: none;
 }
 
 .beego-call-stage__meta {
-  grid-area: meta;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-}
-
-.beego-call-stage__topic {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.beego-call-stage__topic h2 {
-  margin: 0;
-  font-family: var(--font-heading, Nunito, sans-serif);
-  font-size: clamp(20px, 5.6vw, 25px);
-  font-weight: 800;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-}
-
-.beego-call-stage__level {
-  padding: 4px 14px;
-  border-radius: 999px;
-  border: 1px solid #3ee08f66;
-  background: #3ee08f1f;
-  color: #6ff0a8;
-  font-size: 13px;
-  font-weight: 800;
+  display: none;
 }
 
 .beego-call-stage__clock {
@@ -2464,8 +2399,14 @@ body.page-lesson-player .page-content {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--call-line);
+  background: rgb(255 255 255 / 8%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: #d9d6ff;
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -2480,26 +2421,28 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage__robot {
-  grid-area: robot;
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 340px);
+  height: 270px;
+  pointer-events: none;
+  z-index: 1;
   display: grid;
   place-items: center;
-  container-type: size;
 }
 
 .beego-call-stage__ring {
   position: absolute;
-  top: 50%;
+  top: 36%;
   left: 50%;
-  width: min(100cqmin, 300px);
-  height: min(100cqmin, 300px);
+  width: 220px;
+  height: 220px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background:
-    radial-gradient(closest-side, #5ef0ff1c, #5ef0ff08 70%, transparent 100%);
+    radial-gradient(closest-side, #5ef0ff24, #5ef0ff08 70%, transparent 100%);
 }
 
 .beego-call-stage__ring::before {
@@ -2549,7 +2492,8 @@ body.page-lesson-player .page-content {
 
 .beego-call-character {
   position: relative;
-  height: min(88cqh, 268px);
+  width: 250px;
+  height: 260px;
   max-width: 92cqw;
   pointer-events: none;
   overflow: visible;
@@ -2608,29 +2552,35 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage__dock {
-  grid-area: dock;
+  position: relative;
+  z-index: 2;
   width: 100%;
-  min-width: 0;
+  max-width: 420px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .beego-call-stage__status {
-  margin: 0;
+  margin: 108px 0 2px;
   max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 16px;
+  padding: 6px 16px;
   border-radius: 999px;
   border: 1px solid var(--call-line);
-  background: rgb(255 255 255 / 7%);
+  background: rgba(20, 18, 48, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   color: #ecebff;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
   text-align: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
 .beego-call-stage__status i {
@@ -2698,12 +2648,17 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage__hints {
+  position: relative;
   width: 100%;
   max-width: 420px;
-  padding: 10px 14px;
-  border-radius: 16px;
-  background: rgb(16 18 48 / 72%);
-  border: 1px solid rgb(94 240 255 / 18%);
+  min-height: 135px;
+  padding: 16px 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(22, 20, 52, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
   color: #eef3ff;
   text-align: left;
   animation: beego-hints-fade 0.2s ease-out;
@@ -2724,11 +2679,16 @@ body.page-lesson-player .page-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 12px;
 }
 
 .beego-call-stage__hints-head small {
   margin-bottom: 0 !important;
+  color: var(--call-cyan);
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
 }
 
 .beego-call-stage__hints-close {
@@ -2749,39 +2709,33 @@ body.page-lesson-player .page-content {
   opacity: 1;
 }
 
-.beego-call-stage__hints small {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--call-cyan);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-}
-
 .beego-call-stage__hints ul {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .beego-call-stage__hints li {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 2px;
 }
 
 .beego-call-stage__hints strong {
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.3;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.35;
 }
 
 .beego-call-stage__hints span {
-  color: var(--call-muted);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 14px;
+  font-weight: 500;
+  color: #9ea4c4;
+  line-height: 1.3;
 }
 
 .beego-call-stage__coach {
@@ -2845,16 +2799,17 @@ body.page-lesson-player .page-content {
   position: relative;
   width: 100%;
   max-width: 420px;
+  min-height: 115px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 14px;
+  padding: 14px 18px 16px;
   border-radius: 20px;
-  border: 1px solid var(--call-line);
-  background: var(--call-card);
-  backdrop-filter: blur(8px);
-  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(22, 20, 52, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  text-align: left;
 }
 
 .beego-call-stage__caption small {
@@ -2862,23 +2817,29 @@ body.page-lesson-player .page-content {
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 2px;
-  display: inline-block;
+  display: block;
+  width: 100%;
+  text-align: center;
   padding: 0 54px;
-  min-height: 22px;
-  line-height: 22px;
+  min-height: 26px;
+  line-height: 26px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
 }
 
 .beego-call-stage__caption-text {
   display: block;
   width: 100%;
-  font-size: 17px;
+  font-size: 18.5px;
   font-weight: 700;
   line-height: 1.4;
+  color: #ffffff;
+  text-align: left;
   overflow-wrap: anywhere;
   word-break: break-word;
   white-space: normal;
   text-overflow: clip;
-  max-height: 200px;
+  max-height: 180px;
   overflow-y: auto;
   transition: opacity 0.18s ease;
 }
@@ -2898,14 +2859,14 @@ body.page-lesson-player .page-content {
 .beego-call-stage__caption.is-ipa-open {
   padding-right: 18px;
   padding-left: 18px;
-  padding-top: 36px;
+  padding-top: 40px;
 }
 
 .beego-call-stage__hint-btn {
   position: absolute;
-  top: 10px;
-  left: 12px;
-  z-index: 2;
+  top: 14px;
+  left: 16px;
+  z-index: 3;
   min-width: 48px;
   height: 26px;
   padding: 0 10px;
@@ -2921,7 +2882,7 @@ body.page-lesson-player .page-content {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+  transition: all 0.18s ease;
 }
 
 .beego-call-stage__hint-btn:hover {
@@ -2933,7 +2894,7 @@ body.page-lesson-player .page-content {
   background: #5ef0ff33;
   border-color: #5ef0ff;
   color: #eaffff;
-  box-shadow: 0 0 10px rgba(94, 240, 255, 0.35);
+  box-shadow: 0 0 12px rgba(94, 240, 255, 0.4);
 }
 
 .beego-call-stage__hint-btn:active {
@@ -2947,10 +2908,10 @@ body.page-lesson-player .page-content {
 
 .beego-call-stage__ipa-btn {
   position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 2;
-  min-width: 40px;
+  top: 14px;
+  right: 16px;
+  z-index: 3;
+  min-width: 42px;
   height: 26px;
   padding: 0 10px;
   border: 1px solid #5ef0ff55;
@@ -2962,7 +2923,10 @@ body.page-lesson-player .page-content {
   letter-spacing: 1px;
   line-height: 1;
   cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
 }
 
 .beego-call-stage__ipa-btn:hover {
@@ -2974,6 +2938,7 @@ body.page-lesson-player .page-content {
   background: #5ef0ff33;
   border-color: #5ef0ff;
   color: #eaffff;
+  box-shadow: 0 0 12px rgba(94, 240, 255, 0.4);
 }
 
 .beego-call-stage__ipa-panel {
@@ -3064,12 +3029,15 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage__controls {
-  grid-area: controls;
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  flex-shrink: 0;
+  z-index: 5;
 }
 
 .beego-call-stage__side,
@@ -3086,8 +3054,9 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage__side {
-  min-width: 72px;
-  padding-top: 14px;
+  width: 68px;
+  flex-shrink: 0;
+  padding-top: 0;
   font-size: 13px;
   font-weight: 700;
 }
@@ -3101,11 +3070,12 @@ body.page-lesson-player .page-content {
   border: 1px solid var(--call-line);
   background: rgb(255 255 255 / 8%);
   color: #fff;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
 }
 
 .beego-call-stage__side:hover:not(:disabled) .beego-call-stage__tile {
   background: rgb(255 255 255 / 14%);
+  transform: translateY(-1px);
 }
 
 .beego-call-stage__tile svg {
@@ -3138,39 +3108,58 @@ body.page-lesson-player .page-content {
   cursor: default;
 }
 
+.beego-call-stage__speak {
+  flex: 1;
+  max-width: 170px;
+}
+
 .beego-call-stage__mic {
   position: relative;
-  width: 84px;
-  height: 84px;
+  width: 100%;
+  height: 56px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #a5fbff, var(--call-cyan) 45%, var(--call-cyan-deep));
-  color: var(--call-ink);
-  box-shadow:
-    0 0 0 8px #5ef0ff1f,
-    0 0 0 16px #5ef0ff0d,
-    0 10px 30px #19c6e666;
-  transition: transform 0.15s, box-shadow 0.2s;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #7cf7ff, #29c5e8);
+  color: #07152c;
+  box-shadow: 0 4px 18px rgba(41, 197, 232, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.25s ease, filter 0.2s ease;
 }
 
 .beego-call-stage__mic svg {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   fill: currentColor;
 }
 
 .beego-call-stage__speak:hover:not(:disabled) .beego-call-stage__mic {
-  transform: scale(1.04);
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 25px rgba(94, 240, 255, 0.85),
+    0 0 50px rgba(94, 240, 255, 0.45);
+  filter: brightness(1.06);
 }
 
 .beego-call-stage__speak:active:not(:disabled) .beego-call-stage__mic {
-  transform: scale(0.96);
+  transform: scale(0.97);
+  box-shadow:
+    0 0 30px rgba(94, 240, 255, 0.95),
+    0 0 60px rgba(94, 240, 255, 0.6);
 }
 
 .beego-call-stage__speak.is-listening .beego-call-stage__mic {
-  background: radial-gradient(circle at 35% 30%, #c4ffe0, #3ee08f 50%, #1fae66);
-  animation: beego-call-ring 1.2s ease-out infinite;
+  background: linear-gradient(135deg, #a7ffda, #3ee08f);
+  color: #042416;
+  animation: beego-mic-glow 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes beego-mic-glow {
+  0% {
+    box-shadow: 0 0 15px rgba(94, 240, 255, 0.6), 0 0 30px rgba(94, 240, 255, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 32px rgba(94, 240, 255, 0.95), 0 0 64px rgba(94, 240, 255, 0.6), 0 0 85px rgba(94, 240, 255, 0.35);
+  }
 }
 
 .beego-call-stage__speak:disabled {
@@ -3184,10 +3173,10 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage__speak-label {
-  margin-top: 6px;
+  margin-top: 0;
   color: #fff;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: 0.2px;
   text-align: center;
   white-space: normal;
@@ -3196,25 +3185,30 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage__history {
-  grid-area: history;
   width: 100%;
   max-width: 420px;
-  min-height: 50px;
+  height: 48px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 16px;
   border: 1px solid var(--call-line);
   border-radius: 16px;
-  background: var(--call-card);
+  background: rgba(22, 20, 52, 0.78);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: #ecebff;
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 700;
   cursor: pointer;
+  flex-shrink: 0;
+  z-index: 5;
+  transition: background 0.2s;
 }
 
 .beego-call-stage__history:hover {
-  background: rgb(255 255 255 / 10%);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .beego-call-stage__history span {
@@ -3237,19 +3231,18 @@ body.page-lesson-player .page-content {
 }
 
 .beego-call-stage__sheet {
-  grid-row: 2 / 5;
-  grid-column: 1 / -1;
-  justify-self: stretch;
-  z-index: 4;
+  position: absolute;
+  inset: 12px 12px 14px;
+  z-index: 10;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 6px 14px 10px;
+  padding: 10px 16px 14px;
   border-radius: 22px;
   border: 1px solid var(--call-line);
   background: #14123a;
-  box-shadow: 0 18px 40px #0009;
+  box-shadow: 0 18px 40px #000c;
   color: #fff;
 }
 
@@ -3650,8 +3643,8 @@ body.page-lesson-player .page-content {
 
 @media (max-width: 360px) {
   .beego-call-stage__scene {
-    gap: 8px;
-    padding: 8px 12px 10px;
+    gap: 6px;
+    padding: 8px 10px 10px;
   }
 
   .beego-call-stage__caption-text {
@@ -3659,31 +3652,41 @@ body.page-lesson-player .page-content {
   }
 
   .beego-call-stage__mic {
-    width: 74px;
-    height: 74px;
+    height: 52px;
   }
 
   .beego-call-stage__scene.is-photo .beego-call-stage__photo,
   .beego-call-stage__scene.is-photo .beego-call-stage__dock {
-    margin: 0 -12px;
-    width: calc(100% + 24px);
+    margin: 0 -10px;
+    width: calc(100% + 20px);
   }
 }
 
 @media (max-height: 700px) {
   .beego-call-stage__scene {
-    gap: 7px;
-    grid-template-rows: auto auto minmax(110px, 1fr) auto auto auto;
+    gap: 6px;
+    padding: 8px 12px 10px;
   }
 
-  .beego-call-stage__topic {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
+  .beego-call-stage__robot {
+    top: 10px;
+    height: 230px;
   }
 
-  .beego-call-stage__meta {
-    gap: 4px;
+  .beego-call-character {
+    width: 210px;
+    height: 220px;
+  }
+
+  .beego-call-stage__ring {
+    width: 190px;
+    height: 190px;
+  }
+
+  .beego-call-stage__status {
+    margin: 88px 0 2px;
+    font-size: 12.5px;
+    padding: 5px 12px;
   }
 
   .beego-call-stage__dock {
@@ -3691,11 +3694,12 @@ body.page-lesson-player .page-content {
   }
 
   .beego-call-stage__wave {
-    height: 22px;
+    height: 12px;
   }
 
   .beego-call-stage__caption {
-    padding: 10px 14px;
+    min-height: 95px;
+    padding: 10px 14px 12px;
   }
 
   .beego-call-stage__caption-text {
@@ -3705,8 +3709,13 @@ body.page-lesson-player .page-content {
     overflow-y: auto;
   }
 
+  .beego-call-stage__hints {
+    min-height: 110px;
+    padding: 12px 14px;
+  }
+
   .beego-call-stage__side {
-    padding-top: 8px;
+    width: 60px;
   }
 
   .beego-call-stage__tile {
@@ -3716,16 +3725,24 @@ body.page-lesson-player .page-content {
   }
 
   .beego-call-stage__mic {
-    width: 70px;
-    height: 70px;
+    height: 48px;
+    border-radius: 15px;
+  }
+
+  .beego-call-stage__mic svg {
+    width: 24px;
+    height: 24px;
   }
 
   .beego-call-stage__speak-label {
-    margin-top: 2px;
+    margin-top: 0;
+    font-size: 11px;
   }
 
   .beego-call-stage__history {
     min-height: 44px;
+    height: 44px;
+    font-size: 13.5px;
   }
 }
 
@@ -3741,11 +3758,11 @@ body.page-lesson-player .page-content {
 
 @media (max-height: 520px) and (min-width: 560px) {
   .beego-call-stage__scene {
+    display: grid;
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
     grid-template-areas:
       "header header"
-      "robot meta"
       "robot dock"
       "robot controls"
       "robot history";
@@ -3755,7 +3772,7 @@ body.page-lesson-player .page-content {
   }
 
   .beego-call-stage__header {
-    grid-template-columns: 40px 1fr 40px;
+    grid-area: header;
   }
 
   .beego-call-stage__close,
@@ -3764,22 +3781,26 @@ body.page-lesson-player .page-content {
     height: 40px;
   }
 
-  .beego-call-stage__logo {
-    font-size: 21px;
-  }
-
   .beego-call-stage__robot {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
     height: 100%;
+    grid-area: robot;
   }
 
-  .beego-call-stage__topic h2 {
-    font-size: 18px;
+  .beego-call-stage__status {
+    margin: 0 0 4px;
+    padding: 4px 12px;
+    font-size: 13px;
   }
 
   .beego-call-stage__caption {
     align-self: center;
     padding: 8px 12px;
     gap: 3px;
+    min-height: 80px;
   }
 
   .beego-call-stage__caption-text {
@@ -3789,13 +3810,7 @@ body.page-lesson-player .page-content {
     overflow-y: auto;
   }
 
-  .beego-call-stage__status {
-    padding: 4px 12px;
-    font-size: 13px;
-  }
-
   .beego-call-stage__side {
-    padding-top: 4px;
     gap: 4px;
     font-size: 12px;
   }
@@ -3807,14 +3822,13 @@ body.page-lesson-player .page-content {
   }
 
   .beego-call-stage__mic {
-    width: 56px;
-    height: 56px;
-    box-shadow: 0 0 0 6px #5ef0ff1f, 0 6px 18px #19c6e666;
+    height: 42px;
+    border-radius: 13px;
   }
 
   .beego-call-stage__mic svg {
-    width: 26px;
-    height: 26px;
+    width: 22px;
+    height: 22px;
   }
 
   .beego-call-stage__speak {
@@ -3827,7 +3841,9 @@ body.page-lesson-player .page-content {
 
   .beego-call-stage__history {
     min-height: 40px;
+    height: 40px;
     font-size: 14px;
+    grid-area: history;
   }
 
   .beego-call-stage__sheet {
@@ -3836,14 +3852,18 @@ body.page-lesson-player .page-content {
   }
 
   .beego-call-stage__dock {
+    grid-area: dock;
     justify-content: center;
     gap: 6px;
+  }
+
+  .beego-call-stage__controls {
+    grid-area: controls;
   }
 
   .beego-call-stage__scene.is-photo {
     grid-template-areas:
       "header header"
-      "robot meta"
       "robot dock"
       "robot controls"
       "robot history";

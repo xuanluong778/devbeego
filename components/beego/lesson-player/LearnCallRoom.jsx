@@ -813,16 +813,13 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                 <path d="M6 6l12 12M18 6L6 18" />
               </svg>
             </button>
-            <div className="beego-call-stage__brand" aria-hidden="true">
-              <span className="beego-call-stage__logo">
-                beeg<span>o</span>
-                <svg viewBox="0 0 20 14">
-                  <ellipse cx="6" cy="8" rx="5" ry="3.6" transform="rotate(-30 6 8)" />
-                  <ellipse cx="14" cy="6" rx="5" ry="3.6" transform="rotate(-30 14 6)" />
-                </svg>
-              </span>
-              <small>AI TUTOR</small>
-            </div>
+            <p className="beego-call-stage__clock" aria-label={`Thời gian còn lại: ${clockView.label}`}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="M12 7.5V12l3 2" />
+              </svg>
+              <time dateTime={clockView.known ? new Date(clockView.deadlineAt).toISOString() : undefined}>{clockView.label}</time>
+            </p>
             <button
               type="button"
               className="beego-call-stage__sound"
@@ -837,19 +834,6 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
               </svg>
             </button>
           </header>
-          <div className="beego-call-stage__meta">
-            <div className="beego-call-stage__topic">
-              <h2>{topic}</h2>
-              {difficultyLabel ? <span className="beego-call-stage__level">Mức {difficultyLabel}</span> : null}
-            </div>
-            <p className="beego-call-stage__clock">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="8.5" />
-                <path d="M12 7.5V12l3 2" />
-              </svg>
-              <time dateTime={clockView.known ? new Date(clockView.deadlineAt).toISOString() : undefined}>{clockView.label}</time>
-            </p>
-          </div>
           {teacher?.image ? (
             <div className={`beego-call-stage__robot beego-call-stage__photo${mouthOn ? " is-talking" : ""}`}>
               <img src={teacher.image} alt={teacher.name} />
@@ -913,7 +897,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                     onClick={() => setHintsOpen((prev) => !prev)}
                     title={hintsOpen ? "Ẩn gợi ý trả lời" : "Hiện gợi ý trả lời"}
                   >
-                    Gợi Ý
+                    GỢI Ý
                   </button>
                 ) : null}
                 <small>{captionRole === "user" ? "BẠN" : tutorLabel}</small>
@@ -933,7 +917,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
             {!ended && hintsOpen ? (
               <div className="beego-call-stage__hints" id="beego-call-reply-hints" aria-label="Gợi ý trả lời">
                 <div className="beego-call-stage__hints-head">
-                  <small>Gợi ý trả lời</small>
+                  <small>GỢI Ý TRẢ LỜI</small>
                   <button
                     type="button"
                     className="beego-call-stage__hints-close"
