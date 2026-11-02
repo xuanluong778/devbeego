@@ -7,6 +7,7 @@
 import { Worker } from "bullmq";
 import Redis from "ioredis";
 import { LEARN_CALL_MAX_REPLY_TOKENS, buildLearnCallMessages, learnCallMaxReplyTokens } from "../lib/beego/learn/learn-call-tutor.js";
+import { streamOpenAIChatSse } from "../lib/beego/learn/learn-call-stream.js";
 
 const REDIS_URL = String(process.env.REDIS_URL || "").trim();
 const OPENAI_KEY = String(process.env.OPENAI_API_KEY || "").trim();
@@ -110,48 +111,31 @@ async function quotaCheckAndSignal({ sessionId, requestId, userId, plan }) {
   return false;
 }
 
-async function streamOpenAIChat({ messages, onToken, signal, maxTokens = 512 }) {
-  if (!OPENAI_KEY) throw new Error("Missing OPENAI_API_KEY");
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+export async function streamOpenAIChat({
+  messages,
+  onToken,
+  signal,
+  maxTokens = 512,
+  fetchImpl = fetch,
+  openAiKey = OPENAI_KEY,
+  openAiModel = OPENAI_MODEL,
+}) {
+  if (!openAiKey) throw new Error("Missing OPENAI_API_KEY");
+  const res = await fetchImpl("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${OPENAI_KEY}`,
+      Authorization: `Bearer ${openAiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
+      model: openAiModel,
       stream: true,
       messages,
       max_tokens: maxTokens,
     }),
     signal,
   });
-  if (!res.ok || !res.body) {
-    throw new Error(`OpenAI chat failed (${res.status})`);
-  }
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let carry = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (signal.aborted) return;
-    if (done) break;
-    carry += dec.decode(value, { stream: true });
-    const lines = carry.split("\n");
-    carry = lines.pop() || "";
-    for (const line of lines) {
-      const t = line.trim();
-      if (!t.startsWith("data:")) continue;
-      const payload = t.slice(5).trim();
-      if (payload === "[DONE]") continue;
-      try {
-        const j = JSON.parse(payload);
-        if (j.choices?.[0]?.finish_reason === "length") onToken("", { truncated: true });
-        const delta = j.choices?.[0]?.delta?.content;
-        if (delta) onToken(delta);
-      } catch (_e) {}
-    }
-  }
+  return streamOpenAIChatSse({ response: res, onToken, signal });
 }
 
 function pubJson(sessionId, obj) {
@@ -197,29 +181,42 @@ const worker = new Worker(
       redis.hincrby(keyUsageMonth(userId, ym), "llm_tokens_in", estIn).catch(() => {});
       redis.expire(keyUsageMonth(userId, ym), 60 * 60 * 24 * 40).catch(() => {});
     }
-    await streamOpenAIChat({
-      messages,
-      signal: ac.signal,
-      maxTokens: learnJob ? learnCallMaxReplyTokens(learn.maxTokens ?? LEARN_CALL_MAX_REPLY_TOKENS) : 512,
-      onToken: async (tok, meta) => {
-        if (meta?.truncated) truncated = true;
-        if (!tok) return;
-        if (await isCancelled(sid, rid)) {
-          ac.abort();
-          pubJson(sid, { type: "interrupt_ack", requestId: rid, reason: "cancelled" });
-          return;
-        }
-        if (userId && skipSharedUsage !== true) {
-          const okQuota = await quotaCheckAndSignal({ sessionId: sid, requestId: rid, userId, plan });
-          if (!okQuota) {
+
+    let streamResult = null;
+    try {
+      streamResult = await streamOpenAIChat({
+        messages,
+        signal: ac.signal,
+        maxTokens: learnJob ? learnCallMaxReplyTokens(learn.maxTokens ?? LEARN_CALL_MAX_REPLY_TOKENS) : 512,
+        onToken: async (tok, meta) => {
+          if (meta?.truncated) truncated = true;
+          if (!tok) return;
+          if (ac.signal.aborted || (await isCancelled(sid, rid))) {
             ac.abort();
+            pubJson(sid, { type: "interrupt_ack", requestId: rid, reason: "cancelled" });
             return;
           }
-        }
-        acc += tok;
-        pubJson(sid, { type: "ai_stream", requestId: rid, token: tok, speculative });
-      },
-    });
+          acc += tok;
+          pubJson(sid, { type: "ai_stream", requestId: rid, token: tok, speculative });
+        },
+      });
+      if (streamResult?.truncated) truncated = true;
+    } catch (err) {
+      if (ac.signal.aborted || (await isCancelled(sid, rid))) {
+        return;
+      }
+      console.error("[voice-llm-worker] stream error", sid, rid, err?.message || err);
+      pubJson(sid, {
+        type: "error",
+        requestId: rid,
+        message: "Gia sư AI gặp sự cố khi tạo câu trả lời. Hãy thử lại.",
+      });
+      return;
+    }
+
+    if (streamResult?.aborted || ac.signal.aborted || (await isCancelled(sid, rid))) {
+      return;
+    }
 
     if (speculative) {
       pubJson(sid, { type: "ai_speculative_done", requestId: rid });

@@ -33,6 +33,7 @@ export function useStreamingTtsPlayer({ inputSampleRate = 24000, onDrained, onSt
   const pendingOddByteRef = useRef(null);
   const minAheadRef = useRef(0.12);
   const playbackTokenRef = useRef(0);
+  const closedRef = useRef(false);
   const onDrainedRef = useRef(onDrained);
   const onStoppedRef = useRef(onStopped);
   onDrainedRef.current = onDrained;
@@ -42,6 +43,7 @@ export function useStreamingTtsPlayer({ inputSampleRate = 24000, onDrained, onSt
 
   const ensureCtx = useCallback(() => {
     if (typeof window === "undefined") return null;
+    closedRef.current = false;
     let ctx = ctxRef.current;
     if (!ctx || ctx.state === "closed") {
       const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -224,6 +226,8 @@ export function useStreamingTtsPlayer({ inputSampleRate = 24000, onDrained, onSt
   }, [flushCoalesce]);
 
   const close = useCallback(() => {
+    if (closedRef.current) return;
+    closedRef.current = true;
     interrupt();
     const ctx = ctxRef.current;
     ctxRef.current = null;

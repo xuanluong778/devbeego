@@ -12,9 +12,12 @@ out/
 
 # local environment / secrets (never commit)
 .env
-.env.docker
+.env.docker*
 .env.local
 .env.*.local
+*.env*.backup*
+*.log
+*.patch
 
 # large DB dumps kept on the VPS only
 docker/db-full/

@@ -13,6 +13,7 @@ import {
   finalizeLearnCallSession,
   learnAiCallContextKey,
   learnAiCallEmailAllowed,
+  learnAiCallEndedKey,
   learnAiCallGateOpen,
   learnAiCallEnabled,
   learnAiCallLevelOneHints,
@@ -34,6 +35,7 @@ import {
 } from "@/lib/beego/learn/learn-call-tutor";
 import { learnCallTeacher } from "@/lib/beego/learn/learn-call-teachers";
 import { getLearningPathForUser } from "@/lib/beego/learning-path-progress";
+import { isRealtimeEnabled, isRealtimeUserAllowed, realtimeSessionKey } from "@/lib/beego/learn/learn-call-realtime";
 
 export const dynamic = "force-dynamic";
 
@@ -159,7 +161,28 @@ export async function POST(request) {
     }
     const sessionId = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `${userId}-${Date.now()}`;
     const lockTtl = learnCallOpenLockTtlSeconds(limits.maxMinutes);
-    const claim = await claimLearnCallOpenLock(redis, { userId, sessionId, ttlSeconds: lockTtl });
+    let claim = await claimLearnCallOpenLock(redis, { userId, sessionId, ttlSeconds: lockTtl });
+    if (!claim.granted && claim.holder) {
+      let prevEnded = false;
+      let prevStale = false;
+      try {
+        prevEnded = (await redis.get(learnAiCallEndedKey(claim.holder))) === "1";
+        const prevSessionRaw = await redis.get(realtimeSessionKey(claim.holder));
+        if (prevSessionRaw) {
+          const prevData = JSON.parse(prevSessionRaw);
+          if (prevData?.status === "terminated" || prevData?.settled) prevStale = true;
+        } else {
+          const prevCtx = await redis.get(learnAiCallContextKey(claim.holder));
+          if (!prevCtx) prevStale = true;
+        }
+      } catch (checkErr) {
+        console.warn("[learn-ai-call/session] Error inspecting previous claim holder:", checkErr);
+      }
+      if (prevEnded || prevStale || Boolean(body?.force) || claim.holder === sessionId) {
+        await releaseLearnCallOpenLock(redis, { userId, sessionId: claim.holder });
+        claim = await claimLearnCallOpenLock(redis, { userId, sessionId, ttlSeconds: lockTtl });
+      }
+    }
     if (!claim.granted) {
       return NextResponse.json(
         {
@@ -185,6 +208,7 @@ export async function POST(request) {
           level: limits.level,
           difficulty,
           teacher: teacher.id,
+          sessionMode: body?.sessionMode === "open" ? "open" : "lesson",
           maxMinutes: limits.maxMinutes,
         }),
         "EX",
@@ -224,11 +248,15 @@ export async function POST(request) {
           hints: learnAiCallLevelOneHints(lesson),
           wsUrl: learnAiCallWsUrl(),
           connected: false,
+          realtime: {
+            enabled: isRealtimeUserAllowed({ email: caller?.email, userId }),
+          },
         },
       },
       { status: 200, headers: { "Cache-Control": "no-store, private" } }
     );
-  } catch {
+  } catch (error) {
+    console.error("[learn-ai-call/session] Unhandled error in POST:", error);
     return NextResponse.json(
       { success: false, code: "SUBSCRIPTION_LOAD_FAILED", message: "Không mở được phiên gọi." },
       { status: 503, headers: { "Cache-Control": "no-store" } }

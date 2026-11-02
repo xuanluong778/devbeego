@@ -713,13 +713,15 @@ async function learnShapedText(sessionId, requestId, fresh) {
   return (await redis.get(key)) || fresh || "";
 }
 
-function learnHintsForReply(ws, text) {
+function learnHintsForReply(ws, text, { plan = null, memory = [] } = {}) {
   const ctx = learnTopicCtx(ws) || {};
   return learnCallReplyHints(text, {
     topic: ctx.topic || ctx.title || "",
     title: ctx.lessonTitle || "",
     sectionId: ctx.sectionId || "",
     difficulty: ws.learnDifficulty,
+    pendingIntent: plan?.pendingQuestion?.intent || plan?.nextFacet || "",
+    currentPractice: plan?.currentPractice || null,
   });
 }
 
@@ -1095,6 +1097,7 @@ wss.on("connection", async (ws, req) => {
       topicKey: String(learnCtx.topicKey || ""),
       teacherName: String(learnCallTeacher(learnCtx.teacher).spokenName || "Beego"),
       avoidUntilClosing: Array.isArray(learnCtx.avoidUntilClosing) ? learnCtx.avoidUntilClosing : [],
+      sessionMode: String(learnCtx.sessionMode || "lesson"),
     };
     ws.learnPrompt = learnAiCallLevelOnePrompt({ ...learnCtx, difficulty: ws.learnDifficulty });
     ws.learnLesson = {
@@ -1324,13 +1327,18 @@ wss.on("connection", async (ws, req) => {
         if (msg.learn !== 1) return;
         const closing = rid === ws.learnClosingRid;
         const memory = await getLearnMemory(sessionId);
+        const plan = learnCallTurnPlan({
+          memory,
+          remainingMs: learnRemainingMs(ws),
+          topicCtx: learnTopicCtx(ws),
+        });
         const text = await learnShapedText(
           sessionId,
           rid,
           learnShapeForTurn(ws, msg.text, { closing, truncated: msg.truncated === true, memory })
         );
         if (text) {
-          const replyHints = closing ? [] : learnHintsForReply(ws, text);
+          const replyHints = closing ? [] : learnHintsForReply(ws, text, { plan, memory });
           safeSend(ws, {
             ...msg,
             text,

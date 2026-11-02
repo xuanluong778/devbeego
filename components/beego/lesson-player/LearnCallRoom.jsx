@@ -4,9 +4,10 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useVoiceWebSocket } from "@/hooks/useVoiceWebSocket";
 import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 import { useStreamingTtsPlayer } from "@/hooks/useStreamingTtsPlayer";
+import { useRealtimeTutor } from "@/hooks/useRealtimeTutor";
 import { learnCallMediaStillAllowed, learnCallSocketCloseKind } from "@/lib/beego/learn/ai-call-access";
 import { LEARN_CALL_TTS_STALL_MS, createLearnAudioCache, createLearnPlaybackController } from "@/lib/beego/learn/learn-call-playback";
-import { LEARN_CALL_EMPTY_LISTEN, LEARN_TALK_RECOGNITION_TIMEOUT_MS, createLearnTalkController, learnCallRemainingView, learnCallSpeakControl } from "@/lib/beego/learn/learn-call-talk";
+import { LEARN_CALL_EMPTY_LISTEN, LEARN_TALK_RECOGNITION_TIMEOUT_MS, createLearnTalkController, evaluateLearnCallInbound, learnCallRemainingView, learnCallSpeakControl } from "@/lib/beego/learn/learn-call-talk";
 import { playLessonTts, stopLessonTts } from "@/lib/beego/learn/adapters/lesson-tts";
 import {
   applyTranscriptEvent,
@@ -50,6 +51,8 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   const [coach, setCoach] = useState(null);
   const [coachBusy, setCoachBusy] = useState("");
   const practiceRef = useRef("");
+  const activeListenIdRef = useRef(0);
+  const activePracticeIdRef = useRef(0);
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
   const [transcript, setTranscript] = useState(createTranscript);
@@ -142,6 +145,42 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     sendBinaryRef.current(pcm);
   }, []);
 
+  const isRealtime = Boolean(offer?.realtime?.enabled);
+
+  const realtimeTutor = useRealtimeTutor({
+    onTranscriptDelta: (delta) => {
+      setNotice(delta);
+    },
+    onUserTranscript: (text) => {
+      if (text) {
+        pushTranscript({ type: "user_turn", text, final: true, role: "user" });
+      }
+    },
+    onAssistantDone: (mapped) => {
+      if (mapped?.transcript) {
+        pushTranscript({ type: "assistant_turn", text: mapped.transcript, role: "assistant" });
+      }
+    },
+    onStatusChange: (nextStatus) => {
+      if (nextStatus === "connected") {
+        setPhase("ready");
+      } else if (nextStatus === "listening") {
+        setPhase("listening");
+      } else if (nextStatus === "speaking") {
+        setPhase("speaking");
+      } else if (nextStatus === "closed") {
+        setPhase("ended");
+      } else if (nextStatus === "error") {
+        setPhase("error");
+      }
+    },
+    onError: (err) => {
+      setPhase("error");
+      setNotice(err || "Lỗi kết nối Realtime.");
+    },
+    onCoachPcmChunk: onPcmChunk,
+  });
+
   const { ensureStream, startPcmCapture, stopMic, micError, setMicError, audioState } = useVoiceRecorder({ onPcmChunk });
 
   const releaseMedia = useCallback(() => {
@@ -159,6 +198,10 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
         window.clearTimeout(endTimerRef.current);
         endTimerRef.current = 0;
       }
+      stopLessonTts();
+      activeListenIdRef.current = 0;
+      activePracticeIdRef.current = 0;
+      practiceRef.current = "";
       playbackRef.current.disconnect();
       audioCacheRef.current.clear();
       talkRef.current.exit();
@@ -169,11 +212,15 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
       clearStall();
       releaseMedia();
       stopMic();
-      disconnect();
+      if (isRealtime) {
+        realtimeTutor.disconnect();
+      } else {
+        disconnect();
+      }
       setPhase(nextPhase);
       if (nextNotice) setNotice(nextNotice);
     },
-    [disconnect, releaseMedia, stopMic]
+    [disconnect, isRealtime, realtimeTutor, releaseMedia, stopMic]
   );
 
   const openTalkMedia = useCallback(
@@ -234,6 +281,8 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
         setNotice(practiceWord ? `Đang nghe. Hãy nói: ${practiceWord}` : "");
       } catch (error) {
         stopMic();
+        activeListenIdRef.current = 0;
+        activePracticeIdRef.current = 0;
         const applied = talkRef.current.mediaReady({ generation: decision.generation, running: false });
         if (applied.stale || closedRef.current) return;
         const name = String(error?.name || "");
@@ -250,9 +299,29 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
 
   const onPrimary = useCallback(async () => {
     if (closingRef.current) return;
+    if (isRealtime) {
+      if (realtimeTutor.talkMode === "manual") {
+        if (realtimeTutor.isTalking) {
+          realtimeTutor.stopTalking();
+        } else {
+          realtimeTutor.startTalking();
+        }
+      } else {
+        realtimeTutor.toggleMute();
+      }
+      return;
+    }
     const decision = talkRef.current.press();
     if (decision.ignored) return;
     if (decision.action === "arm_listen" || decision.action === "interrupt_listen") {
+      const isPractice = Boolean(practiceRef.current);
+      if (isPractice) {
+        activePracticeIdRef.current = decision.requestId;
+        activeListenIdRef.current = 0;
+      } else {
+        activeListenIdRef.current = decision.requestId;
+        activePracticeIdRef.current = 0;
+      }
       if (decision.action === "interrupt_listen") {
         setMouthOn(false);
         const previous = decision.previousRequestId;
@@ -274,6 +343,8 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
       setPhase("ready");
       setNotice(LEARN_CALL_EMPTY_LISTEN);
       practiceRef.current = "";
+      activeListenIdRef.current = 0;
+      activePracticeIdRef.current = 0;
       return;
     }
     if (decision.action === "submit") {
@@ -286,16 +357,18 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
       if (talkTimerRef.current) window.clearTimeout(talkTimerRef.current);
       talkTimerRef.current = window.setTimeout(() => {
         talkTimerRef.current = 0;
-        const timed = talkRef.current.noteTimeout();
+        const timed = talkRef.current.noteTimeout({ requestId: decision.requestId });
         if (timed.ignored || closedRef.current) return;
         listeningRef.current = false;
         stopMic();
         sendJsonRef.current({ type: "interrupt", requestId: decision.requestId, reason: "recognition_timeout" });
         setPhase("ready");
         setNotice("Hết thời gian nhận dạng. Hãy nhấn để nói lại.");
+        activeListenIdRef.current = 0;
+        activePracticeIdRef.current = 0;
       }, LEARN_TALK_RECOGNITION_TIMEOUT_MS);
     }
-  }, [openTalkMedia, pushTranscript, stopMic]);
+  }, [isRealtime, openTalkMedia, pushTranscript, realtimeTutor, stopMic]);
 
   useEffect(() => {
     setOnJsonMessage((msg) => {
@@ -354,37 +427,30 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
         finish("error", message);
         return;
       }
-      if (msg.type === "listen_retry") {
-        stopMic();
-        listeningRef.current = false;
-        talkRef.current.notePracticeDone();
-        setPhase("ready");
-        setNotice(String(msg.notice || LEARN_CALL_EMPTY_LISTEN));
-        practiceRef.current = "";
-        return;
-      }
-      if (msg.type === "pronunciation_coach") {
-        const items = Array.isArray(msg.items) ? msg.items.slice(0, 2) : [];
-        if (items.length) setCoach(items[0]);
-        else if (msg.notice) setNotice(String(msg.notice));
-        return;
-      }
-      if (msg.type === "practice_result") {
-        stopMic();
-        listeningRef.current = false;
-        talkRef.current.notePracticeDone();
-        setPhase("ready");
-        practiceRef.current = "";
-        const nextItem = msg.coach?.items?.[0];
-        if (nextItem) {
-          setCoach(nextItem);
-          setCoachBusy("");
-          setNotice("Bạn vừa luyện lại. Có thể nghe mẫu hoặc quay lại hội thoại.");
-        } else {
-          setCoach(null);
-          setCoachBusy("");
-          setNotice(String(msg.notice || "Bạn có thể quay lại hội thoại."));
+      const inbound = evaluateLearnCallInbound({
+        msg,
+        activeListenId: activeListenIdRef.current,
+        activePracticeId: activePracticeIdRef.current,
+        currentRequestId: requestRef.current,
+        listening: listeningRef.current,
+        phase,
+      });
+      if (inbound.handled) {
+        if (inbound.coachItem) setCoach(inbound.coachItem);
+        else if (inbound.clearCoach) setCoach(null);
+        if (inbound.notice) setNotice(inbound.notice);
+        if (inbound.shouldStopMic) {
+          stopMic();
+          listeningRef.current = false;
         }
+        if (inbound.shouldResetPhase) {
+          talkRef.current.notePracticeDone({ requestId: Number(msg.requestId) || 0 });
+          setPhase(inbound.nextPhase);
+        }
+        if (inbound.clearPractice) practiceRef.current = "";
+        if (inbound.clearActiveListen) activeListenIdRef.current = 0;
+        if (inbound.clearActivePractice) activePracticeIdRef.current = 0;
+        if (msg.type === "practice_result") setCoachBusy("");
         return;
       }
       const rid = Number(msg.requestId) || 0;
@@ -410,16 +476,16 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
         }
         const text = String(msg.text || "").trim();
         if (msg.practice || practiceRef.current) {
-          talkRef.current.notePracticeDone();
+          talkRef.current.notePracticeDone({ requestId: rid });
           listeningRef.current = false;
           stopMic();
           setPhase("ready");
           setNotice("Đang đối chiếu phát âm với mẫu.");
           return;
         }
+        const result = talkRef.current.noteFinal(text, { requestId: rid });
+        if (result.stale || result.ignored) return;
         pushTranscript({ type: "final_transcript", requestId: rid, text });
-        const result = talkRef.current.noteFinal(text);
-        if (result.ignored) return;
         listeningRef.current = false;
         stopMic();
         if (result.action === "empty_transcript") {
@@ -523,7 +589,34 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     });
   }, [finish, pushTranscript, setOnBinaryMessage, setOnJsonMessage, stopMic]);
 
+  const realtimeConnRef = useRef(realtimeTutor);
+  realtimeConnRef.current = realtimeTutor;
+
+  const offerParamsRef = useRef({
+    sessionId: sessionId || offer?.sessionId,
+    lessonId: offer?.lessonId,
+    sectionId: offer?.sectionId,
+    difficulty: offer?.difficulty,
+    teacher: teacher?.id || offer?.limits?.teacher,
+    sessionMode: offer?.sessionMode,
+  });
+  offerParamsRef.current = {
+    sessionId: sessionId || offer?.sessionId,
+    lessonId: offer?.lessonId,
+    sectionId: offer?.sectionId,
+    difficulty: offer?.difficulty,
+    teacher: teacher?.id || offer?.limits?.teacher,
+    sessionMode: offer?.sessionMode,
+  };
+
   useEffect(() => {
+    if (isRealtime) {
+      realtimeConnRef.current.connect(offerParamsRef.current);
+      return () => {
+        closedRef.current = true;
+        realtimeConnRef.current.disconnect();
+      };
+    }
     let url = "";
     try {
       const next = new URL(wsUrl);
@@ -542,6 +635,10 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
         window.clearTimeout(endTimerRef.current);
         endTimerRef.current = 0;
       }
+      stopLessonTts();
+      activeListenIdRef.current = 0;
+      activePracticeIdRef.current = 0;
+      practiceRef.current = "";
       playbackRef.current.disconnect();
       audioCacheRef.current.clear();
       talkRef.current.exit();
@@ -556,10 +653,10 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
       stopMic();
       disconnect();
     };
-  }, [connect, disconnect, sessionId, stopMic, token, wsUrl]);
+  }, [isRealtime, sessionId]);
 
   useEffect(() => {
-    if (closedRef.current) return;
+    if (isRealtime || closedRef.current) return;
     if (readyState !== "error" && readyState !== "closed") return;
     if (learnCallSocketCloseKind(closeInfo) === "intentional") return;
     if (readyState === "error") {
@@ -567,10 +664,17 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
       return;
     }
     finish("ended", "Mất kết nối. Micro và tiếng đã dừng.");
-  }, [closeInfo, finish, lastError, readyState]);
+  }, [closeInfo, finish, isRealtime, lastError, readyState]);
 
   const replay = () => {
     stopLessonTts();
+    if (isRealtime) {
+      realtimeTutor.sendEvent({
+        type: "response.create",
+        response: { instructions: "Repeat your previous sentence clearly." },
+      });
+      return;
+    }
     if (closedRef.current || readyState !== "open") return;
     const lastTutor = transcriptLastTutor(transcriptRef.current);
     if (!lastTutor || phase === "listening" || phase === "transcribing" || phase === "thinking") return;
@@ -603,7 +707,11 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     const word = String(coach?.sampleText || coach?.word || "").trim();
     if (!word || phase === "listening" || phase === "speaking" || phase === "transcribing" || phase === "thinking") return;
     setCoachBusy("sample");
-    playLessonTts({ text: word, lang: "en" }).finally(() => setCoachBusy((current) => (current === "sample" ? "" : current)));
+    playLessonTts({ text: word, lang: "en" }).finally(() => {
+      if (!closedRef.current) {
+        setCoachBusy((current) => (current === "sample" ? "" : current));
+      }
+    });
   };
 
   const startCoachPractice = () => {
@@ -735,16 +843,17 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   const captionText = caption || statusLabel;
   const speakDisabled =
     closing ||
-    readyState !== "open" ||
+    (!isRealtime && readyState !== "open") ||
+    (isRealtime && !["connected", "listening", "speaking"].includes(realtimeTutor.status)) ||
     phase === "connecting" ||
-    phase === "transcribing" ||
-    phase === "thinking" ||
+    (!isRealtime && (phase === "transcribing" || phase === "thinking")) ||
     phase === "ended" ||
-    phase === "error";
+    phase === "error" ||
+    packageLeft === 0;
   const replayDisabled =
     closing ||
-    readyState !== "open" ||
-    !canReplay ||
+    (!isRealtime && (readyState !== "open" || !canReplay)) ||
+    (isRealtime && realtimeTutor.status !== "connected") ||
     phase === "listening" ||
     phase === "transcribing" ||
     phase === "thinking" ||
@@ -937,7 +1046,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                 </ul>
               </div>
             ) : null}
-            {!ended && coach?.word ? (
+            {!ended && (!isRealtime ? Boolean(coach?.word) : Boolean(coach?.word && coach?.evidence === "azure_phoneme")) ? (
               <div className="beego-call-stage__coach" aria-label="Luyện phát âm">
                 <small>Luyện 1 điểm</small>
                 <p>
@@ -969,14 +1078,70 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
               </span>
               <span aria-hidden="true">Nghe lại</span>
             </button>
-            <button type="button" className={`beego-call-stage__speak${phase === "listening" ? " is-listening" : ""}`} onClick={onPrimary} disabled={speakDisabled} aria-label={speakLabel}>
+            {isRealtime ? (
+              <button
+                type="button"
+                className={`beego-call-stage__side${realtimeTutor.isMuted ? " is-muted" : ""}`}
+                onClick={realtimeTutor.toggleMute}
+                aria-label={realtimeTutor.isMuted ? "Bật mic" : "Tắt mic"}
+                disabled={ended}
+              >
+                <span className="beego-call-stage__tile">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    {realtimeTutor.isMuted ? (
+                      <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.12c0-.04.02-.08.02-.12V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.94zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.14 1.77-.45 2.54-.9l2.45 2.46L19.26 18 4.27 3z" />
+                    ) : (
+                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zM17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                    )}
+                  </svg>
+                </span>
+                <span aria-hidden="true">{realtimeTutor.isMuted ? "Bật mic" : "Tắt mic"}</span>
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={`beego-call-stage__speak${phase === "listening" || (isRealtime && realtimeTutor.isTalking) ? " is-listening" : ""}`}
+              onClick={onPrimary}
+              onMouseDown={isRealtime && realtimeTutor.talkMode === "manual" ? realtimeTutor.startTalking : undefined}
+              onMouseUp={isRealtime && realtimeTutor.talkMode === "manual" ? realtimeTutor.stopTalking : undefined}
+              onTouchStart={isRealtime && realtimeTutor.talkMode === "manual" ? realtimeTutor.startTalking : undefined}
+              onTouchEnd={isRealtime && realtimeTutor.talkMode === "manual" ? realtimeTutor.stopTalking : undefined}
+              disabled={speakDisabled}
+              aria-label={
+                isRealtime
+                  ? (realtimeTutor.talkMode === "manual"
+                    ? (realtimeTutor.isTalking ? "Đang nói (PTT)" : "Bấm giữ để nói")
+                    : (realtimeTutor.isMuted ? "Micro đang tắt" : "Tự động lắng nghe"))
+                  : speakLabel
+              }
+            >
               <span className="beego-call-stage__mic" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
                   <path d="M12 15a4 4 0 0 0 4-4V5a4 4 0 0 0-8 0v6a4 4 0 0 0 4 4zm-7-4h2a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.93V21h3v2H8v-2h3v-3.07A7 7 0 0 1 5 11z" />
                 </svg>
               </span>
-              <span className="beego-call-stage__speak-label">{phase === "mic" ? "CHO PHÉP MICRO" : speakLabel}</span>
+              <span className="beego-call-stage__speak-label">
+                {isRealtime
+                  ? (realtimeTutor.talkMode === "manual"
+                    ? (realtimeTutor.isTalking ? "ĐANG NÓI (PTT)" : "NHẤN GIỮ ĐỂ NÓI")
+                    : (realtimeTutor.isMuted ? "MICRO TẮT" : (phase === "speaking" ? "GIA SƯ ĐANG NÓI" : (phase === "listening" ? "ĐANG LẮNG NGHE" : "TỰ ĐỘNG NGHE"))))
+                  : (phase === "mic" ? "CHO PHÉP MICRO" : speakLabel)}
+              </span>
             </button>
+            {isRealtime ? (
+              <button
+                type="button"
+                className="beego-call-stage__side"
+                onClick={() => realtimeTutor.setMode(realtimeTutor.talkMode === "auto" ? "manual" : "auto")}
+                aria-label={realtimeTutor.talkMode === "auto" ? "Chuyển sang chế độ thủ công" : "Chuyển sang chế độ tự động"}
+                disabled={ended}
+              >
+                <span className="beego-call-stage__tile">
+                  <b>{realtimeTutor.talkMode === "auto" ? "AUTO" : "PTT"}</b>
+                </span>
+                <span aria-hidden="true">{realtimeTutor.talkMode === "auto" ? "Tự động" : "Thủ công"}</span>
+              </button>
+            ) : null}
             <button
               type="button"
               className="beego-call-stage__side beego-call-stage__cc"

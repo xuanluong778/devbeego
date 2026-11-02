@@ -35,6 +35,7 @@ export default function LearnLessonCall({
   autoCheck = false,
   onDismiss,
   returnLabel = "Quay lại bài",
+  sessionMode = "lesson",
 }) {
   const pathname = usePathname();
   const [enabled, setEnabled] = useState(false);
@@ -126,11 +127,19 @@ export default function LearnLessonCall({
     setMessage("");
     setStartError("");
     try {
+      const initialMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("mode") === "open" ? "open" : sessionMode;
       const res = await fetch("/api/learn/ai-call/session", {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ lessonId: resolvedLessonId || lessonId, sectionId, difficulty, teacher }),
+        body: JSON.stringify({
+          lessonId: resolvedLessonId || lessonId,
+          sectionId,
+          difficulty,
+          teacher,
+          sessionMode: initialMode,
+          force: view === "retry",
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.success) {
@@ -148,6 +157,11 @@ export default function LearnLessonCall({
         ...(current || {}),
         limits: json.data?.limits || current?.limits,
         hints: json.data?.hints || current?.hints,
+        realtime: json.data?.realtime || current?.realtime,
+        lessonId: resolvedLessonId || lessonId,
+        sectionId,
+        difficulty,
+        sessionMode: initialMode,
       }));
       const wsUrl = String(json.data?.wsUrl || "");
       const token = String(json.data?.token || "");
