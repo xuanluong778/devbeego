@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { realtimeCallClock } from "@/lib/beego/learn/learn-call-realtime-lifecycle";
 import { getSessionUserIdFromRequest } from "@/lib/http/ai-entitlement";
 import { getVoiceRedis } from "@/lib/voice/redis";
 import {
@@ -27,6 +28,7 @@ export async function POST(request) {
     }
 
     const redis = getVoiceRedis();
+    let callClock = null;
     if (redis) {
       const raw = await redis.get(realtimeSessionKey(sessionId));
       if (!raw) {
@@ -49,13 +51,17 @@ export async function POST(request) {
             { status: 410 }
           );
         }
+        if (Date.now() >= Number(sessionData.deadlineAt)) {
+          return NextResponse.json({ success: false, code: "DEADLINE_EXCEEDED", message: "Đã hết thời gian phiên gọi." }, { status: 410 });
+        }
+        callClock = realtimeCallClock(sessionData);
       } catch {
         /* ignore parse error */
       }
       await touchRealtimeLiveness(redis, sessionId);
     }
 
-    return NextResponse.json({ success: true, timestamp: Date.now() }, { status: 200 });
+    return NextResponse.json({ success: true, timestamp: Date.now(), callClock }, { status: 200 });
   } catch (err) {
     return NextResponse.json({ success: false, code: "SERVER_ERROR", message: err?.message }, { status: 500 });
   }

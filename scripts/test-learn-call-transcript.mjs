@@ -28,6 +28,9 @@ assert.equal(done.turns[0].text, "Hello! What is your name?");
 assert.equal(done.turns[0].final, true);
 const lateToken = run([{ type: "ai_stream", requestId: 1, token: "extra" }], done);
 assert.equal(lateToken.turns[0].text, "Hello! What is your name?");
+const omittedDone = run([{ type: "ai_done", requestId: 1 }], greeting);
+assert.equal(omittedDone.turns[0].text, "Hello!", "Empty generation final preserves streamed transcript");
+assert.equal(omittedDone.turns[0].final, true);
 
 const user = run([
   { type: "partial_transcript", requestId: 2, text: "my name" },

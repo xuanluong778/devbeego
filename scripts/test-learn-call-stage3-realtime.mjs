@@ -22,6 +22,7 @@
  */
 
 import assert from "node:assert/strict";
+import { runRealtimeTranscriptTests } from "./test-learn-call-realtime-transcript.mjs";
 import {
   isRealtimeEnabled,
   validateRealtimeModel,
@@ -386,12 +387,13 @@ async function runRealtimeTestSuite() {
   // Asserts that client hook relies on native Server VAD rather than artificial MediaStream truncate
   console.log("  [PASS] Test 5: Native Server VAD manages interruption without artificial MediaStream truncate.");
 
+  runRealtimeTranscriptTests();
   console.log("\n========================================================================");
-  console.log("🎉 ALL 5 GA ARCHITECTURE CONTRACT TESTS PASSED WITH 100% SUCCESS! 🎉");
+  console.log("ALL 5 GA CONTRACT TESTS + REALTIME TRANSCRIPT REGRESSIONS PASSED");
   console.log("========================================================================");
   console.log("FINAL SUMMARY:");
   console.log("- MOCK CONTRACT TESTS: PASS (Unified POST /v1/realtime/calls, GA models, retry hangup, dual watchdog)");
-  console.log("- LIVE API TESTS: NOT RUN (Flag LEARN_AI_CALL_REALTIME_ENABLED=0 preserved; zero paid calls)");
+  console.log("- LIVE API / BROWSER TESTS: NOT RUN by this mock suite");
   console.log("========================================================================");
 }
 

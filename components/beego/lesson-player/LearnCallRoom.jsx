@@ -12,7 +12,7 @@ import { playLessonTts, stopLessonTts } from "@/lib/beego/learn/adapters/lesson-
 import {
   applyTranscriptEvent,
   createTranscript,
-  transcriptCaption,
+  learnCallCaptionView,
   transcriptHasClosing,
   transcriptLastTutor,
 } from "@/lib/beego/learn/learn-call-transcript";
@@ -72,6 +72,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   const listeningRef = useRef(false);
   const ttsPlayingRef = useRef(false);
   const deadlineRef = useRef(0);
+  const finishRef = useRef(null);
   const endTimerRef = useRef(0);
   const talkTimerRef = useRef(0);
   const stallTimerRef = useRef(0);
@@ -148,26 +149,33 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   const isRealtime = Boolean(offer?.realtime?.enabled);
 
   const realtimeTutor = useRealtimeTutor({
-    onTranscriptDelta: (delta) => {
-      setNotice(delta);
+    onSessionClock: (nextClock) => {
+      if (!isRealtime || closedRef.current) return;
+      deadlineRef.current = nextClock.deadlineAt;
+      setClock(nextClock);
+      setTick(Date.now());
     },
-    onUserTranscript: (text) => {
-      if (text) {
-        pushTranscript({ type: "user_turn", text, final: true, role: "user" });
-      }
+    onEnded: (info) => {
+      if (isRealtime && !closedRef.current) finishRef.current?.("ended", info.message);
     },
-    onAssistantDone: (mapped) => {
-      if (mapped?.transcript) {
-        pushTranscript({ type: "assistant_turn", text: mapped.transcript, role: "assistant" });
-      }
+    onTranscriptEvent: (event) => {
+      if (isRealtime && !closedRef.current) pushTranscript(event);
+    },
+    onNotice: (message) => {
+      if (isRealtime && !closedRef.current) setNotice(message);
     },
     onStatusChange: (nextStatus) => {
+      if (!isRealtime || closedRef.current) return;
+      setMouthOn(nextStatus === "speaking");
+      if (nextStatus === "listening" || nextStatus === "speaking") setNotice("");
       if (nextStatus === "connected") {
         setPhase("ready");
       } else if (nextStatus === "listening") {
         setPhase("listening");
       } else if (nextStatus === "speaking") {
         setPhase("speaking");
+      } else if (nextStatus === "closing") {
+        setPhase("closing");
       } else if (nextStatus === "closed") {
         setPhase("ended");
       } else if (nextStatus === "error") {
@@ -175,11 +183,13 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
       }
     },
     onError: (err) => {
+      if (!isRealtime || closedRef.current) return;
       setPhase("error");
       setNotice(err || "Lỗi kết nối Realtime.");
     },
     onCoachPcmChunk: onPcmChunk,
   });
+  closingRef.current = closingRef.current || (isRealtime && realtimeTutor.isClosing);
 
   const { ensureStream, startPcmCapture, stopMic, micError, setMicError, audioState } = useVoiceRecorder({ onPcmChunk });
 
@@ -222,6 +232,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     },
     [disconnect, isRealtime, realtimeTutor, releaseMedia, stopMic]
   );
+  finishRef.current = finish;
 
   const openTalkMedia = useCallback(
     async (decision) => {
@@ -610,6 +621,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   };
 
   useEffect(() => {
+    closedRef.current = false;
     if (isRealtime) {
       realtimeConnRef.current.connect(offerParamsRef.current);
       return () => {
@@ -724,6 +736,11 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   };
 
   const endCall = () => {
+    if (isRealtime) {
+      if (realtimeTutor.isClosing) finish("ended", "Cuộc gọi đã kết thúc. Hẹn gặp bạn ở buổi tiếp theo!");
+      else realtimeTutor.endGracefully();
+      return;
+    }
     stopLessonTts();
     listeningRef.current = false;
     ttsPlayingRef.current = false;
@@ -740,7 +757,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   };
 
   useEffect(() => {
-    const id = window.setInterval(() => setTick(Date.now()), 500);
+    const id = window.setInterval(() => setTick(Date.now()), 250);
     return () => window.clearInterval(id);
   }, []);
 
@@ -774,17 +791,16 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     leaveRef.current?.focus();
   }, [phase]);
 
-  const captionRid = talkRef.current.snapshot().requestId;
-  const caption = transcriptCaption(transcript, captionRid);
-  let captionRole = "tutor";
-  for (let i = transcript.turns.length - 1; i >= 0; i -= 1) {
-    const turn = transcript.turns[i];
-    if (!Number(captionRid) || turn.requestId === Number(captionRid)) {
-      captionRole = turn.role;
-      break;
-    }
-    if (turn.requestId < Number(captionRid)) break;
-  }
+  const tutorLabel = teacher?.name?.toUpperCase() || "BEEGO AI";
+  const captionView = learnCallCaptionView(transcript, {
+    realtime: isRealtime,
+    target: realtimeTutor.captionTarget,
+    requestId: isRealtime ? undefined : talkRef.current.snapshot().requestId,
+    tutorName: tutorLabel,
+    captionsOn,
+  });
+  const caption = captionView.text;
+  const captionRole = captionView.role;
   const canReplay = Boolean(transcriptLastTutor(transcript));
 
   const effectiveHints = useMemo(() => {
@@ -825,7 +841,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     now: tick,
   });
   const sceneClass = ["listening", "thinking", "speaking", "transcribing"].includes(phase) ? `is-${phase}` : "is-idle";
-  const closing = transcriptHasClosing(transcript);
+  const closing = transcriptHasClosing(transcript) || (isRealtime && realtimeTutor.isClosing);
   const speakControl = learnCallSpeakControl(phase, { closing });
   const speakLabel = phase === "mic" ? "Cho phép micro" : speakControl.label;
   const statusLabel =
@@ -840,7 +856,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
             : phase === "speaking" && !closing && !mouthOn
               ? "Gia sư đang chuẩn bị tiếng. Bấm để ngắt lời nếu bạn muốn nói."
               : speakControl.hint || "Đến lượt bạn. Bấm để nói.";
-  const captionText = caption || statusLabel;
+  const captionText = caption || "Chưa có phụ đề cho lượt này.";
   const speakDisabled =
     closing ||
     (!isRealtime && readyState !== "open") ||
@@ -862,6 +878,9 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   const topic = offer?.title || "Bài học";
   const difficultyLabel = offer?.limits?.difficultyLabel || "";
   const ended = phase === "ended" || phase === "error";
+  const lowTime = clockView.known && clockView.remainingMs <= 15_000 && !ended;
+  const clockLabel = ended ? "Đã kết thúc" : clockView.known ? clockView.label : "Đang kết nối…";
+  const progress = ended ? 0 : clockView.known ? clockView.ratio : 1;
   const serverSummary = summary && Array.isArray(summary.transcript) ? summary : null;
   const summaryTurns = serverSummary
     ? serverSummary.transcript.map((turn, index) => ({ ...turn, key: `s:${index}`, final: true }))
@@ -872,7 +891,6 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
 
   const mood = phase === "listening" ? "listening" : phase === "thinking" || phase === "transcribing" ? "thinking" : "idle";
   const waveActive = phase === "listening" || mouthOn;
-  const tutorLabel = teacher?.image ? teacher.name.toUpperCase() : "BEEGO AI";
   const toggleMute = () => {
     const next = !muted;
     mutedRef.current = next;
@@ -917,17 +935,20 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
         <div className="beego-call-stage__glow" aria-hidden="true" />
         <section className={`beego-call-stage__scene ${sceneClass}${teacher?.image ? " is-photo" : ""}`}>
           <header className="beego-call-stage__header">
-            <button type="button" className="beego-call-stage__close" onClick={endCall} disabled={ended} aria-label="Kết thúc cuộc gọi">
+            <button type="button" className="beego-call-stage__close" onClick={endCall} disabled={ended} aria-label={isRealtime && realtimeTutor.isClosing ? "Dừng ngay cuộc gọi" : "Kết thúc cuộc gọi"}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6 6l12 12M18 6L6 18" />
               </svg>
             </button>
-            <p className="beego-call-stage__clock" aria-label={`Thời gian còn lại: ${clockView.label}`}>
+            <p className={`beego-call-stage__clock${lowTime ? " is-low" : ""}`} aria-label={`Thời gian còn lại: ${clockLabel}`}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="12" r="8.5" />
                 <path d="M12 7.5V12l3 2" />
               </svg>
-              <time dateTime={clockView.known ? new Date(clockView.deadlineAt).toISOString() : undefined}>{clockView.label}</time>
+              <span>
+                <small>{ended ? "HOÀN THÀNH" : "CÒN LẠI"}</small>
+                <time dateTime={clockView.known ? new Date(clock.serverDeadlineAt || clockView.deadlineAt).toISOString() : undefined}>{clockLabel}</time>
+              </span>
             </p>
             <button
               type="button"
@@ -952,10 +973,10 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                 aria-label="Thời gian còn lại"
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-valuenow={Math.round(clockView.ratio * 100)}
-                aria-valuetext={clockView.label}
+                aria-valuenow={clockView.known ? Math.round(progress * 100) : undefined}
+                aria-valuetext={clockLabel}
               >
-                <i style={{ width: `${clockView.ratio * 100}%` }} />
+                <i style={{ width: `${progress * 100}%` }} />
               </div>
               <span className="beego-call-stage__badge">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -967,15 +988,17 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
           ) : (
             <div className="beego-call-stage__robot">
               <div
-                className="beego-call-stage__ring"
+                className={`beego-call-stage__ring${!ended ? " is-running" : ""}${lowTime ? " is-low" : ""}`}
                 role="progressbar"
                 aria-label="Thời gian còn lại"
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-valuenow={Math.round(clockView.ratio * 100)}
-                aria-valuetext={clockView.label}
-                style={{ "--progress": clockView.ratio }}
-              />
+                aria-valuenow={clockView.known ? Math.round(progress * 100) : undefined}
+                aria-valuetext={clockLabel}
+                style={{ "--progress": progress }}
+              >
+                <i className="beego-call-stage__orbit" aria-hidden="true" />
+              </div>
               <span className="beego-call-stage__orb is-a" aria-hidden="true" />
               <span className="beego-call-stage__orb is-b" aria-hidden="true" />
               <LearnCallCharacter talking={mouthOn} mood={mood} />
@@ -1009,7 +1032,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                     GỢI Ý
                   </button>
                 ) : null}
-                <small>{captionRole === "user" ? "BẠN" : tutorLabel}</small>
+                <small>{captionView.label}</small>
                 <span className="beego-call-stage__caption-text">{captionText}</span>
                 <LearnCallIpa
                   text={captionRole === "tutor" ? caption : ""}
@@ -1205,7 +1228,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                       data-turn={turn.key}
                     >
                       <small>
-                        {turn.role === "user" ? "BẠN" : "GIA SƯ BEEGO"}
+                        {turn.role === "user" ? "BẠN" : tutorLabel}
                         {badge ? ` · ${badge}` : ""}
                       </small>
                       <span>{turn.text}</span>
@@ -1294,7 +1317,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                   return (
                     <li key={turn.key} className={turn.role === "user" ? "is-user" : ""}>
                       <small>
-                        {turn.role === "user" ? "BẠN" : "GIA SƯ BEEGO"}
+                        {turn.role === "user" ? "BẠN" : tutorLabel}
                         {badge ? ` · ${badge}` : ""}
                       </small>
                       <span>{turn.text}</span>

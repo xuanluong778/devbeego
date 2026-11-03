@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mapRealtimeEvent } from "@/lib/beego/learn/learn-call-realtime";
+import { createRealtimeTranscriptAdapter, dispatchRealtimeTranscriptEvent } from "@/lib/beego/learn/learn-call-realtime-transcript";
+import { createRealtimeCallLifecycle } from "@/lib/beego/learn/learn-call-realtime-lifecycle";
 
 /**
  * Resamples Float32 audio samples to 16kHz 16-bit PCM buffer for Azure Coach sidecar.
@@ -50,34 +52,43 @@ function downsampleTo16kPcm(inputFloat32, inputSampleRate) {
  *    Resamples microphone audio to 16kHz PCM16 independently without blocking WebRTC conversation.
  */
 export function useRealtimeTutor({
-  onTranscriptDelta,
-  onUserTranscript,
-  onAssistantDone,
+  onTranscriptEvent,
+  onNotice,
   onError,
   onStatusChange,
   onCoachPcmChunk,
+  onSessionClock,
+  onEnded,
 } = {}) {
   const [status, setStatus] = useState("idle");
   const [isMuted, setIsMuted] = useState(false);
   const [talkMode, setTalkMode] = useState("auto"); // "auto" | "manual"
   const [isTalking, setIsTalking] = useState(false);
+  const [captionTarget, setCaptionTarget] = useState({ requestId: 0, role: "tutor" });
+  const transcriptAdapterRef = useRef(null);
+  const lifecycleRef = useRef(null);
+  if (!lifecycleRef.current) lifecycleRef.current = createRealtimeCallLifecycle();
+  const disconnectRef = useRef(() => {});
+  const [isClosing, setIsClosing] = useState(false);
 
   // Store callbacks in mutable ref to guarantee stable connect/disconnect identity across renders
   const callbacksRef = useRef({
-    onTranscriptDelta,
-    onUserTranscript,
-    onAssistantDone,
+    onTranscriptEvent,
+    onNotice,
     onError,
     onStatusChange,
     onCoachPcmChunk,
+    onSessionClock,
+    onEnded,
   });
   callbacksRef.current = {
-    onTranscriptDelta,
-    onUserTranscript,
-    onAssistantDone,
+    onTranscriptEvent,
+    onNotice,
     onError,
     onStatusChange,
     onCoachPcmChunk,
+    onSessionClock,
+    onEnded,
   };
 
   const pcRef = useRef(null);
@@ -106,8 +117,38 @@ export function useRealtimeTutor({
   const sendEvent = useCallback((event) => {
     if (dcRef.current?.readyState === "open") {
       dcRef.current.send(JSON.stringify(event));
+      return true;
     }
+    return false;
   }, []);
+
+  const applyLifecycleEffects = useCallback((effects) => {
+    for (const effect of effects) {
+      if (effect.type === "send") {
+        sendEvent(effect.event);
+      } else if (effect.type === "closing") {
+        setIsClosing(true);
+        setIsTalking(false);
+        localStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = false; });
+        updateStatus("closing");
+        callbacksRef.current.onNotice?.("Gia sư đang chào tạm biệt. Phiên học sắp kết thúc.");
+      } else if (effect.type === "end") {
+        disconnectRef.current({ reason: effect.reason });
+        callbacksRef.current.onEnded?.(effect);
+      }
+    }
+  }, [sendEvent, updateStatus]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const lifecycle = lifecycleRef.current;
+      if (lifecycle.ended) return;
+      if (dcRef.current?.readyState === "open" || (lifecycle.clock && Date.now() >= lifecycle.clock.deadlineAt)) {
+        applyLifecycleEffects(lifecycle.tick(Date.now()));
+      }
+    }, 250);
+    return () => clearInterval(timer);
+  }, [applyLifecycleEffects]);
 
   const sendHeartbeatImmediate = useCallback(() => {
     const sid = sessionIdRef.current;
@@ -116,6 +157,16 @@ export function useRealtimeTutor({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: sid }),
+      }).then(async response => {
+        const json = await response.json().catch(() => ({}));
+        if (sessionIdRef.current !== sid || lifecycleRef.current.ended) return;
+        if (response.status === 404 || response.status === 410 || response.status === 401 || response.status === 403) {
+          disconnectRef.current({ reason: "server_ended" });
+          callbacksRef.current.onEnded?.({ reason: "server_ended", message: json.message || "Phiên gọi đã kết thúc. Hẹn gặp bạn ở buổi tiếp theo!" });
+        } else if (json.success && json.callClock) {
+          const clock = lifecycleRef.current.setClock(json.callClock);
+          if (clock) callbacksRef.current.onSessionClock?.(clock);
+        }
       }).catch(() => {});
     }
   }, []);
@@ -172,6 +223,10 @@ export function useRealtimeTutor({
       if (connectingRef.current) return;
       connectingRef.current = true;
       const mySeq = ++connSeqRef.current;
+      transcriptAdapterRef.current = createRealtimeTranscriptAdapter();
+      lifecycleRef.current = createRealtimeCallLifecycle();
+      setIsClosing(false);
+      setCaptionTarget({ requestId: 0, role: "tutor" });
 
       try {
         updateStatus("connecting");
@@ -258,14 +313,23 @@ export function useRealtimeTutor({
         dc.onopen = () => {
           if (connSeqRef.current === mySeq) {
             updateStatus("connected");
+            applyLifecycleEffects(lifecycleRef.current.tick(Date.now()));
           }
         };
 
         dc.onmessage = (e) => {
+          if (connSeqRef.current !== mySeq) return;
           try {
             const raw = JSON.parse(e.data);
             const mapped = mapRealtimeEvent(raw);
             if (!mapped) return;
+            if (lifecycleRef.current.closing && mapped.type === "user_speech_started") return;
+            const projection = dispatchRealtimeTranscriptEvent(transcriptAdapterRef.current, mapped, {
+              onTranscriptEvent: callbacksRef.current.onTranscriptEvent,
+              onCaptionChange: setCaptionTarget,
+              onNotice: callbacksRef.current.onNotice,
+            });
+            if (projection.status) updateStatus(projection.status);
 
             switch (mapped.type) {
               case "user_speech_started":
@@ -274,10 +338,11 @@ export function useRealtimeTutor({
                   audioElRef.current.pause();
                 }
                 isInterruptedRef.current = true;
-                updateStatus("listening");
                 break;
 
               case "assistant_turn_started":
+              case "assistant_audio_started":
+                if (projection.status !== "speaking") break;
                 // Resume assistant speech: purge stale buffered frames by reconnecting srcObject
                 if (audioElRef.current) {
                   if (isInterruptedRef.current || audioElRef.current.paused) {
@@ -288,31 +353,22 @@ export function useRealtimeTutor({
                   }
                 }
                 isInterruptedRef.current = false;
-                updateStatus("speaking");
                 break;
 
               case "assistant_transcript_delta":
+                if (!projection.events.some(event => event.type === "ai_stream" && event.requestId === projection.caption?.requestId)) break;
                 // If audio element was paused or blocked, ensure it plays on incoming data
                 if (audioElRef.current?.paused && remoteStreamRef.current) {
                   audioElRef.current.play().catch(() => {});
                 }
-                callbacksRef.current.onTranscriptDelta?.(mapped.delta);
-                break;
-
-              case "user_transcript_final":
-                callbacksRef.current.onUserTranscript?.(mapped.text);
-                break;
-
-              case "assistant_turn_done":
-                updateStatus("connected");
-                callbacksRef.current.onAssistantDone?.(mapped);
                 break;
 
               default:
                 break;
             }
-          } catch {
-            /* ignore malformed frame */
+            applyLifecycleEffects(lifecycleRef.current.observe(mapped));
+          } catch (error) {
+            callbacksRef.current.onNotice?.(`Không cập nhật được phụ đề cuộc gọi: ${error?.message || "Dữ liệu không hợp lệ."}`);
           }
         };
 
@@ -357,6 +413,13 @@ export function useRealtimeTutor({
         const sdpAnswer = json.data?.sdpAnswer;
         const activeSid = json.data?.sessionId || sessionId;
         sessionIdRef.current = activeSid;
+        const deadlineAt = Number(json.data.deadlineAt);
+        const serverClock = json.data.callClock || (deadlineAt > 0 ? {
+          startedAt: deadlineAt - (Number(json.data.limits?.maxMinutes) || 2) * 60_000,
+          deadlineAt, serverNow: Date.now(),
+        } : null);
+        const clock = lifecycleRef.current.setClock(serverClock);
+        if (clock) callbacksRef.current.onSessionClock?.(clock);
 
         // 8. Complete WebRTC handshake with SDP Answer
         await pc.setRemoteDescription({ type: "answer", sdp: sdpAnswer });
@@ -372,20 +435,21 @@ export function useRealtimeTutor({
         }
       }
     },
-    [startHeartbeat, updateStatus]
+    [applyLifecycleEffects, startHeartbeat, updateStatus]
   );
 
-  const disconnect = useCallback(async () => {
+  const disconnect = useCallback(async ({ reason = "user_hangup" } = {}) => {
     connSeqRef.current += 1;
     connectingRef.current = false;
     stopHeartbeat();
+    lifecycleRef.current.stop();
     const sid = sessionIdRef.current;
     if (sid) {
       sessionIdRef.current = "";
       fetch("/api/learn/ai-call/realtime/session", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: sid, reason: "user_hangup" }),
+        body: JSON.stringify({ sessionId: sid, reason }),
       }).catch(() => {});
     }
 
@@ -421,9 +485,20 @@ export function useRealtimeTutor({
       /* ignore cleanup error */
     }
   }, [stopHeartbeat, updateStatus]);
+  disconnectRef.current = disconnect;
+
+  const endGracefully = useCallback(() => {
+    if (dcRef.current?.readyState !== "open") {
+      disconnectRef.current();
+      callbacksRef.current.onEnded?.({ reason: "user_hangup", message: "Cuộc gọi đã kết thúc. Hẹn gặp bạn ở buổi tiếp theo!" });
+      return;
+    }
+    applyLifecycleEffects(lifecycleRef.current.endGracefully());
+  }, [applyLifecycleEffects]);
 
   // Genuine mute toggle: preserves state across interruptions/reconnects
   const toggleMute = useCallback(() => {
+    if (lifecycleRef.current.closing) return;
     setIsMuted((prev) => {
       const next = !prev;
       if (localStreamRef.current) {
@@ -438,6 +513,7 @@ export function useRealtimeTutor({
 
   // Push-to-talk controls (manual mode)
   const startTalking = useCallback(() => {
+    if (lifecycleRef.current.closing) return;
     if (isMutedRef.current) return;
     setIsTalking(true);
     if (localStreamRef.current) {
@@ -455,6 +531,7 @@ export function useRealtimeTutor({
   }, []);
 
   const setMode = useCallback((mode) => {
+    if (lifecycleRef.current.closing) return;
     const nextMode = mode === "manual" ? "manual" : "auto";
     setTalkMode(nextMode);
     if (localStreamRef.current) {
@@ -477,6 +554,9 @@ export function useRealtimeTutor({
       isMuted,
       talkMode,
       isTalking,
+      captionTarget,
+      isClosing,
+      endGracefully,
       connect,
       disconnect,
       toggleMute,
@@ -490,6 +570,9 @@ export function useRealtimeTutor({
       isMuted,
       talkMode,
       isTalking,
+      captionTarget,
+      isClosing,
+      endGracefully,
       connect,
       disconnect,
       toggleMute,

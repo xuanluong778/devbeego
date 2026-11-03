@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { realtimeCallClock } from "@/lib/beego/learn/learn-call-realtime-lifecycle";
 import pool from "@/lib/db";
 import { getSessionUserIdFromRequest } from "@/lib/http/ai-entitlement";
 import { shouldBypassEntitlementsForEmail } from "@/lib/auth/admin-entitlement";
@@ -266,7 +267,7 @@ export async function POST(request) {
     const deadlineAt = Date.now() + Math.min(limits.maxMinutes * 60_000, limits.packageRemainingMs || 120_000);
 
     // Reserve Realtime session in Redis, tracking verified callId and setting watchdog deadline
-    await reserveRealtimeSession(redis, {
+    const reserved = await reserveRealtimeSession(redis, {
       userId,
       sessionId,
       callId: rtCall.callId,
@@ -284,6 +285,7 @@ export async function POST(request) {
           model: rtCall.model,
           voice: rtCall.voice,
           deadlineAt,
+          callClock: realtimeCallClock(reserved.session),
           limits,
           hints: learnAiCallLevelOneHints(lesson),
         },
