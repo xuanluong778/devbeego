@@ -59,11 +59,13 @@ export function useRealtimeTutor({
   onCoachPcmChunk,
   onSessionClock,
   onEnded,
+  onOpening,
 } = {}) {
   const [status, setStatus] = useState("idle");
   const [isMuted, setIsMuted] = useState(false);
   const [talkMode, setTalkMode] = useState("auto"); // "auto" | "manual"
   const [isTalking, setIsTalking] = useState(false);
+  const [audioBlocked, setAudioBlocked] = useState(false);
   const [captionTarget, setCaptionTarget] = useState({ requestId: 0, role: "tutor" });
   const transcriptAdapterRef = useRef(null);
   const lifecycleRef = useRef(null);
@@ -80,6 +82,7 @@ export function useRealtimeTutor({
     onCoachPcmChunk,
     onSessionClock,
     onEnded,
+    onOpening,
   });
   callbacksRef.current = {
     onTranscriptEvent,
@@ -89,7 +92,9 @@ export function useRealtimeTutor({
     onCoachPcmChunk,
     onSessionClock,
     onEnded,
+    onOpening,
   };
+  const openingGateRef = useRef({ dcOpen: false, configured: false, tried: false });
 
   const pcRef = useRef(null);
   const dcRef = useRef(null);
@@ -108,6 +113,32 @@ export function useRealtimeTutor({
 
   const connectingRef = useRef(false);
   const connSeqRef = useRef(0);
+  const telemetryRef = useRef({
+    callReadyAt: 0,
+    openingAudibleAt: 0,
+    firstValidLearnerAt: 0,
+    lastLearnerStoppedAt: 0,
+    turnLatenciesMs: [],
+    learnerContentTurns: 0,
+    model: "",
+    usage: { audioInTokens: 0, audioOutTokens: 0, textInTokens: 0, textOutTokens: 0 },
+    seenResponseIds: [],
+  });
+
+  const telemetryPayload = useCallback(() => {
+    const t = telemetryRef.current;
+    return {
+      model: t.model,
+      usage: { ...t.usage },
+      experience: {
+        callReadyAt: t.callReadyAt,
+        openingAudibleAt: t.openingAudibleAt,
+        firstValidLearnerAt: t.firstValidLearnerAt,
+        turnLatenciesMs: t.turnLatenciesMs.slice(-20),
+        learnerContentTurns: t.learnerContentTurns,
+      },
+    };
+  }, []);
 
   const updateStatus = useCallback((next) => {
     setStatus(next);
@@ -156,7 +187,7 @@ export function useRealtimeTutor({
       fetch("/api/learn/ai-call/realtime/heartbeat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: sid }),
+        body: JSON.stringify({ sessionId: sid, ...telemetryPayload() }),
       }).then(async response => {
         const json = await response.json().catch(() => ({}));
         if (sessionIdRef.current !== sid || lifecycleRef.current.ended) return;
@@ -169,7 +200,7 @@ export function useRealtimeTutor({
         }
       }).catch(() => {});
     }
-  }, []);
+  }, [telemetryPayload]);
 
   const stopHeartbeat = useCallback(() => {
     if (heartbeatTimerRef.current) {
@@ -219,13 +250,26 @@ export function useRealtimeTutor({
   }, [sendHeartbeatImmediate]);
 
   const connect = useCallback(
-    async ({ sessionId, lessonId, sectionId, difficulty, teacher, sessionMode }) => {
+    async ({ sessionId, lessonId, sectionId, difficulty, teacher, sessionMode, topic, title }) => {
       if (connectingRef.current) return;
       connectingRef.current = true;
       const mySeq = ++connSeqRef.current;
       transcriptAdapterRef.current = createRealtimeTranscriptAdapter();
       lifecycleRef.current = createRealtimeCallLifecycle();
+      openingGateRef.current = { dcOpen: false, configured: false, tried: false };
+      telemetryRef.current = {
+        callReadyAt: 0,
+        openingAudibleAt: 0,
+        firstValidLearnerAt: 0,
+        lastLearnerStoppedAt: 0,
+        turnLatenciesMs: [],
+        learnerContentTurns: 0,
+        model: "",
+        usage: { audioInTokens: 0, audioOutTokens: 0, textInTokens: 0, textOutTokens: 0 },
+        seenResponseIds: [],
+      };
       setIsClosing(false);
+      setAudioBlocked(false);
       setCaptionTarget({ requestId: 0, role: "tutor" });
 
       try {
@@ -249,7 +293,7 @@ export function useRealtimeTutor({
           remoteStreamRef.current = event.streams[0];
           if (audioElRef.current) {
             audioElRef.current.srcObject = remoteStreamRef.current;
-            audioElRef.current.play().catch(() => {});
+            audioElRef.current.play().then(() => setAudioBlocked(false)).catch(() => setAudioBlocked(true));
           }
         };
 
@@ -314,6 +358,12 @@ export function useRealtimeTutor({
           if (connSeqRef.current === mySeq) {
             updateStatus("connected");
             applyLifecycleEffects(lifecycleRef.current.tick(Date.now()));
+            openingGateRef.current.dcOpen = true;
+            if (openingGateRef.current.configured && !openingGateRef.current.tried) {
+              openingGateRef.current.tried = true;
+              if (!telemetryRef.current.callReadyAt) telemetryRef.current.callReadyAt = Date.now();
+              applyLifecycleEffects(lifecycleRef.current.noteReady());
+            }
           }
         };
 
@@ -333,6 +383,7 @@ export function useRealtimeTutor({
 
             switch (mapped.type) {
               case "user_speech_started":
+                applyLifecycleEffects(lifecycleRef.current.noteLearnerSpeech());
                 // Interruption: Pause local playback immediately
                 if (audioElRef.current && !audioElRef.current.paused) {
                   audioElRef.current.pause();
@@ -340,8 +391,26 @@ export function useRealtimeTutor({
                 isInterruptedRef.current = true;
                 break;
 
+              case "user_speech_stopped":
+                telemetryRef.current.lastLearnerStoppedAt = Date.now();
+                break;
+
+              case "user_transcript_final": {
+                const spoken = String(mapped.text || mapped.transcript || "").trim();
+                if (spoken) {
+                  telemetryRef.current.learnerContentTurns += 1;
+                  if (!telemetryRef.current.firstValidLearnerAt) telemetryRef.current.firstValidLearnerAt = Date.now();
+                }
+                break;
+              }
+
               case "assistant_turn_started":
               case "assistant_audio_started":
+                if (!telemetryRef.current.openingAudibleAt) telemetryRef.current.openingAudibleAt = Date.now();
+                if (telemetryRef.current.lastLearnerStoppedAt > 0) {
+                  telemetryRef.current.turnLatenciesMs.push(Date.now() - telemetryRef.current.lastLearnerStoppedAt);
+                  telemetryRef.current.lastLearnerStoppedAt = 0;
+                }
                 if (projection.status !== "speaking") break;
                 // Resume assistant speech: purge stale buffered frames by reconnecting srcObject
                 if (audioElRef.current) {
@@ -354,6 +423,21 @@ export function useRealtimeTutor({
                 }
                 isInterruptedRef.current = false;
                 break;
+
+              case "assistant_turn_done": {
+                const rid = String(mapped.responseId || "");
+                if (rid && telemetryRef.current.seenResponseIds.includes(rid)) break;
+                if (rid) telemetryRef.current.seenResponseIds.push(rid);
+                const usage = mapped.usage || {};
+                const add = (key, value) => {
+                  telemetryRef.current.usage[key] = (telemetryRef.current.usage[key] || 0) + (Number(value) || 0);
+                };
+                add("audioInTokens", usage.input_token_details?.audio_tokens);
+                add("audioOutTokens", usage.output_token_details?.audio_tokens);
+                add("textInTokens", usage.input_token_details?.text_tokens ?? usage.input_tokens);
+                add("textOutTokens", usage.output_token_details?.text_tokens ?? usage.output_tokens);
+                break;
+              }
 
               case "assistant_transcript_delta":
                 if (!projection.events.some(event => event.type === "ai_stream" && event.requestId === projection.caption?.requestId)) break;
@@ -420,6 +504,21 @@ export function useRealtimeTutor({
         } : null);
         const clock = lifecycleRef.current.setClock(serverClock);
         if (clock) callbacksRef.current.onSessionClock?.(clock);
+        const opening = json.data.opening || null;
+        lifecycleRef.current.configureOpening({
+          sessionMode: sessionMode === "open" ? "open" : "lesson",
+          topicCtx: { topic: topic || title || "", title: title || topic || "", sectionId, sessionMode },
+          difficulty,
+          shouldSpeak: opening?.shouldSpeak === true,
+        });
+        if (opening?.spoken) callbacksRef.current.onOpening?.(opening);
+        openingGateRef.current.configured = true;
+        if (openingGateRef.current.dcOpen && !openingGateRef.current.tried) {
+          openingGateRef.current.tried = true;
+          if (!telemetryRef.current.callReadyAt) telemetryRef.current.callReadyAt = Date.now();
+          applyLifecycleEffects(lifecycleRef.current.noteReady());
+        }
+        if (json.data?.model) telemetryRef.current.model = String(json.data.model);
 
         // 8. Complete WebRTC handshake with SDP Answer
         await pc.setRemoteDescription({ type: "answer", sdp: sdpAnswer });
@@ -430,6 +529,7 @@ export function useRealtimeTutor({
       } catch (err) {
         connectingRef.current = false;
         if (connSeqRef.current === mySeq) {
+          await disconnectRef.current({ reason: "connect_failed" });
           updateStatus("error");
           callbacksRef.current.onError?.(err?.message || "Realtime WebRTC connection failed");
         }
@@ -449,7 +549,7 @@ export function useRealtimeTutor({
       fetch("/api/learn/ai-call/realtime/session", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: sid, reason }),
+        body: JSON.stringify({ sessionId: sid, reason, ...telemetryPayload() }),
       }).catch(() => {});
     }
 
@@ -484,7 +584,7 @@ export function useRealtimeTutor({
     } catch {
       /* ignore cleanup error */
     }
-  }, [stopHeartbeat, updateStatus]);
+  }, [stopHeartbeat, telemetryPayload, updateStatus]);
   disconnectRef.current = disconnect;
 
   const endGracefully = useCallback(() => {
@@ -530,6 +630,12 @@ export function useRealtimeTutor({
     }
   }, []);
 
+  const unblockAudio = useCallback(() => {
+    const el = audioElRef.current;
+    if (!el) return;
+    el.play().then(() => setAudioBlocked(false)).catch(() => setAudioBlocked(true));
+  }, []);
+
   const setMode = useCallback((mode) => {
     if (lifecycleRef.current.closing) return;
     const nextMode = mode === "manual" ? "manual" : "auto";
@@ -554,12 +660,14 @@ export function useRealtimeTutor({
       isMuted,
       talkMode,
       isTalking,
+      audioBlocked,
       captionTarget,
       isClosing,
       endGracefully,
       connect,
       disconnect,
       toggleMute,
+      unblockAudio,
       setMode,
       startTalking,
       stopTalking,
@@ -570,12 +678,14 @@ export function useRealtimeTutor({
       isMuted,
       talkMode,
       isTalking,
+      audioBlocked,
       captionTarget,
       isClosing,
       endGracefully,
       connect,
       disconnect,
       toggleMute,
+      unblockAudio,
       setMode,
       startTalking,
       stopTalking,

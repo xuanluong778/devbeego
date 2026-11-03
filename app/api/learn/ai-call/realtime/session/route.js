@@ -19,8 +19,10 @@ import {
   learnAiCallPackageAllowanceMs,
   learnCallOpenLockTtlSeconds,
   readLearnCallPackage,
+  reserveLearnCallPackage,
   resolveUnlockedGateCall,
 } from "@/lib/beego/learn/ai-call-access";
+import { ingestLearnCallPilotSnapshot } from "@/lib/beego/learn/learn-call-pilot";
 import { getLessonContentById } from "@/lib/beego/learn/get-lesson-content";
 import {
   LEARN_CALL_DEFAULT_DIFFICULTY,
@@ -29,6 +31,10 @@ import {
 } from "@/lib/beego/learn/learn-call-tutor";
 import { learnCallTeacher } from "@/lib/beego/learn/learn-call-teachers";
 import { getLearningPathForUser } from "@/lib/beego/learning-path-progress";
+import {
+  learnCallClaimOpening,
+  learnCallOpeningPayload,
+} from "@/lib/beego/learn/learn-call-opening";
 import {
   buildRealtimeInstructions,
   createRealtimeCall,
@@ -160,7 +166,7 @@ export async function POST(request) {
 
     const plan = decision.plan;
     const teacher = learnCallTeacher(body?.teacher);
-    const limits = { ...learnAiCallLevelOneLimits(difficulty), teacher: teacher.id, teacherName: teacher.name };
+    const limits = { ...learnAiCallLevelOneLimits(difficulty), teacher: teacher.id, teacherName: teacher.name, model: getRealtimeConfig().model };
 
     // Check package allowance
     if (learnAiCallPackageAllowanceMs(plan) != null) {
@@ -225,6 +231,31 @@ export async function POST(request) {
       );
     }
 
+    if (learnAiCallPackageAllowanceMs(plan) != null) {
+      const pkg = await reserveLearnCallPackage(redis, {
+        userId,
+        plan,
+        sessionId,
+        sessionCapMs: limits.maxMinutes * 60_000,
+      });
+      if (pkg.status === "denied") {
+        await rollbackRealtimeSession(redis, { userId, sessionId });
+        return NextResponse.json(
+          {
+            success: false,
+            code: "PACKAGE_QUOTA",
+            message: "Đã hết hạn mức gọi của gói hôm nay.",
+            data: { limits: { ...limits, packageRemainingMs: pkg.remainingMs, packageAllowanceMs: pkg.allowanceMs } },
+          },
+          { status: 402, headers: { "Cache-Control": "no-store, private" } }
+        );
+      }
+      limits.packageLabel = pkg.label;
+      limits.packageAllowanceMs = pkg.allowanceMs;
+      limits.packageRemainingMs = pkg.remainingMs;
+      limits.packageReservedMs = pkg.reservedMs;
+    }
+
     // Build Realtime instructions from Stage 2 system prompt
     const topicCtx = {
       title: gate.topicTitle || lesson.title,
@@ -233,10 +264,23 @@ export async function POST(request) {
       teacherName: teacher.name,
       ...learnCallContextFromLesson(lesson, { topicTitle: gate.topicTitle, sectionId: gate.sectionId }),
     };
+    const sessionMode = body?.sessionMode === "open" ? "open" : "lesson";
+    const topicForOpening = { ...topicCtx, sessionMode };
+    let openingClaimed = false;
+    if (sessionMode !== "open" && redis) {
+      const openingLock = await learnCallClaimOpening(redis, sessionId);
+      openingClaimed = openingLock.claimed;
+    }
+    const opening = learnCallOpeningPayload(topicForOpening, limits.difficulty, {
+      open: openingClaimed,
+      invite: sessionMode === "open",
+      reason: openingClaimed ? "lesson_open" : sessionMode === "open" ? "open_mode_waits" : "already_opened",
+    });
     const instructions = buildRealtimeInstructions({
-      topicCtx,
-      sessionMode: body?.sessionMode === "open" ? "open" : "lesson",
+      topicCtx: topicForOpening,
+      sessionMode,
       teacherName: teacher.name,
+      opening,
     });
 
     const rtConfig = getRealtimeConfig();
@@ -288,6 +332,7 @@ export async function POST(request) {
           callClock: realtimeCallClock(reserved.session),
           limits,
           hints: learnAiCallLevelOneHints(lesson),
+          opening,
         },
       },
       { status: 200, headers: { "Cache-Control": "no-store, private" } }
@@ -311,10 +356,18 @@ export async function DELETE(request) {
     }
     const body = await request.json().catch(() => ({}));
     const sessionId = String(body?.sessionId || "");
-    const durationMs = Number(body?.durationMs) || 0;
     const redis = getVoiceRedis();
 
     if (redis && sessionId) {
+      await ingestLearnCallPilotSnapshot(redis, {
+        sessionId,
+        transport: "realtime",
+        model: body?.model,
+        usage: body?.usage,
+        experience: body?.experience,
+        endReason: body?.reason || "user_hangup",
+        durationMs: Number(body?.durationMs) || 0,
+      }).catch(() => null);
       await terminateRealtimeSession(redis, {
         sessionId,
         userId,

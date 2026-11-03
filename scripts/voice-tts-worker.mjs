@@ -7,6 +7,7 @@
 
 import { Worker } from "bullmq";
 import Redis from "ioredis";
+import { incrLearnCallLedgerUsage } from "../lib/beego/learn/learn-call-pilot.js";
 
 const REDIS_URL = String(process.env.REDIS_URL || "").trim();
 const OPENAI_KEY = String(process.env.OPENAI_API_KEY || "").trim();
@@ -175,6 +176,7 @@ const worker = new Worker(
     }
 
     const ac = new AbortController();
+    let ttsCharsRecorded = false;
     await streamOpenAITtsPcm({
       text: t,
       voice,
@@ -197,6 +199,10 @@ const worker = new Worker(
           redis.expire(keyUsageDaily(userId, ymd), 60 * 60 * 24 * 7).catch(() => {});
           redis.hincrby(keyUsageMonth(userId, ym), "tts_bytes", chunkU8.length).catch(() => {});
           redis.expire(keyUsageMonth(userId, ym), 60 * 60 * 24 * 40).catch(() => {});
+        } else if (skipSharedUsage === true) {
+          const chars = ttsCharsRecorded ? 0 : t.length;
+          ttsCharsRecorded = true;
+          incrLearnCallLedgerUsage(redis, sid, { ttsBytes: chunkU8.length, ttsChars: chars }).catch(() => {});
         }
         pubJson(sid, {
           type: "tts_chunk",

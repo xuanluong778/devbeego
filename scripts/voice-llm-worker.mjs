@@ -8,6 +8,7 @@ import { Worker } from "bullmq";
 import Redis from "ioredis";
 import { LEARN_CALL_MAX_REPLY_TOKENS, buildLearnCallMessages, learnCallMaxReplyTokens } from "../lib/beego/learn/learn-call-tutor.js";
 import { streamOpenAIChatSse } from "../lib/beego/learn/learn-call-stream.js";
+import { incrLearnCallLedgerUsage } from "../lib/beego/learn/learn-call-pilot.js";
 
 const REDIS_URL = String(process.env.REDIS_URL || "").trim();
 const OPENAI_KEY = String(process.env.OPENAI_API_KEY || "").trim();
@@ -173,13 +174,15 @@ const worker = new Worker(
       const okQuota = await quotaCheckAndSignal({ sessionId: sid, requestId: rid, userId, plan });
       if (!okQuota) return;
     }
+    const estIn = Math.max(1, Math.round(userText.length / 4));
     if (userId && skipSharedUsage !== true) {
       // Rough token estimate (chars/4) for cost control; can be replaced with real token accounting later.
-      const estIn = Math.max(1, Math.round(userText.length / 4));
       redis.hincrby(keyUsageDaily(userId, ymd), "llm_tokens_in", estIn).catch(() => {});
       redis.expire(keyUsageDaily(userId, ymd), 60 * 60 * 24 * 7).catch(() => {});
       redis.hincrby(keyUsageMonth(userId, ym), "llm_tokens_in", estIn).catch(() => {});
       redis.expire(keyUsageMonth(userId, ym), 60 * 60 * 24 * 40).catch(() => {});
+    } else if (skipSharedUsage === true) {
+      incrLearnCallLedgerUsage(redis, sid, { llmTokensIn: estIn }).catch(() => {});
     }
 
     let streamResult = null;
@@ -223,12 +226,14 @@ const worker = new Worker(
       return;
     }
 
+    const estOut = Math.max(1, Math.round(acc.length / 4));
     if (userId && skipSharedUsage !== true) {
-      const estOut = Math.max(1, Math.round(acc.length / 4));
       redis.hincrby(keyUsageDaily(userId, ymd), "llm_tokens_out", estOut).catch(() => {});
       redis.expire(keyUsageDaily(userId, ymd), 60 * 60 * 24 * 7).catch(() => {});
       redis.hincrby(keyUsageMonth(userId, ym), "llm_tokens_out", estOut).catch(() => {});
       redis.expire(keyUsageMonth(userId, ym), 60 * 60 * 24 * 40).catch(() => {});
+    } else if (skipSharedUsage === true) {
+      incrLearnCallLedgerUsage(redis, sid, { llmTokensOut: estOut }).catch(() => {});
     }
     // learn: 1 tells the gateway this reply used the Learn prompt; an older worker omits it.
     const marker = learnJob ? { learn: 1, ...(truncated ? { truncated: true } : {}) } : {};

@@ -7,6 +7,7 @@ import {
   realtimeSessionKey,
   touchRealtimeLiveness,
 } from "@/lib/beego/learn/learn-call-realtime";
+import { ingestLearnCallPilotSnapshot } from "@/lib/beego/learn/learn-call-pilot";
 
 export const dynamic = "force-dynamic";
 
@@ -34,8 +35,9 @@ export async function POST(request) {
       if (!raw) {
         return NextResponse.json({ success: false, code: "SESSION_EXPIRED" }, { status: 404 });
       }
+      let sessionData = null;
       try {
-        const sessionData = JSON.parse(raw);
+        sessionData = JSON.parse(raw);
         if (String(sessionData.userId) !== String(userId)) {
           return NextResponse.json({ success: false, code: "FORBIDDEN", message: "Không sở hữu phiên gọi này." }, { status: 403 });
         }
@@ -59,6 +61,15 @@ export async function POST(request) {
         /* ignore parse error */
       }
       await touchRealtimeLiveness(redis, sessionId);
+      if (body?.usage || body?.experience) {
+        await ingestLearnCallPilotSnapshot(redis, {
+          sessionId,
+          transport: "realtime",
+          model: body?.model || sessionData?.model,
+          usage: body?.usage,
+          experience: body?.experience,
+        }).catch(() => null);
+      }
     }
 
     return NextResponse.json({ success: true, timestamp: Date.now(), callClock }, { status: 200 });

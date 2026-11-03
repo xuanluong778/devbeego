@@ -50,6 +50,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   const [hintsOpen, setHintsOpen] = useState(false);
   const [coach, setCoach] = useState(null);
   const [coachBusy, setCoachBusy] = useState("");
+  const [openingCaption, setOpeningCaption] = useState("");
   const practiceRef = useRef("");
   const activeListenIdRef = useRef(0);
   const activePracticeIdRef = useRef(0);
@@ -188,6 +189,15 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
       setNotice(err || "Lỗi kết nối Realtime.");
     },
     onCoachPcmChunk: onPcmChunk,
+    onOpening: (opening) => {
+      if (!isRealtime || closedRef.current || !opening?.spoken) return;
+      setOpeningCaption(opening.spoken);
+      if (opening.hint?.en) {
+        setReplyHints([{ en: opening.hint.en, vi: opening.hint.vi || "", facet: opening.targetId || "name" }]);
+        setHintsOpen(true);
+      }
+      if (opening.invite) setNotice("Bạn có thể bắt đầu nói khi sẵn sàng.");
+    },
   });
   closingRef.current = closingRef.current || (isRealtime && realtimeTutor.isClosing);
 
@@ -401,7 +411,16 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
         }
         azureRef.current = true;
         talkRef.current.hello({ azure: true, requestId: serverRid });
-        setPhase("ready");
+        const hydratedHasTutor = Array.isArray(msg.transcript) && msg.transcript.some((turn) => turn?.role === "tutor" && String(turn.text || "").trim());
+        if (msg.opening?.spoken && !hydratedHasTutor) {
+          setOpeningCaption(msg.opening.spoken);
+          if (msg.opening.hint?.en) {
+            setReplyHints([{ en: msg.opening.hint.en, vi: msg.opening.hint.vi || "", facet: msg.opening.targetId || "name" }]);
+            setHintsOpen(true);
+          }
+        }
+        if (msg.opening?.invite) setNotice("Bạn có thể bắt đầu nói khi sẵn sàng.");
+        setPhase(msg.opening?.shouldSpeak ? "thinking" : "ready");
         return;
       }
       if (msg.type === "call_summary") {
@@ -610,6 +629,8 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     difficulty: offer?.difficulty,
     teacher: teacher?.id || offer?.limits?.teacher,
     sessionMode: offer?.sessionMode,
+    topic: offer?.topic || offer?.title,
+    title: offer?.title,
   });
   offerParamsRef.current = {
     sessionId: sessionId || offer?.sessionId,
@@ -618,6 +639,8 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     difficulty: offer?.difficulty,
     teacher: teacher?.id || offer?.limits?.teacher,
     sessionMode: offer?.sessionMode,
+    topic: offer?.topic || offer?.title,
+    title: offer?.title,
   };
 
   useEffect(() => {
@@ -799,13 +822,13 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     tutorName: tutorLabel,
     captionsOn,
   });
-  const caption = captionView.text;
-  const captionRole = captionView.role;
+  const caption = captionView.text || (!captionView.text && openingCaption ? openingCaption : "");
+  const captionRole = captionView.text ? captionView.role : openingCaption ? "tutor" : captionView.role;
   const canReplay = Boolean(transcriptLastTutor(transcript));
 
   const effectiveHints = useMemo(() => {
     if (replyHints.length) return replyHints;
-    const currentTutor = (captionRole === "tutor" ? caption : "") || transcriptLastTutor(transcript);
+    const currentTutor = (captionRole === "tutor" ? caption : "") || openingCaption || transcriptLastTutor(transcript);
     if (!currentTutor) {
       return [
         { en: "Hello!", vi: "Xin chào!" },
@@ -829,7 +852,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
       { en: "I understand.", vi: "Tôi hiểu rồi." },
       { en: "Could you repeat that?", vi: "Bạn có thể nhắc lại không?" },
     ];
-  }, [replyHints, transcript, caption, captionRole, offer]);
+  }, [replyHints, transcript, caption, captionRole, offer, openingCaption]);
 
   useEffect(() => {
     setHintsOpen(false);
@@ -844,18 +867,33 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   const closing = transcriptHasClosing(transcript) || (isRealtime && realtimeTutor.isClosing);
   const speakControl = learnCallSpeakControl(phase, { closing });
   const speakLabel = phase === "mic" ? "Cho phép micro" : speakControl.label;
+  const waitingTutorOpen =
+    phase !== "ended" &&
+    phase !== "error" &&
+    offer?.sessionMode !== "open" &&
+    (phase === "thinking" || phase === "connecting" || (phase === "ready" && !transcriptLastTutor(transcript) && !caption));
   const statusLabel =
-    phase === "connecting"
+    phase === "connecting" || (isRealtime && realtimeTutor.status === "connecting")
       ? "Đang kết nối…"
       : phase === "mic"
         ? "Cần quyền micro"
-        : phase === "error"
-          ? "Lỗi kết nối"
+        : phase === "error" || (isRealtime && realtimeTutor.status === "error")
+          ? "Lỗi kết nối. Hãy thử lại."
           : phase === "ended"
             ? "Cuộc gọi đã kết thúc"
-            : phase === "speaking" && !closing && !mouthOn
-              ? "Gia sư đang chuẩn bị tiếng. Bấm để ngắt lời nếu bạn muốn nói."
-              : speakControl.hint || "Đến lượt bạn. Bấm để nói.";
+            : isRealtime && realtimeTutor.audioBlocked
+              ? "Trình duyệt đang chặn tiếng. Bấm Bật tiếng để nghe gia sư."
+              : waitingTutorOpen
+                ? "Đến lượt gia sư. Đang mở lời…"
+                : phase === "speaking" || (isRealtime && realtimeTutor.status === "speaking")
+                  ? mouthOn || isRealtime
+                    ? "Gia sư đang nói. Bấm để ngắt lời nếu bạn muốn nói."
+                    : "Gia sư đang chuẩn bị tiếng. Bấm để ngắt lời nếu bạn muốn nói."
+                  : phase === "listening"
+                    ? speakControl.hint
+                    : phase === "transcribing" || phase === "thinking"
+                      ? speakControl.hint
+                      : "Đến lượt bạn. Bấm để nói.";
   const captionText = caption || "Chưa có phụ đề cho lượt này.";
   const speakDisabled =
     closing ||
@@ -1009,6 +1047,11 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
               <i aria-hidden="true" />
               <span>{notice || micError || statusLabel}</span>
             </p>
+            {isRealtime && realtimeTutor.audioBlocked && !ended ? (
+              <button type="button" className="beego-call-stage__leave" onClick={realtimeTutor.unblockAudio}>
+                Bật tiếng để nghe gia sư
+              </button>
+            ) : null}
             <div className={`beego-call-stage__wave${waveActive ? " is-active" : ""}${phase === "listening" ? " is-mic" : ""}`} aria-hidden="true">
               {WAVE_BARS.map((bar) => (
                 <i key={bar.i} style={{ "--i": bar.i, "--h": bar.h }} />
@@ -1259,6 +1302,22 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                   : "Chưa có câu nào được ghi nhận"}
             </h1>
             <p>{notice || "Kết quả bài học không đổi."}</p>
+            {serverSummary?.evidenceNote ? <p>{serverSummary.evidenceNote}</p> : null}
+            {serverSummary?.learnerSaid ? (
+              <p>
+                Câu bạn đã nói: “{serverSummary.learnerSaid}”
+              </p>
+            ) : (
+              <p className="beego-call-stage__note">Chưa có câu học viên thực sự nói. Câu mẫu của gia sư không được tính là thành tích.</p>
+            )}
+            {Array.isArray(serverSummary?.achieved) && serverSummary.achieved.length ? (
+              <p>Mục tiêu có bằng chứng: {serverSummary.achieved.join(", ")}</p>
+            ) : practiced ? (
+              <p className="beego-call-stage__note">Chưa đủ bằng chứng để ghi nhận mục tiêu đã đạt.</p>
+            ) : null}
+            {Array.isArray(serverSummary?.intentOnly) && serverSummary.intentOnly.length ? (
+              <p className="beego-call-stage__note">Đã giao tiếp đúng ý, chưa dùng đủ cấu trúc mục tiêu: {serverSummary.intentOnly.join(", ")}</p>
+            ) : null}
             {serverSummary?.practiceNote ? <p>{serverSummary.practiceNote}</p> : null}
             {serverSummary?.communicationNote ? <p>{serverSummary.communicationNote}</p> : null}
             {Array.isArray(serverSummary?.practicePoints) && serverSummary.practicePoints.length ? (

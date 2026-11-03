@@ -10,7 +10,7 @@ import {
   decideLearnAiCallAccess,
   isOrdinaryLessonCall,
   claimLearnCallOpenLock,
-  finalizeLearnCallSession,
+  closeLearnCallAccounting,
   learnAiCallContextKey,
   learnAiCallEmailAllowed,
   learnAiCallEndedKey,
@@ -277,7 +277,7 @@ export async function DELETE(request) {
     const sessionId = String(body?.sessionId || "");
     const redis = getVoiceRedis();
     if (redis && sessionId) {
-      await finalizeLearnCallSession(redis, { userId, sessionId });
+      await closeLearnCallAccounting(redis, { userId, sessionId });
     }
     return NextResponse.json(
       { success: true },

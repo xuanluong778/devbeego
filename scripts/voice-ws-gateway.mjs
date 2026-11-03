@@ -13,7 +13,7 @@ import Redis from "ioredis";
 import fs from "node:fs";
 import path from "node:path";
 import {
-  finalizeLearnCallSession,
+  closeLearnCallAccounting,
   learnAiCallBindingMatches,
   learnAiCallClockKey,
   learnAiCallControlChannel,
@@ -30,6 +30,7 @@ import {
   resolveLearnCallClock,
   settleLearnCallHold,
 } from "../lib/beego/learn/ai-call-access.js";
+import { ingestLearnCallPilotSnapshot } from "../lib/beego/learn/learn-call-pilot.js";
 import { applyLearnPlaybackAck, createLearnAudioCache } from "../lib/beego/learn/learn-call-playback.js";
 import {
   LEARN_CALL_DEFAULT_DIFFICULTY,
@@ -46,6 +47,13 @@ import {
   learnCallTurnPlan,
   learnCallUnclearHelp,
 } from "../lib/beego/learn/learn-call-tutor.js";
+import {
+  learnCallClaimOpening,
+  learnCallMarkOpening,
+  learnCallOpeningClaimed,
+  learnCallOpeningPayload,
+  learnCallShouldTutorOpen,
+} from "../lib/beego/learn/learn-call-opening.js";
 import { LEARN_CALL_EMPTY_LISTEN, LEARN_TALK_FINAL_WAIT_MS, LEARN_TALK_SEGMENT_FLUSH_MS, createLearnUtterance } from "../lib/beego/learn/learn-call-talk.js";
 import { learnCallCoachMessage } from "../lib/beego/learn/learn-call-coach.js";
 import { learnTranscriptSnapshot } from "../lib/beego/learn/learn-call-transcript.js";
@@ -640,7 +648,7 @@ async function queueLearnTutorTurn(ws, { sessionId, requestId, text, memory }) {
     remainingMs: learnRemainingMs(ws),
     topicCtx: learnTopicCtx(ws),
   });
-  if (plan.mode === "none" || plan.mode === "closed") return plan;
+  if (plan.mode === "none" || plan.mode === "closed" || plan.mode === "invite") return plan;
   if (plan.mode === "closing") ws.learnClosingRid = requestId;
   await llmQueue.add(
     `${plan.mode === "greet" ? "greet" : "final"}-${sessionId}-${requestId}`,
@@ -693,6 +701,9 @@ function learnShapeForTurn(ws, raw, { closing = false, truncated = false, memory
   const selfAnswer = plan?.asksTutor
     ? learnCallTutorSelfAnswer(plan?.asksTutorFacet, plan?.teacherName || ctx.teacherName)
     : "";
+  const lastLearner = [...(Array.isArray(memory) ? memory : [])]
+    .filter((item) => item?.role === "user" && String(item.content || "").trim())
+    .sort((a, b) => (Number(b.requestId) || 0) - (Number(a.requestId) || 0))[0];
   return learnCallShapeReply(raw, {
     closing,
     difficulty: ws.learnDifficulty,
@@ -702,7 +713,10 @@ function learnShapeForTurn(ws, raw, { closing = false, truncated = false, memory
     helpText,
     asksTutor: plan?.asksTutor === true,
     selfAnswer,
-    nextQuestion: closing || plan?.unclear || plan?.helpKind === "repeat" ? "" : next,
+    nextQuestion: closing || (plan?.unclear === true && !plan?.currentPractice?.completed) || plan?.helpKind === "repeat" ? "" : next,
+    answerKind: plan?.answerKind || "",
+    lastLearnerText: String(lastLearner?.content || ""),
+    practiceCompleted: Boolean(plan?.currentPractice?.completed),
   });
 }
 
@@ -820,6 +834,9 @@ function handleBinary(ws, data) {
       redis.expire(keyUsageDaily(ws.userId, ymd), 60 * 60 * 24 * 7).catch(() => {});
       redis.hincrby(keyUsageMonth(ws.userId, ym), "stt_audio_ms", ms).catch(() => {});
       redis.expire(keyUsageMonth(ws.userId, ym), 60 * 60 * 24 * 40).catch(() => {});
+    } else if (ms > 0 && ws.learnPrompt) {
+      ws.learnUsage = ws.learnUsage || { sttAudioMs: 0, pronunciationAudioMs: 0 };
+      ws.learnUsage.sttAudioMs = Number(ws.learnUsage.sttAudioMs || 0) + ms;
     }
   } catch (_e) {}
 
@@ -989,7 +1006,27 @@ async function endLearnSocket(ws, reason) {
     await emitLearnSummary(ws, reason);
   } catch (_e) {}
   try {
-    await finalizeLearnCallSession(redis, { userId: ws.userId, sessionId: ws.sessionId });
+    const accounting = await closeLearnCallAccounting(redis, {
+      userId: ws.userId,
+      sessionId: ws.sessionId,
+      startedAt: ws.learnClock?.startedAt,
+    });
+    await ingestLearnCallPilotSnapshot(redis, {
+      sessionId: ws.sessionId,
+      transport: "ws",
+      model: process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
+      startedAt: ws.learnClock?.startedAt,
+      endedAt: Date.now(),
+      endReason: reason || "client_end",
+      quotaChargedMs: accounting.settle?.consumedMs,
+      quotaStatus: accounting.settle?.status,
+      usage: ws.learnUsage || {},
+      experience: {
+        callReadyAt: ws.learnReadyAt,
+        openingAudibleAt: ws.learnOpeningAudibleAt,
+        firstValidLearnerAt: ws.learnFirstValidAt,
+      },
+    }).catch(() => null);
   } catch (_e) {}
   try {
     await setCancelled(ws.sessionId, ws.currentRequestId);
@@ -1171,10 +1208,7 @@ wss.on("connection", async (ws, req) => {
       ws.userId = auth.userId;
       ws.sessionId = sessionId;
       try {
-        await finalizeLearnCallSession(redis, { userId: auth.userId, sessionId });
-      } catch (_e) {}
-      try {
-        await settleLearnCallHold(redis, { userId: auth.userId, sessionId, startedAt: clock.startedAt });
+        await closeLearnCallAccounting(redis, { userId: auth.userId, sessionId, startedAt: clock.startedAt });
       } catch (_e) {}
       safeSend(ws, {
         type: "call_ended",
@@ -1233,9 +1267,20 @@ wss.on("connection", async (ws, req) => {
     if (closingTurn) ws.learnClosingRid = closingTurn.requestId;
     learnResumeRid = learnTranscript.reduce((max, turn) => Math.max(max, turn.requestId), 0);
   }
+  const openingDecision = ws.learnPrompt
+    ? learnCallShouldTutorOpen({
+        sessionMode: ws.learnTopicCtx?.sessionMode || "lesson",
+        memory: learnMemory,
+        openingClaimed: learnResumeRid > 0 || (await learnCallOpeningClaimed(redis, sessionId)),
+      })
+    : { open: false, invite: false, reason: "" };
+  const opening = ws.learnPrompt
+    ? learnCallOpeningPayload(ws.learnTopicCtx, ws.learnDifficulty, openingDecision)
+    : null;
   safeSend(ws, {
     type: "hello",
     ...(ws.learnPrompt ? { transcript: learnTranscript, currentRequestId: Math.max(1, learnResumeRid) } : {}),
+    ...(opening ? { opening } : {}),
     useAzure: USE_AZURE,
     pcmHz: 16000,
     channels: 1,
@@ -1262,6 +1307,7 @@ wss.on("connection", async (ws, req) => {
       : null,
     packageQuota: ws.learnPackage || null,
   });
+  if (ws.learnPrompt && !ws.learnReadyAt) ws.learnReadyAt = Date.now();
 
   // Subscribe to worker events and stream to this WS
   const sub = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
@@ -1269,13 +1315,17 @@ wss.on("connection", async (ws, req) => {
   if (ws.learnPrompt) {
     ws.currentRequestId = Math.max(1, learnResumeRid);
     await redis.hset(kSess(sessionId), { currentRequestId: String(ws.currentRequestId) });
-    if (!learnResumeRid) {
-      await queueLearnTutorTurn(ws, {
-        sessionId,
-        requestId: 1,
-        text: "The learner just joined. Greet them and ask one simple question about the lesson.",
-        memory: [],
-      });
+    if (!learnResumeRid && openingDecision.open) {
+      const claim = await learnCallClaimOpening(redis, sessionId);
+      if (claim.claimed) {
+        ws.learnOpeningRid = 1;
+        await queueLearnTutorTurn(ws, {
+          sessionId,
+          requestId: 1,
+          text: "The learner just joined. Greet them and ask one simple question about the lesson.",
+          memory: [],
+        });
+      }
     }
     ws.learnTimer = setTimeout(() => {
       endLearnSocket(ws, ws.learnStopReason || "time_limit").catch(() => {});
@@ -1356,6 +1406,7 @@ wss.on("connection", async (ws, req) => {
       if (!b64) return;
       const u8 = Buffer.from(b64, "base64");
       if (ws.learnPrompt) {
+        if (!ws.learnOpeningAudibleAt) ws.learnOpeningAudibleAt = Date.now();
         learnCacheFor(sessionId).append(rid, u8);
         const audio = learnAudioFor(ws, rid);
         if (audio.bytes === 0 && rid) {
@@ -1451,6 +1502,12 @@ wss.on("connection", async (ws, req) => {
         await endLearnSocket(ws, "lesson_complete");
         return;
       }
+      if (ws.learnPrompt) {
+        await learnCallMarkOpening(redis, sessionId, "learner");
+        if (ws.learnOpeningRid && ws.currentRequestId === ws.learnOpeningRid) {
+          await setCancelled(sessionId, ws.learnOpeningRid);
+        }
+      }
 
       const okRate = await enforceRateLimit({ userId: ws.userId, plan: ws.userPlan });
       if (listenGen !== ws.learnListenGen) return;
@@ -1516,6 +1573,7 @@ wss.on("connection", async (ws, req) => {
             safeSend(ws, { type: "final_transcript", requestId: rid, text: "", practice: Boolean(practice) });
             return;
           }
+          if (result.text && !ws.learnFirstValidAt) ws.learnFirstValidAt = Date.now();
           if (practice) {
             safeSend(ws, { type: "final_transcript", requestId: rid, text: result.text, practice: true });
             scoreLearnUtterancePronunciation(ws, {
