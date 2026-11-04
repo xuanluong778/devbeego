@@ -238,7 +238,8 @@ const messages = buildLearnCallMessages({
 });
 assert.deepEqual(messages.map((m) => m.role), ["system", "assistant", "user", "system"]);
 assert.equal(messages[0].content, prompt, "only the Learn prompt, no generic tutor prompt");
-assert.equal(messages.filter((m) => m.content === "My name is Lan.").length, 1, "learner line is not duplicated");
+assert.equal(messages.filter((m) => m.content === "My name is Lan.").length, 0, "Personal name is not repeated into model memory");
+assert.equal(messages.filter(m => m.content.includes("Personal detail omitted")).length, 1);
 assert.ok(messages.every((m) => Object.keys(m).sort().join() === "content,role"), "no extra fields sent to the model");
 const greetMessages = buildLearnCallMessages({ system: prompt, memory: [], directive: learnCallTurnDirective(greetPlan) });
 assert.deepEqual(greetMessages.map((m) => m.role), ["system", "user", "system"]);

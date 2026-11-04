@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mapRealtimeEvent } from "@/lib/beego/learn/learn-call-realtime";
 import { createRealtimeTranscriptAdapter, dispatchRealtimeTranscriptEvent } from "@/lib/beego/learn/learn-call-realtime-transcript";
+import { createRealtimeTurnCoordinator, learnCallTurnModeEvent } from "@/lib/beego/learn/learn-call-realtime-turns";
 import { createRealtimeCallLifecycle } from "@/lib/beego/learn/learn-call-realtime-lifecycle";
 
 /**
@@ -60,6 +61,7 @@ export function useRealtimeTutor({
   onSessionClock,
   onEnded,
   onOpening,
+  onTurnDecision,
 } = {}) {
   const [status, setStatus] = useState("idle");
   const [isMuted, setIsMuted] = useState(false);
@@ -83,6 +85,7 @@ export function useRealtimeTutor({
     onSessionClock,
     onEnded,
     onOpening,
+    onTurnDecision,
   });
   callbacksRef.current = {
     onTranscriptEvent,
@@ -93,9 +96,11 @@ export function useRealtimeTutor({
     onSessionClock,
     onEnded,
     onOpening,
+    onTurnDecision,
   };
   const openingGateRef = useRef({ dcOpen: false, configured: false, tried: false });
 
+  const turnCoordinatorRef = useRef(null);
   const pcRef = useRef(null);
   const dcRef = useRef(null);
   const audioElRef = useRef(null);
@@ -153,11 +158,29 @@ export function useRealtimeTutor({
     return false;
   }, []);
 
+  if (!turnCoordinatorRef.current) turnCoordinatorRef.current = createRealtimeTurnCoordinator({
+    sendEvent,
+    onDecision: decision => {
+      callbacksRef.current.onTurnDecision?.(decision);
+      if (decision.action === "closing") applyLifecycleEffects(lifecycleRef.current.notePolicyClosing());
+    },
+    onError: error => callbacksRef.current.onNotice?.(error?.message === "INCOMPLETE_UTTERANCE" ? "Bạn có thể nói tiếp ý vừa rồi, hoặc bỏ qua để sang câu mới." : "Chưa nhận được lời bạn nói. Bạn có thể nói lại hoặc kết nối lại."),
+    requestTurn: async payload => {
+      const response = await fetch("/api/learn/ai-call/realtime/turn", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.success) throw new Error(json.code || "TURN_POLICY_UNAVAILABLE");
+      return json.data;
+    },
+  });
+
   const applyLifecycleEffects = useCallback((effects) => {
     for (const effect of effects) {
       if (effect.type === "send") {
         sendEvent(effect.event);
       } else if (effect.type === "closing") {
+        turnCoordinatorRef.current.stop();
         setIsClosing(true);
         setIsTalking(false);
         localStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = false; });
@@ -173,6 +196,7 @@ export function useRealtimeTutor({
   useEffect(() => {
     const timer = setInterval(() => {
       const lifecycle = lifecycleRef.current;
+      turnCoordinatorRef.current?.tick(Date.now());
       if (lifecycle.ended) return;
       if (dcRef.current?.readyState === "open" || (lifecycle.clock && Date.now() >= lifecycle.clock.deadlineAt)) {
         applyLifecycleEffects(lifecycle.tick(Date.now()));
@@ -253,6 +277,7 @@ export function useRealtimeTutor({
     async ({ sessionId, lessonId, sectionId, difficulty, teacher, sessionMode, topic, title }) => {
       if (connectingRef.current) return;
       connectingRef.current = true;
+      turnCoordinatorRef.current.connect(sessionId);
       const mySeq = ++connSeqRef.current;
       transcriptAdapterRef.current = createRealtimeTranscriptAdapter();
       lifecycleRef.current = createRealtimeCallLifecycle();
@@ -356,6 +381,8 @@ export function useRealtimeTutor({
 
         dc.onopen = () => {
           if (connSeqRef.current === mySeq) {
+            sendEvent(learnCallTurnModeEvent(talkModeRef.current));
+            turnCoordinatorRef.current.ready();
             updateStatus("connected");
             applyLifecycleEffects(lifecycleRef.current.tick(Date.now()));
             openingGateRef.current.dcOpen = true;
@@ -373,6 +400,7 @@ export function useRealtimeTutor({
             const raw = JSON.parse(e.data);
             const mapped = mapRealtimeEvent(raw);
             if (!mapped) return;
+            if (!lifecycleRef.current.closing) turnCoordinatorRef.current.observe(mapped);
             if (lifecycleRef.current.closing && mapped.type === "user_speech_started") return;
             const projection = dispatchRealtimeTranscriptEvent(transcriptAdapterRef.current, mapped, {
               onTranscriptEvent: callbacksRef.current.onTranscriptEvent,
@@ -481,6 +509,7 @@ export function useRealtimeTutor({
             difficulty,
             teacher,
             sessionMode,
+            talkMode: talkModeRef.current,
           }),
         });
 
@@ -504,10 +533,12 @@ export function useRealtimeTutor({
         } : null);
         const clock = lifecycleRef.current.setClock(serverClock);
         if (clock) callbacksRef.current.onSessionClock?.(clock);
+        turnCoordinatorRef.current.configure({ awaitingPracticeAttempt: json.data.awaitingPracticeAttempt === true });
         const opening = json.data.opening || null;
         lifecycleRef.current.configureOpening({
           sessionMode: sessionMode === "open" ? "open" : "lesson",
-          topicCtx: { topic: topic || title || "", title: title || topic || "", sectionId, sessionMode },
+          topicCtx: json.data.topicCtx || { topic: topic || title || "", title: title || topic || "", sectionId, sessionMode },
+          opening,
           difficulty,
           shouldSpeak: opening?.shouldSpeak === true,
         });
@@ -535,7 +566,7 @@ export function useRealtimeTutor({
         }
       }
     },
-    [applyLifecycleEffects, startHeartbeat, updateStatus]
+    [applyLifecycleEffects, sendEvent, startHeartbeat, updateStatus]
   );
 
   const disconnect = useCallback(async ({ reason = "user_hangup" } = {}) => {
@@ -543,6 +574,7 @@ export function useRealtimeTutor({
     connectingRef.current = false;
     stopHeartbeat();
     lifecycleRef.current.stop();
+    turnCoordinatorRef.current.stop();
     const sid = sessionIdRef.current;
     if (sid) {
       sessionIdRef.current = "";
@@ -587,6 +619,11 @@ export function useRealtimeTutor({
   }, [stopHeartbeat, telemetryPayload, updateStatus]);
   disconnectRef.current = disconnect;
 
+  const repeatQuestion = useCallback(() => {
+    if (lifecycleRef.current.closing || dcRef.current?.readyState !== "open") return;
+    turnCoordinatorRef.current.observe({ type: "user_transcript_final", itemId: `repeat-${crypto.randomUUID()}`, text: "Could you repeat the question?" });
+  }, []);
+
   const endGracefully = useCallback(() => {
     if (dcRef.current?.readyState !== "open") {
       disconnectRef.current();
@@ -614,21 +651,29 @@ export function useRealtimeTutor({
   // Push-to-talk controls (manual mode)
   const startTalking = useCallback(() => {
     if (lifecycleRef.current.closing) return;
-    if (isMutedRef.current) return;
+    if (isMutedRef.current || talkingRef.current) return;
+    talkingRef.current = true;
+    sendEvent({ type: "input_audio_buffer.clear" });
+    sendEvent({ type: "response.cancel" });
+    sendEvent({ type: "output_audio_buffer.clear" });
     setIsTalking(true);
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
       if (audioTrack) audioTrack.enabled = true;
     }
-  }, []);
+  }, [sendEvent]);
 
+  const talkingRef = useRef(false);
   const stopTalking = useCallback(() => {
+    const wasTalking = talkingRef.current;
+    talkingRef.current = false;
     setIsTalking(false);
     if (talkModeRef.current === "manual" && localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
       if (audioTrack) audioTrack.enabled = false;
     }
-  }, []);
+    if (wasTalking && talkModeRef.current === "manual") sendEvent({ type: "input_audio_buffer.commit" });
+  }, [sendEvent]);
 
   const unblockAudio = useCallback(() => {
     const el = audioElRef.current;
@@ -639,6 +684,10 @@ export function useRealtimeTutor({
   const setMode = useCallback((mode) => {
     if (lifecycleRef.current.closing) return;
     const nextMode = mode === "manual" ? "manual" : "auto";
+    talkModeRef.current = nextMode;
+    talkingRef.current = false;
+    setIsTalking(false);
+    sendEvent(learnCallTurnModeEvent(nextMode));
     setTalkMode(nextMode);
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
@@ -646,7 +695,7 @@ export function useRealtimeTutor({
         audioTrack.enabled = !isMutedRef.current && nextMode === "auto";
       }
     }
-  }, []);
+  }, [sendEvent]);
 
   useEffect(() => {
     return () => {
@@ -664,6 +713,7 @@ export function useRealtimeTutor({
       captionTarget,
       isClosing,
       endGracefully,
+      repeatQuestion,
       connect,
       disconnect,
       toggleMute,
@@ -682,6 +732,7 @@ export function useRealtimeTutor({
       captionTarget,
       isClosing,
       endGracefully,
+      repeatQuestion,
       connect,
       disconnect,
       toggleMute,

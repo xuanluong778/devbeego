@@ -429,21 +429,21 @@ console.log("Prompt 2 pilot tests");
   const unclear = learnCallClassifyAnswer("...uh", { pendingQuestion: pending, topicCtx: topic, unclear: true });
   assert.equal(unclear.kind, "unclear");
   const gap = learnCallClassifyAnswer("She my friend", { pendingQuestion: { intent: "job", text: "What do you do?" }, topicCtx: topic });
-  assert.equal(gap.kind, "correct");
+  assert.equal(gap.kind, "accept", "Minor form gaps do not block the conversation");
   const retries = nextRetriesByTarget({}, gap);
   const exhausted = learnCallClassifyAnswer("She my friend", {
     pendingQuestion: { intent: "job", text: "What do you do?" },
     topicCtx: topic,
     retriesByTarget: retries,
   });
-  assert.equal(exhausted.kind, "correct_exhausted");
+  assert.equal(exhausted.kind, "accept");
   const third = learnCallClassifyAnswer("She my friend", {
     pendingQuestion: { intent: "job", text: "What do you do?" },
     topicCtx: topic,
     retriesByTarget: nextRetriesByTarget(retries, exhausted),
   });
-  assert.equal(third.kind, "correct_exhausted");
-  console.log("  [PASS] Prompt 1: accept non-template, no correction from unclear, one retry only");
+  assert.equal(third.kind, "accept");
+  console.log("  [PASS] Prompt 1: accept non-template and minor form gaps, no correction from unclear");
 }
 
 {

@@ -183,9 +183,9 @@ async function runStage5Acceptance() {
   }
 
   // ---------------------------------------------------------------------------
-  // Test 2: Missing 'is' Copula -> Scaffold -> Retry -> Follow-up 'Why'
+  // Test 2: Missing 'is' Metadata -> Legacy Drill Ends After One Attempt
   // ---------------------------------------------------------------------------
-  console.log("\n-> Test 2: Missing 'is' copula detection & scaffolding...");
+  console.log("\n-> Test 2: Missing 'is' metadata must not extend a legacy drill...");
   {
     const targetPhrase = "The assistant is interesting";
     const userSpoken = "The assistant interesting";
@@ -201,8 +201,8 @@ async function runStage5Acceptance() {
     ];
     const plan = learnCallTurnPlan({ memory: memPractice });
     const directive = learnCallTurnDirective(plan, "easy");
-    assert.ok(directive.includes("The learner is practicing the target phrase"));
-    assert.ok(plan.currentPractice.active, "Practice phrase remains active across turns");
+    assert.ok(!directive.includes("The learner is practicing the target phrase"), "No second practice invitation");
+    assert.equal(plan.currentPractice.active, false, "Practice ends after one attempt, including an incomplete attempt");
 
     // Next turn: user corrects and says full sentence
     memPractice.push(

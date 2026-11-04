@@ -1,3 +1,4 @@
+import { ensureLearnCallPolicy, reserveLearnCallPolicyTurn, learnCallPolicyKey } from "../lib/beego/learn/learn-call-policy-store.js";
 /**
  * SaaS WS Gateway (Phase 1):
  * - JWT auth on connect (token + sessionId)
@@ -650,6 +651,10 @@ async function queueLearnTutorTurn(ws, { sessionId, requestId, text, memory }) {
   });
   if (plan.mode === "none" || plan.mode === "closed" || plan.mode === "invite") return plan;
   if (plan.mode === "closing") ws.learnClosingRid = requestId;
+  if (plan.mode !== "greet" && plan.mode !== "closing") {
+    const policyTurn = await reserveLearnCallPolicyTurn(redis, { sessionId, userId: ws.userId, topicCtx: learnTopicCtx(ws), difficulty: ws.learnDifficulty }, { eventId: `gateway:${requestId}`, text });
+    if (policyTurn.decision.action === "closing") ws.learnClosingRid = requestId;
+  }
   await llmQueue.add(
     `${plan.mode === "greet" ? "greet" : "final"}-${sessionId}-${requestId}`,
     {
@@ -661,7 +666,7 @@ async function queueLearnTutorTurn(ws, { sessionId, requestId, text, memory }) {
       learn: {
         system: ws.learnPrompt,
         memory,
-        directive: learnCallTurnDirective(plan, ws.learnDifficulty),
+        directive: plan.mode === "greet" ? `Speak exactly this opening: ${JSON.stringify(learnCallOpeningPayload(learnTopicCtx(ws), ws.learnDifficulty).spoken)}` : learnCallTurnDirective(plan, ws.learnDifficulty),
         maxTokens: LEARN_CALL_DIFFICULTIES[ws.learnDifficulty].maxReplyTokens,
       },
       skipSharedUsage: true,
@@ -671,7 +676,9 @@ async function queueLearnTutorTurn(ws, { sessionId, requestId, text, memory }) {
   return plan;
 }
 
-function learnShapeForTurn(ws, raw, { closing = false, truncated = false, memory = [] } = {}) {
+function learnShapeForTurn(ws, raw, { closing = false, truncated = false, memory = [], decision = null } = {}) {
+  if (decision) return decision.spoken;
+  if (!memory.some(item => item.role === "user")) return learnCallOpeningPayload(learnTopicCtx(ws), ws.learnDifficulty).spoken;
   const plan = learnCallTurnPlan({
     memory,
     remainingMs: learnRemainingMs(ws),
@@ -681,8 +688,6 @@ function learnShapeForTurn(ws, raw, { closing = false, truncated = false, memory
   const next =
     plan?.nextAngle?.[level] ||
     plan?.nextAngle?.easy ||
-    plan?.covered?.next?.angles?.[0]?.[level] ||
-    plan?.covered?.next?.angles?.[0]?.easy ||
     "";
   const ctx = learnTopicCtx(ws) || {};
   const lastQuestion = learnCallLastTutorQuestion(memory);
@@ -1126,6 +1131,9 @@ wss.on("connection", async (ws, req) => {
     ws.learnVoice = learnCallTeacher(learnCtx.teacher).voice;
     ws.learnTeacher = learnCallTeacher(learnCtx.teacher);
     ws.learnTopicCtx = {
+      selection: learnCtx.selection,
+      sessionId,
+      difficulty: ws.learnDifficulty,
       topic: String(learnCtx.topic || learnCtx.title || ""),
       title: String(learnCtx.title || ""),
       lessonTitle: String(learnCtx.lessonTitle || ""),
@@ -1136,8 +1144,11 @@ wss.on("connection", async (ws, req) => {
       avoidUntilClosing: Array.isArray(learnCtx.avoidUntilClosing) ? learnCtx.avoidUntilClosing : [],
       sessionMode: String(learnCtx.sessionMode || "lesson"),
     };
-    ws.learnPrompt = learnAiCallLevelOnePrompt({ ...learnCtx, difficulty: ws.learnDifficulty });
+    const callPolicy = await ensureLearnCallPolicy(redis, { sessionId, userId: auth.userId, topicCtx: ws.learnTopicCtx, difficulty: ws.learnDifficulty });
+    ws.learnTopicCtx.selection = callPolicy.selection;
+    ws.learnPrompt = learnAiCallLevelOnePrompt({ ...learnCtx, selection: callPolicy.selection, difficulty: ws.learnDifficulty });
     ws.learnLesson = {
+      selection: callPolicy.selection,
       lessonId: String(learnCtx.lessonId || ""),
       title: String(learnCtx.title || learnCtx.topic || ""),
       objective: String(learnCtx.practiceGoal || learnCtx.objective || ""),
@@ -1351,7 +1362,7 @@ wss.on("connection", async (ws, req) => {
       const text = await learnShapedText(
         sessionId,
         rid,
-        learnShapeForTurn(ws, msg.text, { closing, truncated: msg.truncated === true, memory })
+        learnShapeForTurn(ws, msg.text, { closing, truncated: msg.truncated === true, memory, decision: (JSON.parse((await redis.get(learnCallPolicyKey(sessionId))) || "{}"))?.events?.[`gateway:${rid}`] || null })
       );
       if (!text) return;
       if ((await redis.set(kLearnReply(sessionId, rid), "1", "EX", 60 * 60, "NX")) !== "OK") return;
@@ -1385,10 +1396,12 @@ wss.on("connection", async (ws, req) => {
         const text = await learnShapedText(
           sessionId,
           rid,
-          learnShapeForTurn(ws, msg.text, { closing, truncated: msg.truncated === true, memory })
+          learnShapeForTurn(ws, msg.text, { closing, truncated: msg.truncated === true, memory, decision: (JSON.parse((await redis.get(learnCallPolicyKey(sessionId))) || "{}"))?.events?.[`gateway:${rid}`] || null })
         );
         if (text) {
-          const replyHints = closing ? [] : learnHintsForReply(ws, text, { plan, memory });
+          const policy = JSON.parse((await redis.get(learnCallPolicyKey(sessionId))) || "{}");
+          const decision = policy.events?.[`gateway:${rid}`];
+          const replyHints = closing ? [] : decision?.hint?.en ? [{ ...decision.hint, facet: decision.nextTargetId }] : learnHintsForReply(ws, text, { plan, memory });
           safeSend(ws, {
             ...msg,
             text,

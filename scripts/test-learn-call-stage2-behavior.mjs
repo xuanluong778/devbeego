@@ -69,10 +69,7 @@ assert.deepEqual(plan1.confirmedFacts, state1.confirmedFacts);
 
 // Directive to LLM contains the confirmed fact from state
 const directive1 = learnCallTurnDirective(plan1, "easy");
-assert.ok(
-  directive1.includes('name: "My name is Nguyen Van Binh."'),
-  "LLM directive is explicitly conditioned on confirmedFacts from state"
-);
+assert.ok(!directive1.includes('name: "My name is Nguyen Van Binh."'), "Personal name is omitted from the speaking directive");
 
 // Dynamic hints for next tutor reply use plan/state
 const tutorNextReply = "Nice to meet you, Binh! How old are you?";
@@ -176,7 +173,7 @@ assert.ok(
 );
 console.log("✓ Point 3 verified: Vietnamese & example requests receive immediate support without 1-2-3 delay.");
 
-console.log("\n=== Point 4: currentPractice Multi-turn Persistence & No False Content Turn Inflation ===");
+console.log("\n=== Point 4: One Practice Attempt & Stable Target Identity ===");
 // Reference scenario: tutor invites sentence building
 // Target sentence: "The coffee in this cafe is very delicious."
 const practiceMemory = [
@@ -188,7 +185,7 @@ const practiceMemory = [
 // Step 1: User speaks fragment "The coffee"
 const step1Memory = [...practiceMemory, user(3, "The coffee")];
 const stateStep1 = evaluateLearnCallState(step1Memory, { topicCtx: greetingTopic });
-assert.equal(stateStep1.currentPractice.active, true, "currentPractice remains active");
+assert.equal(stateStep1.currentPractice.active, false, "One attempt exhausts the target");
 assert.equal(stateStep1.currentPractice.targetPhrase, "The coffee in this cafe is very delicious");
 assert.equal(stateStep1.currentPractice.attempts.length, 1);
 assert.equal(stateStep1.currentPractice.attempts[0].text, "The coffee");
@@ -202,10 +199,10 @@ const step2Memory = [
   user(4, "in this cafe"),
 ];
 const stateStep2 = evaluateLearnCallState(step2Memory, { topicCtx: greetingTopic });
-assert.equal(stateStep2.currentPractice.active, true, "currentPractice persists across intermediate tutor turn");
+assert.equal(stateStep2.currentPractice.active, false, "Rewording cannot reopen the target");
 assert.equal(stateStep2.currentPractice.targetPhrase, "The coffee in this cafe is very delicious", "Target phrase NOT wiped");
-assert.equal(stateStep2.currentPractice.attempts.length, 2);
-assert.equal(stateStep2.contentTurns, 1, "Content turns still NOT inflated by 2nd practice fragment");
+assert.equal(stateStep2.currentPractice.attempts.length, 1, "No new retry for a smaller chunk");
+assert.equal(stateStep2.contentTurns, 2, "Subsequent speech is a new content turn, not a second drill attempt");
 
 // Step 3: User speaks the complete sentence
 const step3Memory = [
@@ -216,7 +213,7 @@ const step3Memory = [
 const stateStep3 = evaluateLearnCallState(step3Memory, { topicCtx: greetingTopic });
 assert.equal(stateStep3.currentPractice.active, false, "currentPractice completes");
 assert.equal(stateStep3.currentPractice.completed, true);
-assert.equal(stateStep3.contentTurns, 2, "Completed practice sequence counts as exactly ONE content turn total");
+assert.ok(stateStep3.contentTurns >= 2, "Further speech cannot extend the old practice budget");
 
 // 4.2 Comprehensive criteria for currentPractice completion:
 // - Missing "is":
@@ -251,9 +248,8 @@ const hintsDuringPractice = learnCallReplyHints("", {
   ...greetingTopic,
   currentPractice: stateStep1.currentPractice,
 });
-assert.equal(hintsDuringPractice[0].en, "The coffee in this cafe is very delicious");
-assert.equal(hintsDuringPractice[0].facet, "practice");
-console.log("✓ Point 4 verified: currentPractice persists across multi-turn fragments, verifies critical structures ('is', 'not', paraphrases), and never substitutes transcript match for pronunciation score.");
+assert.deepEqual(hintsDuringPractice, [], "Exhausted practice must not offer the old phrase again");
+console.log("✓ Point 4 verified: currentPractice retains its target without extending the retry budget, verifies structural metadata ('is', 'not', paraphrases), and never substitutes transcript match for pronunciation score.");
 
 console.log("\n=== Point 5: Production Modules with Novel & Diverse Test Cases ===");
 // 5.1 Diverse non-name statements with varied adjectives and states

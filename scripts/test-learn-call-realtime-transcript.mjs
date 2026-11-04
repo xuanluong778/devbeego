@@ -68,6 +68,24 @@ export function runRealtimeTranscriptTests() {
   userFinal(committed, "committed", "My name is Lan.");
   assert.equal(committed.view().label, "BẠN");
 
+  // Video reproduction: manual commit has no VAD start; the old opening must not label learner speech.
+  const manual = session();
+  response(manual, "opening");
+  final(manual, "opening", "Hi! What's your name?");
+  done(manual, "opening");
+  const commit = manual.send({ type: "input_audio_buffer.committed", item_id: "manual-input", previous_item_id: "opening-item" });
+  assert.equal(commit.caption.role, "user", "Commit alone reserves and selects the learner turn");
+  assert.ok(commit.caption.requestId > 0);
+  assert.equal(manual.view().text, "", "Do not show old tutor speech while waiting for the learner transcript");
+  assert.equal(manual.view().label, "BẠN");
+  userFinal(manual, "manual-input", "Technology");
+  assert.equal(manual.view().text, "Technology");
+  assert.equal(manual.state.turns.at(-1).role, "user");
+  const openingText = "Hi! I'm your new neighbor. What's your name?";
+  assert.equal(learnCallCaptionView(createTranscript(), { realtime: true, target: { requestId: 0, role: "tutor" }, openingText }).text, openingText);
+  assert.equal(learnCallCaptionView(createTranscript(), { realtime: true, target: { requestId: 1, role: "user" }, openingText }).text, "");
+  assert.equal(learnCallCaptionView(createTranscript(), { realtime: true, target: { requestId: 0, role: "tutor" }, openingText, captionsOn: false }).text, "");
+
   // 3. Input identity is reserved before asynchronously delivered transcripts.
   const late = session();
   speech(late, "u1");

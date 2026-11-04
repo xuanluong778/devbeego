@@ -15,7 +15,7 @@ function redisAddress(url) {
   }
 }
 
-export function loadLearnCallTestEnv() {
+export function loadLearnCallTestEnv({ redisUrl: requestedRedisUrl = process.env.REDIS_URL } = {}) {
   const file = {};
   for (const line of fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8").split(/\n/)) {
     const t = line.trim();
@@ -24,7 +24,7 @@ export function loadLearnCallTestEnv() {
     const key = t.slice(0, i).trim();
     if (!(key in file)) file[key] = t.slice(i + 1).trim();
   }
-  const redisUrl = String(process.env.REDIS_URL || "").trim();
+  const redisUrl = String(requestedRedisUrl || "").trim();
   const isolated = redisAddress(redisUrl);
   if (!isolated || isolated === redisAddress(String(file.REDIS_URL || ""))) {
     console.error("REFUSING: set REDIS_URL to an isolated test Redis, not the Redis in .env.local.");

@@ -1,0 +1,125 @@
+{
+  "source": "docs/sua-phat-am.wmv",
+  "sourceSha256": "86b19bd375454dacdbf7c1aede81b50493564a8a078268dcb9bd007e454076d6",
+  "scope": "Only two learner clips explicitly approved in this conversation; real WebRTC/provider; isolated Redis; auth/lesson/DB mocked.",
+  "originalSessionTraceAvailable": false,
+  "vadChanged": false,
+  "assessment": "Response safety and progress; age ASR accuracy remains a separate failed/reference-mismatch diagnostic.",
+  "cases": [
+    {
+      "mode": "manual",
+      "fixture": "video-age",
+      "sourceRangeSeconds": [
+        14.35,
+        16.65
+      ],
+      "inputItemIds": [
+        "item_Eg7Dbce6pzJuJV8ETzjFc"
+      ],
+      "responseId": "resp_Eg7DfAKtcVd0mTFs2AxQK",
+      "responseRootInputId": "item_Eg7Dbce6pzJuJV8ETzjFc",
+      "responseSourceItemIds": [
+        "item_Eg7Dbce6pzJuJV8ETzjFc"
+      ],
+      "commitCount": 1,
+      "responseCount": 1,
+      "transcriptFinalAfterCommitMs": {
+        "item_Eg7Dbce6pzJuJV8ETzjFc": 1353.2
+      },
+      "responseCreatedAfterLatestFinalMs": 268.4,
+      "ageReferenceMatch": false,
+      "reportedAge": 34,
+      "tutorEchoedPersonalValue": false,
+      "spoken": "Thanks. What's your name?",
+      "audioBytesReceived": 16955,
+      "failure": null
+    },
+    {
+      "mode": "manual",
+      "fixture": "video-technology",
+      "sourceRangeSeconds": [
+        26.5,
+        30.5
+      ],
+      "inputItemIds": [
+        "item_Eg7DlBtuyBDGOceAu7JOX"
+      ],
+      "responseId": "resp_Eg7DrWfrcLgYY4X9ZyloL",
+      "responseRootInputId": "item_Eg7DlBtuyBDGOceAu7JOX",
+      "responseSourceItemIds": [
+        "item_Eg7DlBtuyBDGOceAu7JOX"
+      ],
+      "commitCount": 1,
+      "responseCount": 1,
+      "transcriptFinalAfterCommitMs": {
+        "item_Eg7DlBtuyBDGOceAu7JOX": 1568.1
+      },
+      "responseCreatedAfterLatestFinalMs": 262.0,
+      "ageReferenceMatch": null,
+      "reportedAge": null,
+      "tutorEchoedPersonalValue": false,
+      "spoken": "You work in tech. Do you like your work?",
+      "audioBytesReceived": 23786,
+      "failure": null
+    },
+    {
+      "mode": "auto",
+      "fixture": "video-age",
+      "sourceRangeSeconds": [
+        14.35,
+        16.65
+      ],
+      "inputItemIds": [
+        "item_Eg7E3sQcK0juNwPnPhKNS"
+      ],
+      "responseId": "resp_Eg7E76Cf2kGEgEjHBun34",
+      "responseRootInputId": "item_Eg7E3sQcK0juNwPnPhKNS",
+      "responseSourceItemIds": [
+        "item_Eg7E3sQcK0juNwPnPhKNS"
+      ],
+      "commitCount": 1,
+      "responseCount": 1,
+      "transcriptFinalAfterCommitMs": {
+        "item_Eg7E3sQcK0juNwPnPhKNS": 1459.3
+      },
+      "responseCreatedAfterLatestFinalMs": 261.4,
+      "ageReferenceMatch": false,
+      "reportedAge": null,
+      "tutorEchoedPersonalValue": false,
+      "spoken": "Thanks. Do you like music?",
+      "audioBytesReceived": 20314,
+      "failure": null
+    },
+    {
+      "mode": "auto",
+      "fixture": "video-technology",
+      "sourceRangeSeconds": [
+        26.5,
+        30.5
+      ],
+      "inputItemIds": [
+        "item_Eg7EISg3F8hEubSxAKAty",
+        "item_Eg7ELJRL0dQxqsyMvkXSt"
+      ],
+      "responseId": "resp_Eg7EOkpNYhDqQFDN2dSHy",
+      "responseRootInputId": "item_Eg7EISg3F8hEubSxAKAty",
+      "responseSourceItemIds": [
+        "item_Eg7EISg3F8hEubSxAKAty",
+        "item_Eg7ELJRL0dQxqsyMvkXSt"
+      ],
+      "commitCount": 2,
+      "responseCount": 1,
+      "transcriptFinalAfterCommitMs": {
+        "item_Eg7EISg3F8hEubSxAKAty": 464.9,
+        "item_Eg7ELJRL0dQxqsyMvkXSt": 2085.6
+      },
+      "responseCreatedAfterLatestFinalMs": 255,
+      "ageReferenceMatch": null,
+      "reportedAge": null,
+      "tutorEchoedPersonalValue": false,
+      "spoken": "You work in tech. Do you like your work?",
+      "audioBytesReceived": 21660,
+      "failure": null
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { ensureLearnCallPolicy } from "@/lib/beego/learn/learn-call-policy-store";
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { getSessionUserIdFromRequest } from "@/lib/http/ai-entitlement";
@@ -194,6 +195,8 @@ export async function POST(request) {
       );
     }
     try {
+      const topicCtx = { ...learnCallContextFromLesson(lesson, { topicTitle: gate.topicTitle, sectionId: gate.sectionId }), sessionMode: body?.sessionMode === "open" ? "open" : "lesson" };
+      const policy = await ensureLearnCallPolicy(redis, { sessionId, userId, topicCtx, difficulty });
       await redis.set(learnAiCallSessionKey(sessionId), String(userId), "EX", lockTtl);
       await redis.set(
         learnAiCallContextKey(sessionId),
@@ -204,6 +207,8 @@ export async function POST(request) {
           title: gate.topicTitle || lesson.title,
           objective: lesson.objective,
           ...learnCallContextFromLesson(lesson, { topicTitle: gate.topicTitle, sectionId: gate.sectionId }),
+          selection: policy.selection,
+          sessionId,
           learningNotes: learnCallLearningNotes(path, { sectionId: gate.sectionId }),
           level: limits.level,
           difficulty,

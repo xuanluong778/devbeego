@@ -1,3 +1,4 @@
+import { ensureLearnCallPolicy } from "@/lib/beego/learn/learn-call-policy-store";
 import { NextResponse } from "next/server";
 import { realtimeCallClock } from "@/lib/beego/learn/learn-call-realtime-lifecycle";
 import pool from "@/lib/db";
@@ -265,7 +266,8 @@ export async function POST(request) {
       ...learnCallContextFromLesson(lesson, { topicTitle: gate.topicTitle, sectionId: gate.sectionId }),
     };
     const sessionMode = body?.sessionMode === "open" ? "open" : "lesson";
-    const topicForOpening = { ...topicCtx, sessionMode };
+    const policy = await ensureLearnCallPolicy(redis, { sessionId, userId, topicCtx: { ...topicCtx, topic: topicCtx.topic || topicCtx.title, sessionMode }, difficulty });
+    const topicForOpening = { ...policy.topicCtx, difficulty, teacher: teacher.id };
     let openingClaimed = false;
     if (sessionMode !== "open" && redis) {
       const openingLock = await learnCallClaimOpening(redis, sessionId);
@@ -293,6 +295,7 @@ export async function POST(request) {
       model: rtConfig.model,
       voice: rtConfig.voice,
       instructions,
+      turnDetection: body?.talkMode === "manual" ? null : undefined,
     });
 
     if (!rtCall.ok) {
@@ -333,6 +336,9 @@ export async function POST(request) {
           limits,
           hints: learnAiCallLevelOneHints(lesson),
           opening,
+          topicCtx: topicForOpening,
+          turnControl: "server_policy",
+          awaitingPracticeAttempt: Boolean(policy.activePractice),
         },
       },
       { status: 200, headers: { "Cache-Control": "no-store, private" } }

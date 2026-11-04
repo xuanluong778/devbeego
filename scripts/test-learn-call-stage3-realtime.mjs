@@ -251,6 +251,8 @@ async function runRealtimeTestSuite() {
   assert.deepEqual(sessionConfig.audio.input.transcription, { model: "whisper-1" });
   assert.deepEqual(sessionConfig.audio.input.turn_detection, {
     type: "server_vad",
+    create_response: false,
+    interrupt_response: true,
     threshold: 0.5,
     prefix_padding_ms: 300,
     silence_duration_ms: 500,

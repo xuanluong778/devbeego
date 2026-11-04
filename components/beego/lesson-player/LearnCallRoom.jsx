@@ -189,6 +189,10 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
       setNotice(err || "Lỗi kết nối Realtime.");
     },
     onCoachPcmChunk: onPcmChunk,
+    onTurnDecision: (decision) => {
+      if (!isRealtime || closedRef.current) return;
+      if (decision.hint?.en) setReplyHints([{ ...decision.hint, facet: decision.nextTargetId }]);
+    },
     onOpening: (opening) => {
       if (!isRealtime || closedRef.current || !opening?.spoken) return;
       setOpeningCaption(opening.spoken);
@@ -704,10 +708,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   const replay = () => {
     stopLessonTts();
     if (isRealtime) {
-      realtimeTutor.sendEvent({
-        type: "response.create",
-        response: { instructions: "Repeat your previous sentence clearly." },
-      });
+      realtimeTutor.repeatQuestion();
       return;
     }
     if (closedRef.current || readyState !== "open") return;
@@ -818,12 +819,13 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
   const captionView = learnCallCaptionView(transcript, {
     realtime: isRealtime,
     target: realtimeTutor.captionTarget,
+    openingText: openingCaption,
     requestId: isRealtime ? undefined : talkRef.current.snapshot().requestId,
     tutorName: tutorLabel,
     captionsOn,
   });
-  const caption = captionView.text || (!captionView.text && openingCaption ? openingCaption : "");
-  const captionRole = captionView.text ? captionView.role : openingCaption ? "tutor" : captionView.role;
+  const caption = captionView.text;
+  const captionRole = captionView.role;
   const canReplay = Boolean(transcriptLastTutor(transcript));
 
   const effectiveHints = useMemo(() => {
@@ -1112,7 +1114,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                 </ul>
               </div>
             ) : null}
-            {!ended && (!isRealtime ? Boolean(coach?.word) : Boolean(coach?.word && coach?.evidence === "azure_phoneme")) ? (
+            {!ended && Boolean(coach?.word && coach?.evidence === "azure_phoneme") ? (
               <div className="beego-call-stage__coach" aria-label="Luyện phát âm">
                 <small>Luyện 1 điểm</small>
                 <p>

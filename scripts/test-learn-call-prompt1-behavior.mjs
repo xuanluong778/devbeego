@@ -74,35 +74,38 @@ const jobQ = { text: "What do you do?", intent: "job" };
 assert.equal(learnCallClassifyAnswer("I work in IT", { pendingQuestion: jobQ, topicCtx }).kind, "accept");
 assert.equal(learnCallClassifyAnswer("I work in technology", { pendingQuestion: jobQ, topicCtx }).kind, "accept");
 const fragment = learnCallClassifyAnswer("technology", { pendingQuestion: jobQ, topicCtx });
-assert.equal(fragment.kind, "unclear");
-assert.equal(fragment.confirm, "Do you mean you work in tech?");
+assert.equal(fragment.kind, "accept");
+assert.equal(fragment.intentOk, true);
 const nameOnly = learnCallClassifyAnswer("Lan", { pendingQuestion: { text: "What's your name?", intent: "name" }, topicCtx });
 assert.equal(nameOnly.kind, "accept");
 assert.equal(nameOnly.intentOk, true);
 const nudge = learnCallClassifyAnswer("I am student", { pendingQuestion: jobQ, topicCtx });
-assert.equal(nudge.kind, "nudge_target");
+assert.equal(nudge.kind, "accept");
 assert.equal(nudge.intentOk, true);
 assert.equal(nudge.targetUsed, false);
 const firstGap = learnCallClassifyAnswer("She my neighbor", { pendingQuestion: { text: "Who is she?", intent: "general" }, topicCtx });
-assert.equal(firstGap.kind, "correct");
-assert.equal(firstGap.targetId, "copula:is");
-const afterRetry = nextRetriesByTarget({}, firstGap);
+assert.equal(firstGap.kind, "accept", "Missing copula does not block understood meaning");
+const meaningError = learnCallClassifyAnswer("She is angry", { pendingQuestion: { intent: "general" }, topicCtx, practiceEval: { isComplete: false, isPracticeAttempt: true, missingFocus: "not" } });
+assert.equal(meaningError.kind, "correct");
+const afterRetry = nextRetriesByTarget({}, meaningError);
 const secondGap = learnCallClassifyAnswer("She my neighbor", {
   pendingQuestion: { text: "Who is she?", intent: "general" },
   topicCtx,
   retriesByTarget: afterRetry,
+  practiceEval: { isComplete: false, isPracticeAttempt: true, missingFocus: "not" },
 });
 assert.equal(secondGap.kind, "correct_exhausted");
 const stillExhausted = learnCallClassifyAnswer("She my neighbor", {
   pendingQuestion: { text: "Try: She is my neighbor.", intent: "general" },
   topicCtx,
   retriesByTarget: nextRetriesByTarget(afterRetry, secondGap),
+  practiceEval: { isComplete: false, isPracticeAttempt: true, missingFocus: "not" },
 });
 assert.equal(stillExhausted.kind, "correct_exhausted", "paraphrase / reconnect must not reset the retry");
 assert.equal(learnCallClassifyAnswer("Bỏ qua", { pendingQuestion: jobQ, topicCtx, helpKind: "skip" }).kind, "help");
 assert.equal(learnCallHelpKind("Speak slowly please"), "slower");
 assert.equal(learnCallHelpKind("Bỏ qua"), "skip");
-console.log("  [PASS] accept synonyms, name-only, nudge, unclear fragment, one retry");
+console.log("  [PASS] accept synonyms, name-only and short answers, ignore minor forms, one meaning-change retry");
 
 console.log("=== Prompt 1 · turn plan uses classification ===");
 const itPlan = learnCallTurnPlan({
@@ -114,8 +117,8 @@ assert.equal(itPlan.answerKind, "accept");
 assert.ok(learnCallTurnDirective(itPlan, "easy").includes("Do not turn a correct answer into a drill"));
 const copulaMem = [user(4, "She my neighbor"), tutor(3, "Who is she?"), user(2, "She my neighbor"), tutor(1, "Who is she?")];
 const exhaustedPlan = learnCallTurnPlan({ memory: copulaMem, remainingMs: 90_000, topicCtx });
-assert.equal(exhaustedPlan.answerKind, "correct_exhausted");
-assert.ok(learnCallTurnDirective(exhaustedPlan, "easy").includes("already had one retry"));
+assert.equal(exhaustedPlan.answerKind, "accept");
+assert.ok(learnCallTurnDirective(exhaustedPlan, "easy").includes("Do not turn a correct answer into a drill"));
 const skipPlan = learnCallTurnPlan({
   memory: [user(2, "Bỏ qua"), tutor(1, "How old are you?")],
   remainingMs: 90_000,
@@ -243,7 +246,7 @@ const ageRetry = learnCallTurnPlan({
   remainingMs: 90_000,
   topicCtx,
 });
-assert.equal(ageRetry.currentPractice?.active, true, "one recast is allowed after a wrong number");
+assert.equal(ageRetry.currentPractice?.active, false, "An age disagreement must not grant another drill attempt");
 const ageDone = learnCallTurnPlan({
   memory: [
     user(6, age),

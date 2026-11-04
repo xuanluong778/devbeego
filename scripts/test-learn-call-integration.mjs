@@ -20,6 +20,9 @@ import {
   learnAiCallGateKey,
   learnAiCallSessionKey,
 } from "../lib/beego/learn/ai-call-access.js";
+import { learnCallSelectOpening, learnCallTopicGuide } from "../lib/beego/learn/learn-call-topics.js";
+import { learnCallAge } from "../lib/beego/learn/learn-call-personal.js";
+import { ensureLearnCallPolicy, learnCallPolicyKey } from "../lib/beego/learn/learn-call-policy-store.js";
 import { learnCallContextFromLesson, learnCallTranscriptUnclear } from "../lib/beego/learn/learn-call-tutor.js";
 import { getLessonContentById } from "../lib/beego/learn/get-lesson-content.js";
 
@@ -64,7 +67,7 @@ async function clip(text) {
   return buf;
 }
 
-async function seed(sid, userId, { maxMinutes = 2, memory = [] } = {}) {
+async function seed(sid, userId, { maxMinutes = 2, memory = [], selection = null } = {}) {
   await redis.set(learnAiCallSessionKey(sid), String(userId), "EX", 600);
   await redis.set(
     learnAiCallContextKey(sid),
@@ -77,6 +80,7 @@ async function seed(sid, userId, { maxMinutes = 2, memory = [] } = {}) {
       sectionId: "p1-g1",
       level: 1,
       maxMinutes,
+      ...(selection ? { selection } : {}),
     }),
     "EX",
     600
@@ -219,6 +223,39 @@ async function noAudioAfterEnd(S, c, rid, end) {
 }
 
 const scenarios = {
+  async conversationRegression() {
+    const S = "conversationRegression";
+    const cases = [
+      { id: "technology", intent: "job", question: "What do you do?", speech: "Technology.", expected: null },
+      { id: "age-spoken", intent: "age", question: "How old are you?", speech: "I am thirty-five years old.", expected: 35 },
+      { id: "age-forty", intent: "age", question: "How old are you?", speech: "I am forty years old.", expected: 40 },
+      { id: "age-correction", intent: "age", question: "How old are you?", speech: "No, thirty-five.", expected: 35, priorAge: 40 },
+    ];
+    for (const test of cases) {
+      const userId = (uid += 1);
+      const sid = `it-conversation-${test.id}-${Date.now()}`;
+      await seed(sid, userId, { memory: [{ role: "assistant", content: test.question, requestId: 1, playback: "complete" }] });
+      const state = await ensureLearnCallPolicy(redis, { sessionId: sid, userId, topicCtx: { topic: "Chào hỏi", sectionId: "p1-g1" }, difficulty: "easy" });
+      state.asked = [test.intent];
+      state.pending = { intent: test.intent, targetId: test.intent, question: test.question };
+      if (test.priorAge) { state.facts.age = { value: test.priorAge, status: "reported" }; state.lastPersonal = "age"; }
+      await redis.set(learnCallPolicyKey(sid), JSON.stringify(state), "EX", 600);
+      const c = await connect(sid, tokenFor(userId, sid));
+      await waitFor(c, m => m.type === "hello", 5000, "hello");
+      const spoken = await speak(c, 2, await clip(test.speech));
+      const turn = await tutorTurn(c, 2);
+      await sameText(S, c, 2);
+      const after = JSON.parse(await redis.get(learnCallPolicyKey(sid)));
+      const transcriptError = test.expected !== null ? learnCallAge(spoken.final.text) !== test.expected : !/tech|technology/i.test(spoken.final.text);
+      const responseError = /say|repeat|pronounc|thirty|forty|35|40/i.test(turn.done.text);
+      check(S, `${test.id}: transcript matches synthetic audio reference`, !transcriptError);
+      check(S, `${test.id}: new question, no drill or personal value echo`, !responseError && turn.done.text.includes("?"));
+      if (test.expected !== null) check(S, `${test.id}: reported age comes from final learner transcript`, after.facts.age?.value === test.expected);
+      check(S, `${test.id}: actual tutor audio was emitted`, turn.bytes > 0);
+      send(c, { type: "end_call" });
+      await waitFor(c, m => m.type === "call_ended", 5000, "call_ended");
+    }
+  },
   /** Greeting, ack after tts_end, duplicate/late acks, replay without LLM, clean reconnect, end_call. */
   async lifecycle() {
     const S = "lifecycle";
@@ -310,7 +347,7 @@ const scenarios = {
     const r = await tutorTurn(c, 2);
     await noAudioAfterEnd(S, c, 2, r.end);
     await sameText(S, c, 2);
-    check(S, "reply uses the learner name", /lan/i.test(r.done.text), r.done.text);
+    check(S, "personal name is acknowledged neutrally without repetition", !/lan/i.test(r.done.text) && r.done.text.includes("?"), r.done.text);
     send(c, { type: "playback_ack", kind: "turn", playback: "complete", requestId: 2, playbackId: 2 });
     await sleep(400);
     check(S, "complete ack after tts_end accepted (not stuck pending)", (await assistant(sid, 2))[0]?.playback === "complete");
@@ -482,7 +519,9 @@ const scenarios = {
     const S = "acceptance";
     const userId = (uid += 1);
     const sid = `it-accept-${Date.now()}`;
-    await seed(sid, userId, { maxMinutes: 3 });
+    const greetingGuide = learnCallTopicGuide({ topic: "Chào hỏi" });
+    const colleague = Array.from({ length: 12 }, (_, n) => learnCallSelectOpening({ guide: greetingGuide, sessionId: `acceptance-${n}` })).find(s => s.id === "colleague");
+    await seed(sid, userId, { maxMinutes: 3, selection: colleague });
     const c = await connect(sid, tokenFor(userId, sid));
     await waitFor(c, (m) => m.type === "hello", 5000, "hello");
     const greet = await tutorTurn(c, 1);
@@ -523,9 +562,10 @@ const scenarios = {
     check(S, "age answer is heard", /\b(?:twenty|20)\b/i.test(age.final.text), age.final.text);
     const homeTurn = await tutorTurn(c, 5);
     const homeText = await sameText(S, c, 5);
-    check(S, "after age the tutor asks where they live", /\bwhere\b/i.test(homeText) && /\blive|from\b/i.test(homeText), homeText);
+    check(S, "after unsolicited age, tutor advances without echoing the value", homeText.includes("?") && !/\b20\b|twenty|years old/i.test(homeText), homeText);
     const homeHints = homeTurn.done.replyHints || [];
-    check(S, "hints follow the home question, not the age just given", homeHints.length > 0 && homeHints.every((hint) => hint.facet === "home") && homeHints.every((hint) => !/\b20\b|years old/i.test(hint.en)), homeHints);
+    const selectedPolicy = JSON.parse(await redis.get(learnCallPolicyKey(sid)));
+    check(S, "hints follow the selected question, not the age just given", homeHints.length > 0 && homeHints.every(hint => hint.facet === selectedPolicy.pending.targetId) && homeHints.every((hint) => !/\b20\b|years old/i.test(hint.en)), homeHints);
     send(c, { type: "playback_ack", kind: "turn", playback: "complete", requestId: 5, playbackId: 5 });
 
     const home = await speak(c, 6, await clip("I live in Hanoi."));

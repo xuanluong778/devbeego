@@ -1,0 +1,78 @@
+{
+  "source": {
+    "path": "docs/sua-phat-am.wmv",
+    "sha256": "86b19bd375454dacdbf7c1aede81b50493564a8a078268dcb9bd007e454076d6",
+    "durationSeconds": 121.8,
+    "originalProviderItemId": null,
+    "originalProviderResponseId": null
+  },
+  "age": {
+    "audioWindowSeconds": [
+      14,
+      18
+    ],
+    "learnerSpeechApproxSeconds": [
+      14.58,
+      16.32
+    ],
+    "intendedValueReportedByUser": 35,
+    "firstVisibleTutorValue": 40,
+    "firstVisibleTutorValueAtSeconds": 17.7,
+    "originalFinalLearnerTranscript": null,
+    "offlineRecognitionIsAmbiguous": true,
+    "offlineWholeWindowCandidate": "I am 24 years old.",
+    "quietInterval": {
+      "startSeconds": 15.53594,
+      "endSeconds": 15.64294,
+      "durationMs": 107,
+      "thresholdDb": -35,
+      "minimumMs": 80
+    }
+  },
+  "job": {
+    "audioWindowSeconds": [
+      24,
+      30
+    ],
+    "question": "What do you do?",
+    "offlineCandidate": "I am a technology",
+    "meaningVariants": [
+      "Technology",
+      "IT",
+      "I work in tech",
+      "I am a technology"
+    ],
+    "observedTutorInvitations": [
+      {
+        "atSeconds": 31,
+        "text": "Good! You said technology. Let's try: I work in technology. Your turn."
+      },
+      {
+        "atSeconds": 40,
+        "text": "Good try! Let's slow down: I work in technology. You can say: I work in... Now, your turn."
+      }
+    ],
+    "quietInterval": {
+      "startSeconds": 27.72263,
+      "endSeconds": 28.79125,
+      "durationMs": 1068.62,
+      "thresholdDb": -35,
+      "minimumMs": 80
+    }
+  },
+  "caption": {
+    "learnerLabelContainsOldOpening": true,
+    "observedAroundSeconds": [
+      15,
+      16,
+      27,
+      28,
+      29
+    ]
+  },
+  "limitations": [
+    "The screen recording does not expose original provider item IDs, commit events, or final learner transcript.",
+    "Offline recognizer outputs are diagnostic candidates, not ground truth or pronunciation assessments.",
+    "A measured quiet interval in a screen recording does not prove a provider VAD boundary."
+  ]
+}
