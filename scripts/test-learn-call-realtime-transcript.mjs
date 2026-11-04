@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { mapRealtimeEvent } from "../lib/beego/learn/learn-call-realtime.js";
 import { createRealtimeTranscriptAdapter, dispatchRealtimeTranscriptEvent } from "../lib/beego/learn/learn-call-realtime-transcript.js";
-import { applyTranscriptEvent, createTranscript, learnCallCaptionView } from "../lib/beego/learn/learn-call-transcript.js";
+import { applyTranscriptEvent, createTranscript, learnCallCaptionView, learnCallLearnerBeforeTutor, learnCallShownCaption } from "../lib/beego/learn/learn-call-transcript.js";
 import { createLearnTalkController } from "../lib/beego/learn/learn-call-talk.js";
 
 function session() {
@@ -58,7 +58,7 @@ export function runRealtimeTranscriptTests() {
   speech(learner, "u1");
   userFinal(learner, "u1", "My name is Lan.");
   userFinal(learner, "u1", "My name is Lan.");
-  assert.deepEqual(learner.view(), { text: "My name is Lan.", role: "user", label: "BẠN", visible: true });
+  assert.deepEqual(learner.view(), { text: "My name is Lan.", role: "user", label: "BẠN", visible: true, pending: false });
   assert.equal(learner.state.turns.length, 1);
   const committed = session();
   committed.send({ type: "input_audio_buffer.committed", item_id: "committed", previous_item_id: null });
@@ -77,6 +77,8 @@ export function runRealtimeTranscriptTests() {
   assert.equal(commit.caption.role, "user", "Commit alone reserves and selects the learner turn");
   assert.ok(commit.caption.requestId > 0);
   assert.equal(manual.view().text, "", "Do not show old tutor speech while waiting for the learner transcript");
+  assert.equal(learnCallCaptionView(manual.state, { realtime: true, target: commit.caption, pendingCaption: "Đang nhận dạng…" }).text, "Đang nhận dạng…");
+  assert.equal(learnCallCaptionView(manual.state, { realtime: true, target: commit.caption, pendingCaption: "Đang nghe…", openingText: "Hi! What's your name?" }).text, "Đang nghe…");
   assert.equal(manual.view().label, "BẠN");
   userFinal(manual, "manual-input", "Technology");
   assert.equal(manual.view().text, "Technology");
@@ -218,6 +220,52 @@ export function runRealtimeTranscriptTests() {
   userFinal(links, "late-input", "Lan.");
   assert.deepEqual(links.state.turns.map(t => t.text), ["Hi.", "Lan.", "Nice."]);
   assert.equal(links.view().text, "Nice.");
+
+  const paired = session();
+  const speak = (itemId, previous, text, responseId, reply) => {
+    paired.send({ type: "input_audio_buffer.speech_started", item_id: itemId });
+    paired.send({ type: "input_audio_buffer.committed", item_id: itemId, previous_item_id: previous });
+    paired.send({ type: "conversation.item.input_audio_transcription.completed", item_id: itemId, transcript: text });
+    paired.send({ type: "response.created", response: { id: responseId, metadata: { beego_turn: itemId, beego_input_items: itemId, beego_action: "advance" } } });
+    paired.send({ type: "response.output_audio_transcript.done", response_id: responseId, transcript: reply });
+    paired.send({ type: "response.done", response: { id: responseId, status: "completed", metadata: { beego_turn: itemId, beego_input_items: itemId }, output: [{ id: `${responseId}-item`, content: [{ transcript: reply }] }] } });
+    paired.send({ type: "response.done", response: { id: responseId, status: "completed", metadata: { beego_turn: itemId, beego_input_items: itemId }, output: [{ id: `${responseId}-item`, content: [{ transcript: reply }] }] } });
+  };
+  speak("u-name", null, "My name is Nan.", "r-name", "What's your name?");
+  speak("u-job", "u-name", "Allies my team", "r-job", "What do you do?");
+  speak("u-home", "u-job", "I live in Ojibwe City.", "r-home", "Where do you live?");
+  assert.deepEqual(paired.state.turns.map((turn) => turn.text), [
+    "My name is Nan.", "What's your name?",
+    "Allies my team", "What do you do?",
+    "I live in Ojibwe City.", "Where do you live?",
+  ]);
+  assert.equal(paired.state.turns.filter((turn) => turn.text === "My name is Nan.").length, 1);
+  const split = session();
+  split.send({ type: "input_audio_buffer.committed", item_id: "part-a" });
+  split.send({ type: "conversation.item.input_audio_transcription.completed", item_id: "part-a", transcript: "I live" });
+  split.send({ type: "input_audio_buffer.committed", item_id: "part-b", previous_item_id: "part-a" });
+  split.send({ type: "conversation.item.input_audio_transcription.completed", item_id: "part-b", transcript: "in the city." });
+  split.send({ type: "response.created", response: { id: "r-split", metadata: { beego_turn: "part-a", beego_input_items: "part-a,part-b", beego_action: "advance" } } });
+  split.send({ type: "response.output_audio_transcript.done", response_id: "r-split", transcript: "Do you like living there?" });
+  assert.deepEqual(split.state.turns.map((turn) => `${turn.role}:${turn.text}`), [
+    "user:I live", "user:in the city.", "tutor:Do you like living there?",
+  ]);
+  const heard = learnCallCaptionView(paired.state, { realtime: true, target: { requestId: paired.state.turns[0].requestId, role: "user" } });
+  const tutorTurn = paired.state.turns.find((turn) => turn.role === "tutor");
+  const immediate = learnCallShownCaption(
+    { role: "tutor", text: tutorTurn.text, label: "MS LINH", pending: false },
+    { text: "", until: 0, requestId: 0 },
+    1000,
+    2500,
+    learnCallLearnerBeforeTutor(paired.state, tutorTurn.requestId),
+  );
+  assert.equal(immediate.view.role, "user");
+  assert.equal(immediate.view.text, "My name is Nan.");
+  const held = learnCallShownCaption({ ...heard, role: "tutor", text: "What's your name?", label: "MS LINH" }, { text: heard.text, until: 3000 }, 1000);
+  assert.equal(held.view.role, "user");
+  assert.equal(held.view.text, "My name is Nan.");
+  const released = learnCallShownCaption({ role: "tutor", text: "What's your name?", label: "MS LINH", pending: false }, { text: heard.text, until: 3000 }, 4000);
+  assert.equal(released.view.role, "tutor");
 
   const errors = session();
   errors.send({ type: "conversation.item.input_audio_transcription.failed", item_id: "bad", error: { message: "Unintelligible audio" } });

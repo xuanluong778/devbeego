@@ -181,7 +181,11 @@ await coordinator.observe(mapRealtimeEvent({ type: 'conversation.item.input_audi
 check('Realtime requests approved line before audio, once per learner item ID', () => {
   assert.equal(requests, 1); assert.equal(sent.length, 1);
   assert.equal(sent[0].response.metadata.beego_action, 'advance');
+  assert.equal(sent[0].response.metadata.beego_turn, 'audio-item-1');
+  assert.equal(sent[0].response.metadata.beego_input_items, 'audio-item-1');
+  assert.equal(sent[0].response.conversation, 'none');
   assert.match(sent[0].response.instructions, /You work in tech/);
+  assert.doesNotMatch(sent[0].response.instructions, /Thanks\. /);
   assert.equal(learnCallTurnDetection('auto').create_response, false);
   assert.equal(learnCallTurnDetection('manual'), null);
   assert.doesNotMatch(JSON.stringify(coordinator.trace()), /Technology|thirty|forty/);
@@ -191,6 +195,27 @@ await coordinator.observe({ type: 'user_transcript_final', itemId: 'audio-item-1
 coordinator.connect('seed-17');
 await coordinator.observe({ type: 'user_transcript_final', itemId: 'audio-item-1', text: 'Technology' });
 check('coordinator suppresses duplicate/reconnect playback', () => { assert.equal(requests, 1); assert.equal(sent.length, 1); });
+const manualSent = [];
+let manualState = setup('home', 'Where do you live?');
+const manualCoordinator = createRealtimeTurnCoordinator({
+  requestTurn: async payload => {
+    const result = planLearnCallPolicy(manualState, { eventId: payload.itemId, text: payload.text, itemIds: payload.itemIds });
+    manualState = result.state;
+    return { decision: result.decision, event: learnCallPolicyResponse(result.decision) };
+  },
+  sendEvent: event => { manualSent.push(event); return true; },
+});
+manualCoordinator.connect('manual-seed');
+manualCoordinator.observe(mapRealtimeEvent({ type: 'input_audio_buffer.committed', item_id: 'manual-item' }));
+await manualCoordinator.observe(mapRealtimeEvent({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'manual-item', transcript: 'I live in Ho Chi Minh City.' }));
+check('manual commit asks the next question once and links that learner item', () => {
+  assert.equal(manualSent.length, 1);
+  assert.equal(manualSent[0].response.conversation, 'none');
+  assert.equal(manualSent[0].response.metadata.beego_turn, 'manual-item');
+  assert.equal(manualSent[0].response.metadata.beego_input_items, 'manual-item');
+  assert.doesNotMatch(manualSent[0].response.instructions, /Thanks\. /);
+  assert.match(manualSent[0].response.instructions, /Do you like living there\?/);
+});
 let delayedNotices = 0;
 let delayedState = setup();
 const delayedCoordinator = createRealtimeTurnCoordinator({
@@ -232,6 +257,7 @@ check('a complete place answer advances; a short or imperfect place answer does 
     assert.equal(decision.action, 'advance', text);
     assert.equal(state.pending.intent, 'home_enjoy', text);
     assert.match(decision.spoken, /\?$/);
+    assert.doesNotMatch(decision.spoken, /^Thanks\./);
     assert.doesNotMatch(decision.spoken, /say|repeat|your turn|slow down|listen/i, text);
   }
 });

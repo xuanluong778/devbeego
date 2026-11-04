@@ -123,7 +123,12 @@ async function browserRun(params) {
     const until = performance.now() + 45000;
     while (!error && !records.some(e => e.type === 'output_audio_buffer.stopped') && performance.now() < until) await new Promise(r => setTimeout(r, 50));
     const failure = error || (!records.some(e => e.type === 'response.done') ? 'RESPONSE_TIMEOUT' : null);
-    if (failure && !params.approvedVideo) throw new Error(failure);
+    if (failure && !params.approvedVideo) {
+      const types = records.reduce((acc, event) => { acc[event.type] = (acc[event.type] || 0) + 1; return acc; }, {});
+      const heard = records.filter(event => event.type === 'conversation.item.input_audio_transcription.completed').map(event => event.transcript);
+      const spoken = records.filter(event => event.type === 'response.output_audio_transcript.done' || event.type === 'response.audio_transcript.done').map(event => event.transcript);
+      throw new Error(`${failure} types=${JSON.stringify(types)} user=${JSON.stringify(heard)} tutor=${JSON.stringify(spoken)} notices=${JSON.stringify(notices)}`);
+    }
     const stats = await pc.getStats(); let inboundBytes = 0;
     stats.forEach(s => { if (s.type === 'inbound-rtp' && s.kind === 'audio') inboundBytes += s.bytesReceived || 0; });
     const user = records.filter(e => e.type === 'conversation.item.input_audio_transcription.completed');

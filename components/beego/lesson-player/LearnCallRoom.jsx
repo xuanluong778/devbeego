@@ -13,6 +13,8 @@ import {
   applyTranscriptEvent,
   createTranscript,
   learnCallCaptionView,
+  learnCallLearnerBeforeTutor,
+  learnCallShownCaption,
   transcriptHasClosing,
   transcriptLastTutor,
 } from "@/lib/beego/learn/learn-call-transcript";
@@ -823,9 +825,17 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     requestId: isRealtime ? undefined : talkRef.current.snapshot().requestId,
     tutorName: tutorLabel,
     captionsOn,
+    pendingCaption: phase === "listening" ? "Đang nghe…" : "Đang nhận dạng…",
   });
-  const caption = captionView.text;
-  const captionRole = captionView.role;
+  const learnerHoldRef = useRef({ text: "", until: 0, requestId: 0 });
+  const pairedLearner = isRealtime && captionView.role === "tutor"
+    ? learnCallLearnerBeforeTutor(transcript, realtimeTutor.captionTarget?.requestId)
+    : null;
+  const shown = isRealtime ? learnCallShownCaption(captionView, learnerHoldRef.current, tick, 2500, pairedLearner) : { view: captionView, remembered: learnerHoldRef.current };
+  learnerHoldRef.current = shown.remembered;
+  const shownCaption = shown.view;
+  const caption = shownCaption.text;
+  const captionRole = shownCaption.role;
   const canReplay = Boolean(transcriptLastTutor(transcript));
 
   const effectiveHints = useMemo(() => {
@@ -896,7 +906,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                     : phase === "transcribing" || phase === "thinking"
                       ? speakControl.hint
                       : "Đến lượt bạn. Bấm để nói.";
-  const captionText = caption || "Chưa có phụ đề cho lượt này.";
+  const captionText = caption || (captionRole === "user" ? "Đang nhận dạng…" : "Chưa có phụ đề cho lượt này.");
   const speakDisabled =
     closing ||
     (!isRealtime && readyState !== "open") ||
@@ -1077,7 +1087,7 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                     GỢI Ý
                   </button>
                 ) : null}
-                <small>{captionView.label}</small>
+                <small>{shownCaption.label}</small>
                 <span className="beego-call-stage__caption-text">{captionText}</span>
                 <LearnCallIpa
                   text={captionRole === "tutor" ? caption : ""}
