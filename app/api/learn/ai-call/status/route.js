@@ -11,12 +11,19 @@ export async function GET(request) {
   let enabled = false;
   if (learnAiCallEnabled()) {
     try {
-      const userId = await getSessionUserIdFromRequest(request);
-      if (userId) {
-        const [users] = await pool.query(`SELECT email FROM users WHERE id = ? LIMIT 1`, [userId]);
-        const email = users?.[0]?.email;
-        const permitted = learnAiCallEmailAllowed(email) || shouldBypassEntitlementsForEmail(email);
-        enabled = permitted && (await learnAiCallGateOpen(getVoiceRedis()));
+      const redis = getVoiceRedis();
+      const gateOpen = await learnAiCallGateOpen(redis);
+      if (gateOpen) {
+        const userId = await getSessionUserIdFromRequest(request);
+        if (userId) {
+          const [users] = await pool.query(`SELECT email FROM users WHERE id = ? LIMIT 1`, [userId]);
+          const email = users?.[0]?.email;
+          enabled = learnAiCallEmailAllowed(email) || shouldBypassEntitlementsForEmail(email);
+        } else {
+          // Khi chưa đăng nhập (khách vãng lai), trạng thái tính năng vẫn bật
+          // để UI trên Tab Học và Tab Luyện nói hiển thị đầy đủ cho người dùng trải nghiệm
+          enabled = true;
+        }
       }
     } catch {
       enabled = false;

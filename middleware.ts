@@ -29,7 +29,13 @@ function isPublicPath(pathname: string): boolean {
   if (/\.(?:ico|png|jpg|jpeg|gif|webp|svg|txt|xml|json|webmanifest|apk|zip|woff2?)$/i.test(pathname)) {
     return true;
   }
-  if (pathname === "/" || pathname === "/quiz" || pathname === "/pronunciation" || pathname === LISTENING_PATH) {
+  if (
+    pathname === "/" ||
+    pathname === "/luyen-noi" ||
+    pathname === "/quiz" ||
+    pathname === "/pronunciation" ||
+    pathname === LISTENING_PATH
+  ) {
     return true;
   }
   if (

@@ -248,7 +248,8 @@ async function runRealtimeTestSuite() {
   assert.equal(sessionConfig.model, "gpt-realtime");
   assert.equal(sessionConfig.instructions, "You are Beego tutor.");
   assert.equal(sessionConfig.audio.output.voice, "alloy");
-  assert.deepEqual(sessionConfig.audio.input.transcription, { model: "whisper-1" });
+  assert.equal(sessionConfig.audio.input.transcription.model, "whisper-1");
+  assert.equal(sessionConfig.audio.input.transcription.language, "en");
   assert.deepEqual(sessionConfig.audio.input.turn_detection, {
     type: "server_vad",
     create_response: false,

@@ -218,9 +218,6 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
               {locked ? (
                 <span className="beego-lesson-match__pick beego-lesson-match__pick--badge">Đã ghép</span>
               ) : null}
-              {selected && !locked ? (
-                <span className="beego-lesson-match__pick beego-lesson-match__pick--badge">Đã chọn</span>
-              ) : null}
             </div>
           );
         }
@@ -248,7 +245,6 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
               <span className="beego-lesson-word-card__num">{order.left.length + index + 1}</span>
               <span className="beego-lesson-word-card__text">{rightShowsVi ? pair.vi : pair.en}</span>
               {locked ? <span className="beego-lesson-match__pick">Đã ghép</span> : null}
-              {selected && !locked ? <span className="beego-lesson-match__pick">Đã chọn</span> : null}
             </button>
           );
         }
@@ -268,7 +264,6 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
           >
             <span>{side === "left" ? pair.en : pair.vi}</span>
             {locked ? <span className="beego-lesson-match__pick">Đã ghép</span> : null}
-            {selected && !locked ? <span className="beego-lesson-match__pick">Đã chọn</span> : null}
           </button>
         );
       })}
@@ -291,7 +286,7 @@ export default function MatchPairsExercise({ exercise, onAnswerChange }) {
         </button>
       ) : null}
       <p className="beego-lesson-match__status" role="status">
-        {hearError || state.message || `Đã ghép ${state.locked.length}/${pairs.length}`}
+        {hearError || (state.message && !state.message.includes("Đã chọn") ? state.message : "") || `Đã ghép ${state.locked.length}/${pairs.length}`}
       </p>
       {state.done ? (
         <p className="beego-lesson-match__summary">{matchSummary(pairs.length, state.mistakes)}</p>

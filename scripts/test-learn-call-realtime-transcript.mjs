@@ -252,20 +252,26 @@ export function runRealtimeTranscriptTests() {
   ]);
   const heard = learnCallCaptionView(paired.state, { realtime: true, target: { requestId: paired.state.turns[0].requestId, role: "user" } });
   const tutorTurn = paired.state.turns.find((turn) => turn.role === "tutor");
+  const pairedLearner = learnCallLearnerBeforeTutor(paired.state, tutorTurn.requestId);
   const immediate = learnCallShownCaption(
     { role: "tutor", text: tutorTurn.text, label: "MS LINH", pending: false },
     { text: "", until: 0, requestId: 0 },
     1000,
     2500,
-    learnCallLearnerBeforeTutor(paired.state, tutorTurn.requestId),
+    pairedLearner,
   );
-  assert.equal(immediate.view.role, "user");
-  assert.equal(immediate.view.text, "My name is Nan.");
-  const held = learnCallShownCaption({ ...heard, role: "tutor", text: "What's your name?", label: "MS LINH" }, { text: heard.text, until: 3000 }, 1000);
-  assert.equal(held.view.role, "user");
-  assert.equal(held.view.text, "My name is Nan.");
+  assert.equal(immediate.view.role, "tutor");
+  assert.equal(immediate.view.text, tutorTurn.text);
+  assert.equal(immediate.learner.role, "user");
+  assert.equal(immediate.learner.text, "My name is Nan.");
+  const held = learnCallShownCaption({ role: "tutor", text: "What's your name?", label: "MS LINH", pending: false }, { text: heard.text, requestId: heard.requestId || pairedLearner?.requestId, until: 3000 }, 1000);
+  assert.equal(held.view.role, "tutor");
+  assert.equal(held.view.text, "What's your name?");
+  assert.equal(held.learner.text, "My name is Nan.");
   const released = learnCallShownCaption({ role: "tutor", text: "What's your name?", label: "MS LINH", pending: false }, { text: heard.text, until: 3000 }, 4000);
   assert.equal(released.view.role, "tutor");
+  assert.equal(released.view.text, "What's your name?");
+  assert.equal(released.learner, null);
 
   const errors = session();
   errors.send({ type: "conversation.item.input_audio_transcription.failed", item_id: "bad", error: { message: "Unintelligible audio" } });

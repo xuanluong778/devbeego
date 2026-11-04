@@ -26,6 +26,8 @@ import InstallAppOffer from "@/components/beego/InstallAppOffer";
 import { LEARNING_PATH_UPDATED_EVENT } from "@/lib/beego/learn/complete-lesson-client";
 import LessonAiConversation from "@/components/beego/lesson-player/LessonAiConversation";
 import LearnLessonCall from "@/components/beego/lesson-player/LearnLessonCall";
+import LearnAiCallCard from "./LearnAiCallCard";
+import { pickGateCallTarget } from "@/lib/beego/learn/ai-call-access";
 
 function resolveSheetKind(node) {
   if (node.status === "locked") return "locked";
@@ -350,6 +352,23 @@ export default function LearnPage() {
               }}
             />
             <TodayForYouCard />
+            <LearnAiCallCard
+              currentTopic={activeSection?.topicTitle || activeSection?.sectionTitle || "Chào hỏi và làm quen"}
+              onStartCall={() => {
+                const targetSec = activeSection || pathData.sections[0];
+                const target = (targetSec ? pickGateCallTarget(targetSec) : null) || {
+                  lessonId: targetSec?.nodes?.[0]?.lessonId || "g01l01",
+                  type: "lesson",
+                  nodeType: "lesson",
+                };
+                openGateCall({
+                  lessonId: target.lessonId,
+                  lessonType: target.type || target.nodeType || "lesson",
+                  sectionId: targetSec?.sectionId || "c50-g01",
+                  topicTitle: targetSec?.topicTitle || targetSec?.sectionTitle || "Chào hỏi và làm quen",
+                });
+              }}
+            />
             <LearnMobileStats
               streak={streak}
               honeyPoints={honeyPoints}

@@ -438,17 +438,19 @@ body.page-lesson-player .page-content {
   width: 100%;
   max-width: 680px;
   margin: 8px auto 0;
-  /* Fixed narrow track for listen controls; meanings take the rest. */
-  grid-template-columns: minmax(0, 8.75rem) minmax(0, 1fr);
+  /* Hai cột phần nghe và phần chọn đáp án có chiều rộng bằng nhau (1fr 1fr) */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .beego-lesson-match--audio .beego-lesson-match__col {
   gap: 12px;
   min-width: 0;
+  width: 100%;
 }
 
 .beego-lesson-match--audio .beego-lesson-match__col:first-child {
-  max-width: 8.75rem;
+  max-width: none;
+  width: 100%;
 }
 
 .beego-lesson-audio-card,
@@ -475,8 +477,8 @@ body.page-lesson-player .page-content {
 
 .beego-lesson-match--audio .beego-lesson-audio-card {
   width: 100%;
-  max-width: 8.75rem;
-  padding-right: 4px;
+  max-width: none;
+  padding-right: 8px;
 }
 
 .beego-lesson-audio-card__body {
@@ -527,8 +529,8 @@ body.page-lesson-player .page-content {
   gap: 2px;
   height: 22px;
   min-width: 0;
-  flex: 0 1 40px;
-  max-width: 44px;
+  flex: 0 1 80px;
+  max-width: 84px;
   overflow: hidden;
   color: #2f9bff;
   pointer-events: none;
@@ -559,7 +561,7 @@ body.page-lesson-player .page-content {
 
 .beego-lesson-audio-card.is-locked,
 .beego-lesson-word-card.is-locked {
-  opacity: 0.5;
+  opacity: 0.38;
   cursor: default;
   box-shadow: none;
   animation: beego-match-lock 0.48s ease;
@@ -604,7 +606,10 @@ body.page-lesson-player .page-content {
 .beego-lesson-audio-card.is-selected,
 .beego-lesson-word-card.is-selected {
   border-color: #2f9bff;
-  box-shadow: 0 0 0 3px rgba(47, 155, 255, 0.16);
+  box-shadow: 0 0 0 3px rgba(47, 155, 255, 0.22);
+  opacity: 0.55;
+  background: #f8fafc;
+  transition: opacity 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
 .beego-lesson-audio-card.is-selected .beego-lesson-audio-card__num,
@@ -713,6 +718,8 @@ body.page-lesson-player .page-content {
 .beego-lesson-match__item--selected {
   border-color: #7c3aed;
   background: #f5f3ff;
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
 }
 
 .beego-lesson-match__item--locked {
@@ -2853,6 +2860,34 @@ body.page-lesson-player .page-content {
   padding-left: 1.2em;
 }
 
+.beego-call-stage__learner-line {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 0 8px;
+  padding: 8px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(94, 240, 255, 0.28);
+  background: rgba(8, 28, 48, 0.72);
+  text-align: left;
+}
+
+.beego-call-stage__learner-line small {
+  display: block;
+  color: #9be7ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  margin-bottom: 2px;
+}
+
+.beego-call-stage__learner-line span {
+  display: block;
+  color: #e8fbff;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
 .beego-call-stage__caption {
   position: relative;
   width: 100%;
@@ -4025,18 +4060,20 @@ body.page-lesson-player .page-content {
   }
 
   .beego-lesson-match--audio .beego-lesson-match__cols {
-    gap: 8px 10px;
-    grid-template-columns: minmax(0, 7.75rem) minmax(0, 1fr);
+    gap: 8px 8px;
+    /* Trên mobile và tablet 2 cột vẫn bằng nhau 1fr 1fr */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .beego-lesson-match--audio .beego-lesson-match__col:first-child,
   .beego-lesson-match--audio .beego-lesson-audio-card {
-    max-width: 7.75rem;
+    max-width: none;
+    width: 100%;
   }
 
   .beego-lesson-match--audio .beego-lesson-audio-card__wave {
-    flex-basis: 34px;
-    max-width: 38px;
+    flex-basis: 36px;
+    max-width: 48px;
   }
 
   .beego-lesson-match--audio .beego-lesson-audio-card__icon {

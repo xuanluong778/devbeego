@@ -3872,3 +3872,190 @@ body.page-learn-path .beego-shell-main {
     transform: none;
   }
 }
+
+/* ========================================================
+   Gia Sư AI 1:1 Banner Card trên Tab Học
+   ======================================================== */
+.beego-learn-ai-call-card {
+  margin: 0 12px 16px;
+  padding: 16px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%);
+  color: #ffffff;
+  box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.35), 0 8px 10px -6px rgba(79, 70, 229, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.beego-learn-ai-call-card::before {
+  content: "";
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(253, 224, 71, 0.3) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.beego-learn-ai-call-card__badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.beego-learn-ai-call-card__live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.25);
+  border: 1px solid rgba(110, 231, 183, 0.6);
+  color: #a7f3d0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.beego-learn-ai-call-card__pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px #34d399;
+  animation: beegoPulseDot 2s infinite ease-in-out;
+}
+
+@keyframes beegoPulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.beego-learn-ai-call-card__tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fef08a;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.beego-learn-ai-call-card__body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.beego-learn-ai-call-card__avatar-wrap {
+  position: relative;
+  flex: 0 0 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.beego-learn-ai-call-card__avatar {
+  font-size: 1.7rem;
+}
+
+.beego-learn-ai-call-card__avatar-bee {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  font-size: 0.95rem;
+}
+
+.beego-learn-ai-call-card__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.beego-learn-ai-call-card__title {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.beego-learn-ai-call-card__desc {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #e0e7ff;
+}
+
+.beego-learn-ai-call-card__desc strong {
+  color: #fef08a;
+  font-weight: 700;
+}
+
+.beego-learn-ai-call-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.beego-learn-ai-call-card__btn-call {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.beego-learn-ai-call-card__btn-call:hover {
+  background: #d97706;
+  transform: translateY(-1px);
+}
+
+.beego-learn-ai-call-card__btn-call:active {
+  transform: translateY(1px);
+}
+
+.beego-learn-ai-call-card__btn-explore {
+  display: inline-flex;
+  align-items: center;
+  color: #e0e7ff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.beego-learn-ai-call-card__btn-explore:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+@media (min-width: 900px) {
+  .beego-learn-ai-call-card {
+    margin: 0 0 16px;
+    padding: 20px;
+  }
+}

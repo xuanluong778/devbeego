@@ -828,14 +828,17 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
     pendingCaption: phase === "listening" ? "Đang nghe…" : "Đang nhận dạng…",
   });
   const learnerHoldRef = useRef({ text: "", until: 0, requestId: 0 });
+  const tutorStickyRef = useRef(null);
+  if (captionView.role === "tutor" && captionView.text) tutorStickyRef.current = captionView;
   const pairedLearner = isRealtime && captionView.role === "tutor"
     ? learnCallLearnerBeforeTutor(transcript, realtimeTutor.captionTarget?.requestId)
     : null;
-  const shown = isRealtime ? learnCallShownCaption(captionView, learnerHoldRef.current, tick, 2500, pairedLearner) : { view: captionView, remembered: learnerHoldRef.current };
+  const shown = learnCallShownCaption(captionView, learnerHoldRef.current, tick, 2500, pairedLearner);
   learnerHoldRef.current = shown.remembered;
-  const shownCaption = shown.view;
-  const caption = shownCaption.text;
-  const captionRole = shownCaption.role;
+  const robotCaption = captionView.role === "tutor" ? shown.view : (tutorStickyRef.current || { text: openingCaption, role: "tutor", label: tutorLabel, pending: false });
+  const learnerCaption = shown.learner;
+  const caption = robotCaption?.text || "";
+  const captionRole = "tutor";
   const canReplay = Boolean(transcriptLastTutor(transcript));
 
   const effectiveHints = useMemo(() => {
@@ -906,7 +909,8 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
                     : phase === "transcribing" || phase === "thinking"
                       ? speakControl.hint
                       : "Đến lượt bạn. Bấm để nói.";
-  const captionText = caption || (captionRole === "user" ? "Đang nhận dạng…" : "Chưa có phụ đề cho lượt này.");
+  const captionText = caption || openingCaption || "Chưa có phụ đề cho lượt này.";
+  const learnerText = learnerCaption?.text || (captionView.role === "user" && captionView.pending ? captionView.text : "");
   const speakDisabled =
     closing ||
     (!isRealtime && readyState !== "open") ||
@@ -1070,31 +1074,39 @@ export default function LearnCallRoom({ token, sessionId, wsUrl, offer,
               ))}
             </div>
             {captionsOn ? (
-              <div
-                className={`beego-call-stage__caption${captionRole === "tutor" && caption ? " has-ipa" : ""}${!ended ? " has-hint" : ""}${ipaExpanded ? " is-ipa-open" : ""}`}
-                aria-live="polite"
-              >
-                {!ended ? (
-                  <button
-                    type="button"
-                    className="beego-call-stage__hint-btn"
-                    aria-pressed={hintsOpen}
-                    aria-expanded={hintsOpen}
-                    aria-controls="beego-call-reply-hints"
-                    onClick={() => setHintsOpen((prev) => !prev)}
-                    title={hintsOpen ? "Ẩn gợi ý trả lời" : "Hiện gợi ý trả lời"}
-                  >
-                    GỢI Ý
-                  </button>
+              <>
+                {learnerText ? (
+                  <div className="beego-call-stage__learner-line" aria-live="polite">
+                    <small>BẠN</small>
+                    <span>{learnerText}</span>
+                  </div>
                 ) : null}
-                <small>{shownCaption.label}</small>
-                <span className="beego-call-stage__caption-text">{captionText}</span>
-                <LearnCallIpa
-                  text={captionRole === "tutor" ? caption : ""}
-                  enabled={captionRole === "tutor" && Boolean(caption)}
-                  onExpandedChange={setIpaExpanded}
-                />
-              </div>
+                <div
+                  className={`beego-call-stage__caption${caption ? " has-ipa" : ""}${!ended ? " has-hint" : ""}${ipaExpanded ? " is-ipa-open" : ""}`}
+                  aria-live="polite"
+                >
+                  {!ended ? (
+                    <button
+                      type="button"
+                      className="beego-call-stage__hint-btn"
+                      aria-pressed={hintsOpen}
+                      aria-expanded={hintsOpen}
+                      aria-controls="beego-call-reply-hints"
+                      onClick={() => setHintsOpen((prev) => !prev)}
+                      title={hintsOpen ? "Ẩn gợi ý trả lời" : "Hiện gợi ý trả lời"}
+                    >
+                      GỢI Ý
+                    </button>
+                  ) : null}
+                  <small>{robotCaption?.label || tutorLabel}</small>
+                  <span className="beego-call-stage__caption-text">{captionText}</span>
+                  <LearnCallIpa
+                    text={caption}
+                    enabled={Boolean(caption)}
+                    onExpandedChange={setIpaExpanded}
+                  />
+                </div>
+              </>
             ) : (
               <div className="beego-call-stage__caption is-off">
                 <small>PHỤ ĐỀ ĐANG TẮT</small>

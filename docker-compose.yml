@@ -1,56 +1,49 @@
-name: beego
+name: dev_beego
 
 services:
   mysql:
     image: mysql:8.0
-    container_name: beego-mysql
+    container_name: dev-beego-mysql
     restart: unless-stopped
     command: ["mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--bind-address=0.0.0.0"]
     env_file: .env.docker
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: beego_vn
+      MYSQL_DATABASE: beego_vn_dev
       MYSQL_USER: beego_app
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
-      - beego_mysql_data:/var/lib/mysql
+      - dev_beego_mysql_data:/var/lib/mysql
       - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "127.0.0.1:3307:3306"
+      - "127.0.0.1:3317:3306"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
       interval: 10s
       timeout: 5s
       retries: 30
       start_period: 40s
-    networks: [beego_net]
+    networks: [dev_beego_net]
 
   redis:
     image: redis:7-alpine
-    container_name: beego-redis
+    container_name: dev-beego-redis
     restart: unless-stopped
     command: ["redis-server", "--bind", "0.0.0.0", "--protected-mode", "no", "--appendonly", "yes"]
     volumes:
-      - beego_redis_data:/data
+      - dev_beego_redis_data:/data
     ports:
-      - "127.0.0.1:6399:6379"
+      - "127.0.0.1:6499:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
-    networks: [beego_net]
+    networks: [dev_beego_net]
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_APP_URL: https://dev.beego.vn
-        NEXT_PUBLIC_VOICE_WS_URL: wss://dev.beego.vn/voice
-        LEARN_AI_CALL_WS_URL: wss://dev.beego.vn/voice-learn
-    image: beego-app:latest
-    container_name: beego-web
+    image: dev-beego-app:latest
+    container_name: dev-beego-web
     restart: unless-stopped
     env_file: .env.docker
     environment:
@@ -63,18 +56,25 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "127.0.0.1:3025:3025"
+      - "127.0.0.1:3125:3025"
+    volumes:
+      - ./.next:/app/.next
+      - ./app:/app/app
+      - ./components:/app/components
+      - ./lib:/app/lib
+      - ./public:/app/public
+      - ./scripts:/app/scripts
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3025/api/health"]
       interval: 15s
       timeout: 5s
       retries: 20
       start_period: 40s
-    networks: [beego_net]
+    networks: [dev_beego_net]
 
   voice-gateway:
-    image: beego-app:latest
-    container_name: beego-voice-gateway
+    image: dev-beego-app:latest
+    container_name: dev-beego-voice-gateway
     restart: unless-stopped
     env_file: .env.docker
     environment:
@@ -89,12 +89,15 @@ services:
       redis: { condition: service_healthy }
       web: { condition: service_started }
     ports:
-      - "127.0.0.1:3031:3031"
-    networks: [beego_net]
+      - "127.0.0.1:3131:3031"
+    volumes:
+      - ./lib:/app/lib
+      - ./scripts:/app/scripts
+    networks: [dev_beego_net]
 
   voice-llm:
-    image: beego-app:latest
-    container_name: beego-voice-llm
+    image: dev-beego-app:latest
+    container_name: dev-beego-voice-llm
     restart: unless-stopped
     env_file: .env.docker
     environment:
@@ -105,11 +108,14 @@ services:
     depends_on:
       redis: { condition: service_healthy }
       web: { condition: service_started }
-    networks: [beego_net]
+    volumes:
+      - ./lib:/app/lib
+      - ./scripts:/app/scripts
+    networks: [dev_beego_net]
 
   voice-tts:
-    image: beego-app:latest
-    container_name: beego-voice-tts
+    image: dev-beego-app:latest
+    container_name: dev-beego-voice-tts
     restart: unless-stopped
     env_file: .env.docker
     environment:
@@ -120,11 +126,14 @@ services:
     depends_on:
       redis: { condition: service_healthy }
       web: { condition: service_started }
-    networks: [beego_net]
+    volumes:
+      - ./lib:/app/lib
+      - ./scripts:/app/scripts
+    networks: [dev_beego_net]
 
   voice-usage:
-    image: beego-app:latest
-    container_name: beego-voice-usage
+    image: dev-beego-app:latest
+    container_name: dev-beego-voice-usage
     restart: unless-stopped
     env_file: .env.docker
     environment:
@@ -136,11 +145,14 @@ services:
       mysql: { condition: service_healthy }
       redis: { condition: service_healthy }
       web: { condition: service_started }
-    networks: [beego_net]
+    volumes:
+      - ./lib:/app/lib
+      - ./scripts:/app/scripts
+    networks: [dev_beego_net]
 
   voice-gateway-learn:
-    image: beego-app:latest
-    container_name: beego-voice-gateway-learn
+    image: dev-beego-app:latest
+    container_name: dev-beego-voice-gateway-learn
     restart: unless-stopped
     env_file: .env.docker
     environment:
@@ -159,12 +171,15 @@ services:
       redis: { condition: service_healthy }
       web: { condition: service_started }
     ports:
-      - "127.0.0.1:3033:3033"
-    networks: [beego_net]
+      - "127.0.0.1:3133:3033"
+    volumes:
+      - ./lib:/app/lib
+      - ./scripts:/app/scripts
+    networks: [dev_beego_net]
 
   voice-llm-learn:
-    image: beego-app:latest
-    container_name: beego-voice-llm-learn
+    image: dev-beego-app:latest
+    container_name: dev-beego-voice-llm-learn
     restart: unless-stopped
     env_file: .env.docker
     environment:
@@ -178,11 +193,14 @@ services:
     depends_on:
       redis: { condition: service_healthy }
       voice-gateway-learn: { condition: service_started }
-    networks: [beego_net]
+    volumes:
+      - ./lib:/app/lib
+      - ./scripts:/app/scripts
+    networks: [dev_beego_net]
 
   voice-tts-learn:
-    image: beego-app:latest
-    container_name: beego-voice-tts-learn
+    image: dev-beego-app:latest
+    container_name: dev-beego-voice-tts-learn
     restart: unless-stopped
     env_file: .env.docker
     environment:
@@ -196,12 +214,17 @@ services:
     depends_on:
       redis: { condition: service_healthy }
       voice-gateway-learn: { condition: service_started }
-    networks: [beego_net]
+    volumes:
+      - ./lib:/app/lib
+      - ./scripts:/app/scripts
+    networks: [dev_beego_net]
 
 networks:
-  beego_net:
-    name: beego_net
+  dev_beego_net:
+    name: dev_beego_net
 
 volumes:
-  beego_mysql_data:
-  beego_redis_data:
+  dev_beego_mysql_data:
+    name: dev_beego_mysql_data
+  dev_beego_redis_data:
+    name: dev_beego_redis_data
